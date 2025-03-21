@@ -1,19 +1,21 @@
 'use client';
 
 import { usePrivy } from '@privy-io/react-auth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui';
 
 export default function Dashboard() {
     const { login, ready, authenticated, user, logout } = usePrivy();
+    const [loginAttempted, setLoginAttempted] = useState(false);
 
     // Redirect to login if not authenticated
     useEffect(() => {
-        if (ready && !authenticated) {
+        if (ready && !authenticated && !loginAttempted) {
+            setLoginAttempted(true);
             login();
         }
-    }, [ready, authenticated, login]);
+    }, [ready, authenticated, login, loginAttempted]);
 
     if (!ready || !authenticated) {
         return (
@@ -62,7 +64,7 @@ export default function Dashboard() {
                         {user && (
                             <div className="mb-8">
                                 <h2 className="text-xl font-semibold mb-4 text-gray-800">Your Profile</h2>
-                                <div className="bg-green-50 p-6 rounded-lg border border-green-100">
+                                <div className="bg-green-700 p-6 rounded-lg border border-green-100">
                                     {user.email && (
                                         <div className="mb-3">
                                             <span className="font-medium">Email:</span> {user.email.address}

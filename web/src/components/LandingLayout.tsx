@@ -21,9 +21,7 @@ export default function LandingLayout({ children }: LandingLayoutProps) {
                         <Link href="/about" className="text-gray-600 hover:text-green-600">
                             About
                         </Link>
-                        <Link href="/components" className="text-gray-600 hover:text-green-600">
-                            Components
-                        </Link>
+
                         <Button variant="primary" href="/dashboard">Launch App</Button>
                     </nav>
                 </div>

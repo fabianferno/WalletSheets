@@ -29,25 +29,25 @@ export default function Home() {
           <div className="md:w-1/2 md:pl-12">
             <div className="bg-white p-6 rounded-lg shadow-sheets border border-green-100">
               <div className="grid grid-cols-4 gap-1 mb-4">
-                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium">A</div>
-                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium">B</div>
-                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium">C</div>
-                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium">D</div>
+                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium text-lg">A</div>
+                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium text-lg">B</div>
+                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium text-lg">C</div>
+                <div className="h-10 bg-green-50 rounded border border-green-100 flex items-center justify-center text-green-600 font-medium text-lg">D</div>
               </div>
               <div className="grid grid-cols-4 gap-1">
-                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">1</div>
-                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">Data</div>
-                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">0.01 ETH</div>
+                <div className="h-10 bg-gray-50 rounded border border-green-100 flex items-center justify-center font-medium text-gray-700">1</div>
+                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center text-gray-800 font-medium">Product</div>
+                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center text-gray-800 font-medium">0.01 ETH</div>
                 <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">
-                  <span className="inline-block w-4 h-4 bg-green-400 rounded-full"></span>
+                  <span className="inline-block w-4 h-4 bg-green-500 rounded-full"></span>
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-1 mt-1">
-                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">2</div>
-                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">Info</div>
-                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">0.05 ETH</div>
+                <div className="h-10 bg-gray-50 rounded border border-green-100 flex items-center justify-center font-medium text-gray-700">2</div>
+                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center text-gray-800 font-medium">Service</div>
+                <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center text-gray-800 font-medium">0.05 ETH</div>
                 <div className="h-10 bg-white rounded border border-green-100 flex items-center justify-center">
-                  <span className="inline-block w-4 h-4 bg-green-400 rounded-full"></span>
+                  <span className="inline-block w-4 h-4 bg-green-500 rounded-full"></span>
                 </div>
               </div>
             </div>
