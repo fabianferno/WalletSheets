@@ -1,0 +1,33 @@
+{
+    "name": "google-sheets-api-client",
+    "version": "1.0.0",
+    "description": "A client for interacting with Google Sheets API",
+    "main": "dist/scripts/sheets.api.js",
+    "types": "dist/scripts/sheets.api.d.ts",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "start": "node dist/scripts/example.js",
+        "example": "ts-node example.ts",
+        "lint": "tsc --noEmit"
+    },
+    "keywords": [
+        "google",
+        "sheets",
+        "api"
+    ],
+    "author": "Fabian Ferno <fabianferno@gmail.com>",
+    "license": "MIT",
+    "dependencies": {
+        "dotenv": "^16.4.7",
+        "google-auth-library": "^9.15.1",
+        "googleapis": "^148.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.13.11",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.8.2"
+    },
+    "repository": "https://github.com/fabianferno/gsaw"
+}
