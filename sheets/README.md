@@ -91,3 +91,29 @@ The client provides numerous methods for working with spreadsheets:
   
 - **Search**:
   - `searchInSheet(sheetName, searchValue)` - Search for a value in a sheet
+
+## Additional Features
+
+### Ethereum Wallet Portfolio Tracker
+
+This project now includes an Ethereum wallet tracker that:
+
+1. Reads a wallet address from a "Settings" sheet
+2. Displays token balances in a "Hold Wallet" sheet  
+3. Shows transaction history in a "Spot Wallet" sheet
+
+To set up the wallet tracker:
+
+```bash
+# Install required dependencies
+yarn add ethers axios
+
+# Create or update your .env file with:
+# - GOOGLE_SHEET_ID: Your Google Sheet ID
+# - ETHERSCAN_API_KEY: (Optional) For better rate limits
+
+# Run the portfolio update
+yarn update-portfolio
+```
+
+For detailed instructions, see [WALLET_README.md](./WALLET_README.md).

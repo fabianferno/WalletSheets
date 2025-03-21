@@ -10,6 +10,7 @@
         "dev": "tsc --watch",
         "start": "node dist/scripts/example.js",
         "example": "ts-node example.ts",
+        "update-portfolio": "ts-node update-portfolio.ts",
         "lint": "tsc --noEmit"
     },
     "keywords": [
@@ -20,7 +21,10 @@
     "author": "Fabian Ferno <fabianferno@gmail.com>",
     "license": "MIT",
     "dependencies": {
+        "@types/axios": "^0.14.4",
+        "axios": "^1.8.4",
         "dotenv": "^16.4.7",
+        "ethers": "^6.13.5",
         "google-auth-library": "^9.15.1",
         "googleapis": "^148.0.0"
     },
