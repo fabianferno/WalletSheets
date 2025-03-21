@@ -3,6 +3,7 @@
 import { usePrivy } from '@privy-io/react-auth';
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { Button } from '@/components/ui';
 
 export default function Dashboard() {
     const { login, ready, authenticated, user, logout } = usePrivy();
@@ -29,8 +30,8 @@ export default function Dashboard() {
         <div className="min-h-screen bg-gray-50">
             <header className="bg-white shadow-sm">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <Link href="/" className="text-2xl font-bold text-blue-600">
-                        MyApp
+                    <Link href="/" className="text-2xl font-bold text-green-600">
+                        GSAW
                     </Link>
 
                     <div className="flex items-center gap-4">
@@ -43,25 +44,25 @@ export default function Dashboard() {
                             </div>
                         )}
 
-                        <button
+                        <Button
                             onClick={() => logout()}
-                            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                            variant="outline"
                         >
                             Disconnect
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </header>
 
             <main className="container mx-auto px-4 py-12">
                 <div className="max-w-4xl mx-auto">
-                    <div className="bg-white shadow-md rounded-lg p-8 mb-8">
-                        <h1 className="text-3xl font-bold mb-6">Welcome to Your Dashboard!</h1>
+                    <div className="bg-white shadow-md rounded-lg p-8 mb-8 border border-green-100">
+                        <h1 className="text-3xl font-bold mb-6 text-gray-800">Welcome to Your Spreadsheet Dashboard!</h1>
 
                         {user && (
                             <div className="mb-8">
-                                <h2 className="text-xl font-semibold mb-4">Your Profile</h2>
-                                <div className="bg-gray-50 p-6 rounded-lg">
+                                <h2 className="text-xl font-semibold mb-4 text-gray-800">Your Profile</h2>
+                                <div className="bg-green-50 p-6 rounded-lg border border-green-100">
                                     {user.email && (
                                         <div className="mb-3">
                                             <span className="font-medium">Email:</span> {user.email.address}
@@ -79,36 +80,36 @@ export default function Dashboard() {
                         )}
 
                         <div>
-                            <h2 className="text-xl font-semibold mb-4">Your Web3 Journey</h2>
+                            <h2 className="text-xl font-semibold mb-4 text-gray-800">Your Web3 Spreadsheet</h2>
                             <p className="text-gray-600 mb-4">
-                                You're now connected with Privy! This dashboard is your gateway to interacting
-                                with decentralized applications and managing your digital assets.
+                                You're now connected! This dashboard gives you access to spreadsheet-like features
+                                powered by blockchain technology.
                             </p>
                             <p className="text-gray-600">
-                                Explore the features below to get started with your Web3 journey.
+                                Start creating and managing your data with the familiar interface you love.
                             </p>
                         </div>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-6">
-                        <div className="bg-white shadow-md rounded-lg p-6">
-                            <h3 className="text-lg font-semibold mb-3">Your Wallet</h3>
+                        <div className="bg-white shadow-md rounded-lg p-6 border border-green-100">
+                            <h3 className="text-lg font-semibold mb-3 text-gray-800">My Spreadsheets</h3>
                             <p className="text-gray-600 mb-4">
-                                View your balances, transaction history, and manage your assets.
+                                Access your existing spreadsheets or create a new one to start organizing your data.
                             </p>
-                            <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                Manage Wallet
-                            </button>
+                            <Button variant="primary" className="w-full">
+                                Manage Spreadsheets
+                            </Button>
                         </div>
 
-                        <div className="bg-white shadow-md rounded-lg p-6">
-                            <h3 className="text-lg font-semibold mb-3">Explore DApps</h3>
+                        <div className="bg-white shadow-md rounded-lg p-6 border border-green-100">
+                            <h3 className="text-lg font-semibold mb-3 text-gray-800">Data Integrations</h3>
                             <p className="text-gray-600 mb-4">
-                                Discover and interact with decentralized applications.
+                                Connect your spreadsheets to blockchain data sources and web3 services.
                             </p>
-                            <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                Browse DApps
-                            </button>
+                            <Button variant="primary" className="w-full">
+                                Explore Integrations
+                            </Button>
                         </div>
                     </div>
                 </div>
