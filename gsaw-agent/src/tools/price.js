@@ -1,10 +1,11 @@
-import { Hyperliquid } from "hyperliquid";
-/**
- * Initialize the hyperliquid tool
- */
-export async function initializeHyperliquidTool() {
-    // Add any initialization logic or environment variable checks here
 
+
+/**
+ * Initialize the price tool
+ */
+export async function initializePriceTool() {
+    // Add any initialization logic or environment variable checks here
+    
     // Define examples of how to use this tool
     const examples = [
         {
@@ -30,22 +31,18 @@ export async function initializeHyperliquidTool() {
             finalResponse: "Another example of how the assistant should respond using these tool results."
         }
     ];
-
+    
     return {
-        name: "hyperliquid",
-        description: "Perform any spot trading or leverage trading position on Hyperliquid",
+        name: "price",
+        description: "Fetches the price of any asset that is traded on Hyperliquid",
         examples: examples,
         execute: async (input) => {
             try {
-                console.log(`🔧 Executing hyperliquid tool with input: "${input}"`);
-                const sdk = new Hyperliquid({
-                    privateKey: runtime.getSetting("HYPERLIQUID_PRIVATE_KEY"),
-                    testnet: runtime.getSetting("HYPERLIQUID_TESTNET") === "true",
-                    enableWs: false,
-                });
+                console.log(`🔧 Executing price tool with input: "${input}"`);
+                
                 // Implement your tool logic here
                 // This is where you'd call your API or perform your function
-
+                
                 // Mock response - replace with actual implementation
                 const result = {
                     input,
@@ -55,11 +52,11 @@ export async function initializeHyperliquidTool() {
 
                 return JSON.stringify(result);
             } catch (error) {
-                console.error("Error with hyperliquid tool:", error);
+                console.error("Error with price tool:", error);
                 if (error instanceof Error) {
-                    return `Error executing hyperliquid: ${error.message}`;
+                    return `Error executing price: ${error.message}`;
                 } else {
-                    return "Error executing hyperliquid: An unknown error occurred.";
+                    return "Error executing price: An unknown error occurred.";
                 }
             }
         }

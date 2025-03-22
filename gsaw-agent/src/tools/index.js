@@ -1,5 +1,11 @@
 import { initializeSearchTool } from './search.js';
 import { initializeHyperliquidTool } from './hyperliquid.js';
+import { initializePriceTool } from './price';
+import { initializeTransferTool } from './transfer';
+import { initializeTransactionTool } from './transaction';
+
+
+
 
 
 /**
@@ -9,6 +15,9 @@ export async function loadTools() {
     const toolFactories = [
         initializeSearchTool,
         initializeHyperliquidTool,
+        initializePriceTool,
+        initializeTransferTool,
+        initializeTransactionTool,
         // Add new tool factories here
     ];
 
