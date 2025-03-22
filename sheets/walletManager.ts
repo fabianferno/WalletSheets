@@ -29,39 +29,49 @@ const drive = google.drive("v3");
  */
 async function getAccessibleSheets() {
   try {
-    // Authenticate with the service account
+    console.log(
+      "🔍 Getting accessible sheets using credentials from:",
+      CREDENTIALS_PATH
+    );
     const auth = new google.auth.GoogleAuth({
       keyFile: CREDENTIALS_PATH,
-      scopes: [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-      ],
+      scopes: ["https://www.googleapis.com/auth/drive.readonly"],
     });
-    const authClient = await auth.getClient();
 
-    // List all files the service account has access to (filter to only Google Sheets)
+    console.log("⚙️ Creating Drive API client...");
+    const drive = google.drive({ version: "v3", auth });
+
+    console.log("📡 Making Drive API request to list files...");
     const response = await drive.files.list({
-      // @ts-ignore
-      auth: authClient,
       q: "mimeType='application/vnd.google-apps.spreadsheet'",
       fields: "files(id, name, owners)",
     });
 
-    // Use type assertion to resolve the data property error
-    const responseData = response as unknown as {
-      data: { files: Array<{ id: string; name: string }> };
-    };
-    const files = responseData.data.files;
+    console.log(
+      `✅ Drive API response received. Found ${
+        response.data.files?.length || 0
+      } sheets.`
+    );
 
-    if (!files || files.length === 0) {
-      console.log("No accessible spreadsheets found.");
+    if (!response.data.files) {
+      console.log("❌ No files found or response.data.files is undefined.");
       return [];
     }
 
-    console.log(`Found ${files.length} accessible spreadsheets:`);
-    return files;
+    return response.data.files.map((file) => ({
+      id: file.id!,
+      name: file.name!,
+      owner: file.owners?.[0]?.emailAddress || "unknown",
+    }));
   } catch (error: unknown) {
-    console.error("Error getting accessible sheets:", error);
+    console.error("❌ Error in getAccessibleSheets:", error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
     return [];
   }
 }
@@ -109,13 +119,18 @@ async function getSheetOwnerEmailFromDrive(sheetId: string) {
  */
 async function initializeWalletAgent(sheetId: string) {
   try {
-    console.log(`Initializing wallet agent for sheet: ${sheetId}`);
+    console.log(`🔄 Initializing wallet agent for sheet ${sheetId}...`);
 
-    // Initialize SheetClient
-    const sheetClient = new SheetClient(sheetId);
+    // Create a logger function for this specific sheet
+    const logEvent = (message: string) => {
+      console.log(`[Sheet ${sheetId}] ${message}`);
+    };
 
-    // Create a wrapped logEvent function that uses the sheet client
-    const logEvent = (message: string) => logEventToSheet(sheetClient, message);
+    console.log(
+      `🔑 Creating SheetClient with ID ${sheetId} and credentials from ${CREDENTIALS_PATH}...`
+    );
+    // Create the sheet client
+    const sheetClient = new SheetClient(sheetId, CREDENTIALS_PATH);
 
     // Create a wrapped addTransactionToSheet function that uses the sheet client
     const addTransactionToSheet = (
@@ -128,7 +143,14 @@ async function initializeWalletAgent(sheetId: string) {
     ) => addTxToSheet(sheetClient, txHash, from, to, amount, timestamp, status);
 
     // Initialize sheets
-    await initializeSheets(sheetClient, logEvent);
+    console.log(`📊 Initializing sheets for ${sheetId}...`);
+    try {
+      await initializeSheets(sheetClient, logEvent);
+      console.log(`✅ Sheets initialized successfully for ${sheetId}`);
+    } catch (error) {
+      console.error(`❌ Error initializing sheets for ${sheetId}:`, error);
+      throw error;
+    }
 
     // Try to get the owner email from the settings sheet first
     let ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
