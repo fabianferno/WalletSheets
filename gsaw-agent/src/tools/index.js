@@ -1,4 +1,6 @@
 import { initializeSearchTool } from './search.js';
+import { initializeHyperliquidTool } from './hyperliquid';
+
 
 /**
  * Load all available tools
@@ -6,6 +8,7 @@ import { initializeSearchTool } from './search.js';
 export async function loadTools() {
     const toolFactories = [
         initializeSearchTool,
+        initializeHyperliquidTool,
         // Add new tool factories here
     ];
 

@@ -17,15 +17,14 @@ Services
 
 Tools
 
-1. Debridge Tool for asset bridging
-2. GMX for Perp trading
-3. CoW or any for Spot Trading
-4. ???
+1. 
+2. Hyperliquid for Perp trading
+3. Hyperliquid for Spot Trading
+
 
 Providers
 
 1. Basic usage knowledge provider. Helps with any queries related to the usage. (Cell content access??? )
-
 
 ENV
 

@@ -5,13 +5,12 @@ import { SecretVaultWrapper } from "secretvaults";
 const NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
 export class AgentService {
-    constructor(orgConfig, schemaId) {
+    constructor(nodes) {
         this.tools = [];
         this.tempConversations = {};
         this.initialized = false;
-        this.nillionCollection = null;
-        this.orgConfig = orgConfig;
-        this.SCHEMA_ID = schemaId;
+        this.nillionChatCollection = null;
+        this.nodes = nodes;
         this.user_id = uuidv5("gabriel", NAMESPACE);
     }
 
@@ -28,12 +27,25 @@ export class AgentService {
         // Initialize tools
         this.tools = await loadTools();
         // Initialize Nillion collection
-        this.nillionCollection = new SecretVaultWrapper(
-            this.orgConfig.nodes,
-            this.orgConfig.orgCredentials,
-            this.SCHEMA_ID
+        this.nillionChatCollection = new SecretVaultWrapper(
+            this.nodes,
+            {
+                secretKey: process.env.NILLION_ORG_SECRET_KEY,
+                orgDid: process.env.NILLION_ORG_DID,
+            },
+            process.env.NILLION_CHAT_SCHEMA_ID
         );
-        await this.nillionCollection.init();
+        await this.nillionChatCollection.init();
+
+        this.nillionUserCollection = new SecretVaultWrapper(
+            this.nodes,
+            {
+                secretKey: process.env.NILLION_ORG_SECRET_KEY,
+                orgDid: process.env.NILLION_ORG_DID,
+            },
+            process.env.NILLION_USER_SCHEMA_ID
+        );
+        await this.nillionUserCollection.init();
 
         this.initialized = true;
         console.log("Agent service initialized with Nillion encryption!");
@@ -57,7 +69,7 @@ export class AgentService {
         // Get or create conversation from Nillion or temporary storage
         if (!this.tempConversations[conversationId]) {
             // Try to load from Nillion first
-            const existingConversations = await this.nillionCollection.readFromNodes({
+            const existingConversations = await this.nillionChatCollection.readFromNodes({
                 "_id": conversationId
             });
             console.log(JSON.stringify(existingConversations, null, 2));
@@ -257,7 +269,7 @@ Always use tools when appropriate rather than making up information. Study the e
 
             if (conversationId == 'temp') {
                 console.log(`Saving new conversation to Nillion`);
-                const dataWritten = await this.nillionCollection.writeToNodes([encryptedConversation]);
+                const dataWritten = await this.nillionChatCollection.writeToNodes([encryptedConversation]);
                 const newIds = [
                     ...new Set(dataWritten.map((item) => item.data.created).flat()),
                 ];
@@ -265,7 +277,7 @@ Always use tools when appropriate rather than making up information. Study the e
                 return newIds[0];
             } else {
                 console.log(`Updating existing conversation with ID: ${conversationId} in Nillion`);
-                const updatedData = await this.nillionCollection.updateDataToNodes(
+                const updatedData = await this.nillionChatCollection.updateDataToNodes(
                     encryptedConversation,
                     {
                         _id: conversationId
@@ -326,7 +338,7 @@ Always use tools when appropriate rather than making up information. Study the e
     async getConversations() {
         try {
             // Query Nillion for all conversations for this user
-            const conversations = await this.nillionCollection.readFromNodes({
+            const conversations = await this.nillionChatCollection.readFromNodes({
                 "user_id": this.user_id
             });
 
@@ -344,7 +356,7 @@ Always use tools when appropriate rather than making up information. Study the e
     async deleteConversation(conversationId) {
         try {
             // Delete from Nillion
-            await this.nillionCollection.deleteDataFromNodes({
+            await this.nillionChatCollection.deleteDataFromNodes({
                 "$and": [
                     { "user_id": this.user_id },
                     { "_id": conversationId }
