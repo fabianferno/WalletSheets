@@ -1,13 +1,7 @@
-import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
 import fs from "fs";
 import path from "path";
-
-// Tool definitions
-interface Tool {
-    name: string;
-    description: string;
-    execute: (input: string) => Promise<string>;
-}
+import { Tool } from "../tools/types";
+import { loadTools } from "../tools";
 
 // Message interface
 interface Message {
@@ -36,7 +30,7 @@ export class AgentService {
         console.log("Initializing agent service...");
 
         // Initialize tools
-        await this.initializeTools();
+        this.tools = await loadTools();
 
         // Create data directory if it doesn't exist
         const dataDir = path.join(process.cwd(), 'data');
@@ -46,77 +40,6 @@ export class AgentService {
 
         this.initialized = true;
         console.log("Agent service initialized!");
-    }
-
-    /**
-     * Initialize the available tools
-     */
-    private async initializeTools(): Promise<void> {
-        // Add Tavily search tool if API key is available
-        if (process.env.TAVILY_API_KEY) {
-            try {
-                const tavilySearch = new TavilySearchResults({
-                    apiKey: process.env.TAVILY_API_KEY,
-                    maxResults: 3
-                });
-
-                this.tools.push({
-                    name: "search",
-                    description: "Search the web for current information on a topic or question",
-                    execute: async (query: string) => {
-                        try {
-                            console.log(`🔍 Executing search for: "${query}"`);
-                            const results = await tavilySearch.invoke(query);
-                            return JSON.stringify(results);
-                        } catch (error) {
-                            console.error("Error with search tool:", error);
-                            if (error instanceof Error) {
-                                return `Error performing search: ${error.message}`;
-                            } else {
-                                return "Error performing search: An unknown error occurred.";
-                            }
-                        }
-                    }
-                });
-
-                console.log("✅ Search tool initialized");
-            } catch (error) {
-                console.error("Failed to initialize Tavily search:", error);
-            }
-        } else {
-            console.log("⚠️ TAVILY_API_KEY not set, search tool unavailable");
-        }
-
-        // Add weather tool
-        this.tools.push({
-            name: "weather",
-            description: "Get current weather information for a location",
-            execute: async (location: string) => {
-                try {
-                    console.log(`🌤️ Getting weather for: "${location}"`);
-                    // This is a mock implementation
-                    // In a real scenario, you would call a weather API
-                    const mockWeather = {
-                        location,
-                        temperature: Math.floor(Math.random() * 30) + 5,
-                        condition: ["Sunny", "Cloudy", "Rainy", "Partly Cloudy"][Math.floor(Math.random() * 4)],
-                        humidity: Math.floor(Math.random() * 100),
-                        windSpeed: Math.floor(Math.random() * 30),
-                        updated: new Date().toISOString()
-                    };
-
-                    return JSON.stringify(mockWeather);
-                } catch (error) {
-                    if (error instanceof Error) {
-                        return `Error getting weather: ${error.message}`;
-                    } else {
-                        return "Error getting weather: An unknown error occurred.";
-                    }
-                }
-            }
-        });
-
-        console.log("✅ Weather tool initialized");
     }
 
     /**
