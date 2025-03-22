@@ -71,7 +71,16 @@ export async function handleSessionRequest(
     // Add request to Pending Transactions sheet
     const details = JSON.stringify(requestParams);
     await sheetClient.appendRows(PENDING_TRANSACTIONS_SHEET, [
-      [requestId, connectionId, method, details, "Pending", timestamp],
+      [
+        requestId,
+        connectionId,
+        method,
+        details,
+        "Pending",
+        timestamp,
+        false,
+        false,
+      ],
     ]);
 
     logEvent(`New request: ${method} (${requestId})`);
@@ -119,11 +128,95 @@ export async function monitorRequestApproval(
         const rows = await sheetClient.getSheetValues(
           PENDING_TRANSACTIONS_SHEET
         );
+
         for (let i = 1; i < rows.length; i++) {
           if (rows[i][0] === requestId) {
             const status = rows[i][4];
 
-            if (status === "Approved") {
+            // Check if approve checkbox is checked (column G, index 6)
+            const isApproved = rows[i][6] === "TRUE" || rows[i][6] === true;
+
+            // Check if reject checkbox is checked (column H, index 7)
+            const isRejected = rows[i][7] === "TRUE" || rows[i][7] === true;
+
+            if (isApproved) {
+              // Update status to "Approved"
+              await sheetClient.setCellValue(
+                PENDING_TRANSACTIONS_SHEET,
+                i + 1,
+                "E",
+                "Approved"
+              );
+
+              // Process the approved request
+              await processRequest(
+                wcRequestId,
+                method,
+                params,
+                wallet,
+                topic,
+                web3wallet,
+                addTransactionToSheet,
+                logEvent
+              );
+
+              // Clear the checkboxes
+              await sheetClient.setCellValue(
+                PENDING_TRANSACTIONS_SHEET,
+                i + 1,
+                "G",
+                false
+              );
+              await sheetClient.setCellValue(
+                PENDING_TRANSACTIONS_SHEET,
+                i + 1,
+                "H",
+                false
+              );
+
+              logEvent(`Request ${requestId} approved and processed`);
+              return; // Stop checking
+            } else if (isRejected) {
+              // Update status to "Rejected"
+              await sheetClient.setCellValue(
+                PENDING_TRANSACTIONS_SHEET,
+                i + 1,
+                "E",
+                "Rejected"
+              );
+
+              // Reject the request
+              await web3wallet.respondSessionRequest({
+                topic,
+                response: {
+                  id: wcRequestId,
+                  jsonrpc: "2.0",
+                  error: {
+                    code: 4001,
+                    message: "User rejected the request",
+                  },
+                },
+              });
+
+              // Clear the checkboxes
+              await sheetClient.setCellValue(
+                PENDING_TRANSACTIONS_SHEET,
+                i + 1,
+                "G",
+                false
+              );
+              await sheetClient.setCellValue(
+                PENDING_TRANSACTIONS_SHEET,
+                i + 1,
+                "H",
+                false
+              );
+
+              logEvent(`Request ${requestId} rejected`);
+              return; // Stop checking
+            }
+            // If status is already approved/rejected but not handled by the checkboxes
+            else if (status === "Approved") {
               // Process the approved request
               await processRequest(
                 wcRequestId,
@@ -157,7 +250,7 @@ export async function monitorRequestApproval(
         }
 
         // Continue checking
-        setTimeout(checkStatus, 10000); // Check every 10 seconds
+        setTimeout(checkStatus, 5000); // Check every 5 seconds (reduced for faster checkbox response)
       } catch (error: unknown) {
         logEvent(
           `Error checking request status: ${
@@ -220,13 +313,13 @@ export async function processRequest(
         // Send a transaction
         const txParams = params[0];
         const provider = new ethers.JsonRpcProvider(
-          process.env.ETH_RPC_URL || "https://rpc.ankr.com/eth_goerli"
+          process.env.ETH_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc"
         );
         const connectedWallet = wallet.connect(provider);
 
         const tx = await connectedWallet.sendTransaction({
           to: txParams.to,
-          value: txParams.value ? ethers.parseEther(txParams.value) : 0,
+          value: txParams.value ? ethers.toBigInt(txParams.value) : BigInt(0),
           data: txParams.data || "0x",
           gasLimit: txParams.gas ? ethers.toBigInt(txParams.gas) : undefined,
         });
@@ -721,7 +814,7 @@ export async function connectToDApp(
             ? wallet.address
             : `0x${wallet.address}`;
 
-          const chainId = "1"; // Default to Ethereum mainnet
+          const chainId = "421614"; // Arbitrum Sepolia
           const caipAddress = `eip155:${chainId}:${formattedAddress}`;
           logEvent(`[DEBUG] Formatted CAIP-10 address: ${caipAddress}`);
 
