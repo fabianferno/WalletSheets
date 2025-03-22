@@ -2,6 +2,8 @@ import { ethers } from "ethers";
 import {
   PENDING_TRANSACTIONS_SHEET,
   ACTIVE_SESSIONS_SHEET,
+  clearCompletedTransactions,
+  addCheckboxesToRow,
 } from "./sheetUtils";
 import { SheetClient } from "../sheets.api";
 
@@ -82,6 +84,26 @@ export async function handleSessionRequest(
         false,
       ],
     ]);
+
+    // Get the row number where this was added
+    const values = await sheetClient.getSheetValues(PENDING_TRANSACTIONS_SHEET);
+    let rowIndex = -1;
+
+    // Find the row that contains our request ID
+    for (let i = 0; i < values.length; i++) {
+      if (values[i][0] === requestId) {
+        rowIndex = i + 1; // Convert to 1-based index
+        break;
+      }
+    }
+
+    // Add checkboxes to this specific row
+    if (rowIndex > 0) {
+      await addCheckboxesToRow(sheetClient, rowIndex, logEvent);
+      logEvent(
+        `Added approval checkboxes to request ${requestId} at row ${rowIndex}`
+      );
+    }
 
     logEvent(`New request: ${method} (${requestId})`);
 
@@ -175,6 +197,10 @@ export async function monitorRequestApproval(
               );
 
               logEvent(`Request ${requestId} approved and processed`);
+
+              // Clear completed transactions
+              await clearCompletedTransactions(sheetClient, logEvent);
+
               return; // Stop checking
             } else if (isRejected) {
               // Update status to "Rejected"
@@ -213,6 +239,10 @@ export async function monitorRequestApproval(
               );
 
               logEvent(`Request ${requestId} rejected`);
+
+              // Clear completed transactions
+              await clearCompletedTransactions(sheetClient, logEvent);
+
               return; // Stop checking
             }
             // If status is already approved/rejected but not handled by the checkboxes
@@ -228,6 +258,10 @@ export async function monitorRequestApproval(
                 addTransactionToSheet,
                 logEvent
               );
+
+              // Clear completed transactions
+              await clearCompletedTransactions(sheetClient, logEvent);
+
               return; // Stop checking
             } else if (status === "Rejected") {
               // Reject the request
@@ -244,6 +278,10 @@ export async function monitorRequestApproval(
               });
 
               logEvent(`Request ${requestId} rejected`);
+
+              // Clear completed transactions
+              await clearCompletedTransactions(sheetClient, logEvent);
+
               return; // Stop checking
             }
           }

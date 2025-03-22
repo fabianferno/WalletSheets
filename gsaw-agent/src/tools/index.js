@@ -1,5 +1,4 @@
 import { initializeSearchTool } from "./search.js";
-import { initializeHyperliquidTool } from "./trade.js";
 import { initializePriceTool } from "./price.js";
 import { initializeTransferTool } from "./transfer.js";
 import { initializeTransactionTool } from "./transaction.js";
@@ -9,11 +8,9 @@ import { initializeTransactionTool } from "./transaction.js";
  */
 export async function loadTools() {
   const toolFactories = [
-    initializeSearchTool,
-    initializeHyperliquidTool,
     initializePriceTool,
-    initializeTransferTool,
-    initializeTransactionTool,
+    // initializeTransferTool,
+    // initializeTransactionTool,
     // Add new tool factories here
   ];
 
@@ -31,7 +28,7 @@ export async function loadTools() {
         console.error("Failed to initialize tool:", error);
         return null;
       }
-    }),
+    })
   );
 
   // Filter out any null results
