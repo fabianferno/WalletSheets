@@ -11,6 +11,7 @@ import {
   updatePendingTransactionsSheet,
   forceUpdatePendingTransactions,
   checkStuckTransactions,
+  monitorChatSheet,
 } from "./utils/sheetUtils";
 import { initializeWalletConnect } from "./utils/walletConnectUtils";
 import { monitorDAppConnections } from "./utils/sessionUtils";
@@ -199,6 +200,10 @@ async function initializeWalletAgent(sheetId: string) {
 
     // Set up periodic stuck transaction checker
     setupStuckTransactionChecker(sheetClient, wallet, logEvent);
+
+    // Start monitoring the Chat sheet
+    monitorChatSheet(sheetClient, logEvent);
+    logEvent("Chat monitoring started");
 
     logEvent("Agent initialized successfully!");
     console.log(`Wallet Address for ${sheetId}: ${wallet.address}`);
