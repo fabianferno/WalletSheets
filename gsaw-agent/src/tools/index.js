@@ -1,18 +1,17 @@
-import { Tool, ToolFactory } from './types';
-import { initializeSearchTool } from './search';
-import { initializeWeatherTool } from './weather';
+import { initializeSearchTool } from './search.js';
+import { initializeWeatherTool } from './weather.js';
 
 /**
  * Load all available tools
  */
-export async function loadTools(): Promise<Tool[]> {
-    const toolFactories: ToolFactory[] = [
+export async function loadTools() {
+    const toolFactories = [
         initializeSearchTool,
         initializeWeatherTool,
         // Add new tool factories here
     ];
 
-    const tools: Tool[] = [];
+    const tools = [];
 
     for (const factory of toolFactories) {
         try {

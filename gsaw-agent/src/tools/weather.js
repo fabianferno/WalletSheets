@@ -1,10 +1,8 @@
-import { Tool, ToolExample } from './types';
-
 /**
  * Initialize the weather tool
  */
-export async function initializeWeatherTool(): Promise<Tool> {
-    const examples: ToolExample[] = [
+export async function initializeWeatherTool() {
+    const examples = [
         {
             userQuery: "What's the weather like in New York?",
             toolInput: "New York",
@@ -37,7 +35,7 @@ export async function initializeWeatherTool(): Promise<Tool> {
         name: "weather",
         description: "Get current weather information for a location",
         examples: examples,
-        execute: async (location: string) => {
+        execute: async (location) => {
             try {
                 console.log(`🌤️ Getting weather for: "${location}"`);
                 // This is a mock implementation

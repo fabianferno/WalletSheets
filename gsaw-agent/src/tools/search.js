@@ -1,10 +1,9 @@
 import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
-import { Tool, ToolExample } from './types';
 
 /**
  * Initialize the search tool using Tavily
  */
-export async function initializeSearchTool(): Promise<Tool | null> {
+export async function initializeSearchTool() {
     if (!process.env.TAVILY_API_KEY) {
         console.log("⚠️ TAVILY_API_KEY not set, search tool unavailable");
         return null;
@@ -16,7 +15,7 @@ export async function initializeSearchTool(): Promise<Tool | null> {
             maxResults: 3
         });
 
-        const examples: ToolExample[] = [
+        const examples = [
             {
                 userQuery: "What's the latest news about SpaceX Starship?",
                 toolInput: "latest SpaceX Starship news",
@@ -47,7 +46,7 @@ export async function initializeSearchTool(): Promise<Tool | null> {
             name: "search",
             description: "Search the web for current information on a topic or question",
             examples: examples,
-            execute: async (query: string) => {
+            execute: async (query) => {
                 try {
                     console.log(`🔍 Executing search for: "${query}"`);
                     const results = await tavilySearch.invoke(query);

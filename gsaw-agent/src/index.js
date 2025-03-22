@@ -1,16 +1,16 @@
-import express, { Response, Request } from 'express';
+import express from 'express';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import readline from 'readline';
-import { AgentService } from './services/AgentService';
-import { conversationsSchemaId, orgConfig } from './config'
+import { AgentService } from './services/AgentService.js';
+import { conversationsSchemaId, orgConfig } from './config.js';
+
 // Load environment variables
 dotenv.config();
 
 // Create agent service
 const agentService = new AgentService(orgConfig, conversationsSchemaId);
-
 
 // Determine if server should run in terminal mode
 const terminalMode = process.argv.includes('--terminal');
@@ -34,13 +34,12 @@ async function runTerminalMode() {
 
     console.log('\n🤖 Agent ready! Type "exit" to quit.\n');
 
-    const askQuestion = (query: string) => new Promise<string>((resolve) => {
+    const askQuestion = (query) => new Promise((resolve) => {
         rl.question(query, resolve);
     });
 
     // Start the conversation loop
-
-    let conversationId = `temp`;
+    let conversationId = `e896594b-0e91-4317-9967-0f381465f92f`;
     while (true) {
         const userInput = await askQuestion('👤 You: ');
 
@@ -87,7 +86,7 @@ function runServerMode() {
     });
 
     // Chat endpoint
-    app.post('/chat', async (req: Request, res: Response): Promise<any> => {
+    app.post('/chat', async (req, res) => {
         try {
             const { message, conversationId = `web-${Date.now()}` } = req.body;
 
