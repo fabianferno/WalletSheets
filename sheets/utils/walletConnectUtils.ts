@@ -20,19 +20,9 @@ export async function initializeWalletConnect(
     const projectId = process.env.PROJECT_ID;
 
     // Validate project ID
-    if (!projectId) {
+    if (!projectId || projectId === "your-project-id") {
       const error =
         "PROJECT_ID environment variable is not set. Please set it in your .env file.";
-      logEvent(`[ERROR] ${error}`);
-      logEvent(
-        `[INFO] Get a free project ID from https://cloud.walletconnect.com/app`
-      );
-      throw new Error(error);
-    }
-
-    if (projectId === "your-project-id") {
-      const error =
-        "Please replace 'your-project-id' with your actual WalletConnect project ID in the .env file.";
       logEvent(`[ERROR] ${error}`);
       logEvent(
         `[INFO] Get a free project ID from https://cloud.walletconnect.com/app`
@@ -57,7 +47,6 @@ export async function initializeWalletConnect(
       url: "https://sheets.google.com",
       icons: ["https://www.google.com/images/about/sheets-icon.svg"],
     };
-    logEvent(`[DEBUG] Using metadata: ${JSON.stringify(metadata)}`);
 
     try {
       logEvent(`[DEBUG] Initializing Web3Wallet with core`);
