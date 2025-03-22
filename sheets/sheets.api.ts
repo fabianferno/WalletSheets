@@ -243,12 +243,22 @@ export class SheetClient {
    * @param values - 2D array of values to set
    */
   async setRangeValues(range: string, values: any[][]): Promise<void> {
+    // Convert boolean values to proper format for Google Sheets checkboxes
+    const processedValues = values.map((row) =>
+      row.map((value) => {
+        if (typeof value === "boolean") {
+          return value; // Pass boolean values directly
+        }
+        return value;
+      })
+    );
+
     await this.sheets.spreadsheets.values.update({
       spreadsheetId: this.sheetId,
       range,
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values,
+        values: processedValues,
       },
     });
   }
@@ -647,6 +657,47 @@ export class SheetClient {
       sum = sum + (columnLetter.charCodeAt(i) - 64);
     }
     return sum;
+  }
+
+  /**
+   * Get metadata about all sheets in the spreadsheet
+   */
+  async getSheetMetadata(): Promise<Array<{ sheetId: number; title: string }>> {
+    const response = await this.sheets.spreadsheets.get({
+      spreadsheetId: this.sheetId,
+    });
+
+    if (!response.data.sheets) {
+      return [];
+    }
+
+    const sheets: Array<{ sheetId: number; title: string }> = [];
+
+    for (const sheet of response.data.sheets) {
+      const props = sheet.properties;
+      if (
+        props &&
+        typeof props.sheetId === "number" &&
+        typeof props.title === "string"
+      ) {
+        sheets.push({
+          sheetId: props.sheetId,
+          title: props.title,
+        });
+      }
+    }
+
+    return sheets;
+  }
+
+  /**
+   * Apply batch updates to the spreadsheet
+   */
+  async batchUpdate(body: { requests: any[] }): Promise<void> {
+    await this.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: this.sheetId,
+      requestBody: body,
+    });
   }
 }
 
