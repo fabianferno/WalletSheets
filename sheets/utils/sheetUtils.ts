@@ -6,7 +6,6 @@ export const SETTINGS_SHEET = "Settings";
 export const WALLET_EXPLORER_SHEET = "Wallet Explorer";
 export const ACTIVE_SESSIONS_SHEET = "ActiveSessions";
 export const PENDING_TRANSACTIONS_SHEET = "Pending Transactions";
-export const LOGS_SHEET = "Logs";
 
 /**
  * Initialize or get existing sheets
@@ -29,7 +28,6 @@ export async function initializeSheets(
       WALLET_EXPLORER_SHEET,
       ACTIVE_SESSIONS_SHEET,
       PENDING_TRANSACTIONS_SHEET,
-      LOGS_SHEET,
     ];
 
     const missingSheets = requiredSheets.filter(
@@ -64,9 +62,6 @@ export async function initializeSheets(
           break;
         case PENDING_TRANSACTIONS_SHEET:
           await createPendingTransactionsSheet(sheetClient, logEvent);
-          break;
-        case LOGS_SHEET:
-          await createLogsSheet(sheetClient, logEvent);
           break;
       }
     }
@@ -114,9 +109,6 @@ export async function createSheets(
 
     // Create Pending Transactions sheet
     await createPendingTransactionsSheet(sheetClient, logEvent);
-
-    // Create Logs sheet
-    await createLogsSheet(sheetClient, logEvent);
 
     logEvent("All sheets created successfully");
   } catch (error: unknown) {
@@ -363,39 +355,6 @@ export async function createPendingTransactionsSheet(
   } catch (error: unknown) {
     logEvent(
       `Error creating ${PENDING_TRANSACTIONS_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    throw error;
-  }
-}
-
-/**
- * Create Logs sheet
- */
-export async function createLogsSheet(
-  sheetClient: SheetClient,
-  logEvent: Function
-) {
-  try {
-    // Check if sheet exists
-    try {
-      await sheetClient.getSheetValues(LOGS_SHEET);
-      return;
-    } catch {
-      // Create the sheet
-      await sheetClient.createSheet(LOGS_SHEET);
-
-      // Set up headers
-      await sheetClient.setRangeValues(`${LOGS_SHEET}!A1:B1`, [
-        ["Timestamp", "Message"],
-      ]);
-
-      logEvent(`${LOGS_SHEET} sheet created`);
-    }
-  } catch (error: unknown) {
-    logEvent(
-      `Error creating ${LOGS_SHEET} sheet: ${
         error instanceof Error ? error.message : String(error)
       }`
     );
