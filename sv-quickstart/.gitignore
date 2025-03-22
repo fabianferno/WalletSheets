@@ -1,0 +1,8 @@
+.env
+node_modules
+package-lock.json
+data 
+agent-conversation.json
+dist
+nillion-secrets.md
+orgConfig.js
