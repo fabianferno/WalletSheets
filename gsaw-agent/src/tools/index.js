@@ -1,5 +1,4 @@
 import { initializeSearchTool } from './search.js';
-import { initializeWeatherTool } from './weather.js';
 
 /**
  * Load all available tools
@@ -7,7 +6,6 @@ import { initializeWeatherTool } from './weather.js';
 export async function loadTools() {
     const toolFactories = [
         initializeSearchTool,
-        initializeWeatherTool,
         // Add new tool factories here
     ];
 
