@@ -313,7 +313,7 @@ export async function processRequest(
         // Send a transaction
         const txParams = params[0];
         const provider = new ethers.JsonRpcProvider(
-          process.env.ETH_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc"
+          process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
         );
         const connectedWallet = wallet.connect(provider);
 
