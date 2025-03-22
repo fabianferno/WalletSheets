@@ -21,18 +21,19 @@ async function runTerminalMode() {
     output: process.stdout,
   });
 
-  console.log("\n🤖 Agent ready! Type \"exit\" to quit.\n");
+  console.log('\n🤖 Agent ready! Type "exit" to quit.\n');
 
-  const askQuestion = (query) => new Promise((resolve) => {
-    rl.question(query, resolve);
-  });
+  const askQuestion = (query) =>
+    new Promise((resolve) => {
+      rl.question(query, resolve);
+    });
 
   // Create a function to handle each conversation turn
   const processTurn = async (input, currentConversationId) => {
     try {
       const result = await agentService.processMessage(
         input,
-        currentConversationId,
+        currentConversationId
       );
       console.log(`\n🤖 Assistant: ${result.response}\n`);
       return result.conversationId;

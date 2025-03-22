@@ -33,7 +33,7 @@ export class AgentService {
         secretKey: process.env.NILLION_ORG_SECRET_KEY,
         orgDid: process.env.NILLION_ORG_DID,
       },
-      process.env.NILLION_CHAT_SCHEMA_ID,
+      process.env.NILLION_CHAT_SCHEMA_ID
     );
     await this.nillionChatCollection.init();
 
@@ -43,7 +43,7 @@ export class AgentService {
         secretKey: process.env.NILLION_ORG_SECRET_KEY,
         orgDid: process.env.NILLION_ORG_DID,
       },
-      process.env.NILLION_USER_SCHEMA_ID,
+      process.env.NILLION_USER_SCHEMA_ID
     );
     await this.nillionUserCollection.init();
 
@@ -69,13 +69,15 @@ export class AgentService {
     // Get or create conversation from Nillion or temporary storage
     if (!this.tempConversations[conversationId]) {
       // Try to load from Nillion first
-      const existingConversations = await this.nillionChatCollection.readFromNodes({
-        _id: conversationId,
-      });
+      const existingConversations =
+        await this.nillionChatCollection.readFromNodes({
+          _id: conversationId,
+        });
       console.log(JSON.stringify(existingConversations, null, 2));
       if (existingConversations && existingConversations.length > 0) {
         // Convert Nillion format to local format for processing
-        this.tempConversations[conversationId] = existingConversations[0].messages;
+        this.tempConversations[conversationId] =
+          existingConversations[0].messages;
       } else {
         // Create a new conversation with system message
         throw new Error("Something went wrong");
@@ -91,7 +93,7 @@ export class AgentService {
 
     // Get initial response from LLM
     const llmResponse = await this.callNilaiAPI(
-      this.tempConversations[conversationId],
+      this.tempConversations[conversationId]
     );
     console.log(`🤖 Assistant (initial): ${llmResponse}`);
 
@@ -130,10 +132,10 @@ export class AgentService {
 
         // Get final response from LLM
         finalResponse = await this.callNilaiAPI(
-          this.tempConversations[conversationId],
+          this.tempConversations[conversationId]
         );
         console.log(
-          `🤖 Assistant (final): ${finalResponse.substring(0, 100)}...`,
+          `🤖 Assistant (final): ${finalResponse.substring(0, 100)}...`
         );
 
         // Add final response to conversation
@@ -160,7 +162,7 @@ export class AgentService {
 
     // Save conversation to Nillion
     const updatedConversationId = await this.saveConversationToNillion(
-      conversationId,
+      conversationId
     );
 
     return {
@@ -189,7 +191,7 @@ User: "${example.userQuery}"
 Assistant: <tool>${tool.name}: ${example.toolInput}</tool>
 Tool Result: ${example.toolOutput}
 Assistant's Final Response: "${example.finalResponse}"
-`,
+`
           )
           .join("");
 
@@ -224,7 +226,7 @@ Always use tools when appropriate rather than making up information. Study the e
     const encryptedMessages = messages.map((message, index) => {
       // Calculate a reasonable timestamp with 30 second intervals between messages
       const timestamp = new Date(
-        Date.now() - (messages.length - index) * 30000,
+        Date.now() - (messages.length - index) * 30000
       ).toISOString();
 
       return {
@@ -254,13 +256,13 @@ Always use tools when appropriate rather than making up information. Study the e
       console.log(JSON.stringify(conversation, null, 2));
       if (!conversation) {
         console.log(
-          `Conversation with ID: ${conversationId} not found in temporary storage`,
+          `Conversation with ID: ${conversationId} not found in temporary storage`
         );
         throw new Error("Conversation not found");
       }
 
       console.log(
-        `Converting conversation with ID: ${conversationId} to Nillion format`,
+        `Converting conversation with ID: ${conversationId} to Nillion format`
       );
       const encryptedConversation = this.convertToNillionFormat(conversationId);
 
@@ -273,27 +275,27 @@ Always use tools when appropriate rather than making up information. Study the e
           ...new Set(dataWritten.map((item) => item.data.created).flat()),
         ];
         console.log(
-          `Conversation saved with new ID: ${newIds[0]} and encrypted in Nillion`,
+          `Conversation saved with new ID: ${newIds[0]} and encrypted in Nillion`
         );
         return newIds[0];
       }
       console.log(
-        `Updating existing conversation with ID: ${conversationId} in Nillion`,
+        `Updating existing conversation with ID: ${conversationId} in Nillion`
       );
       await this.nillionChatCollection.updateDataToNodes(
         encryptedConversation,
         {
           _id: conversationId,
-        },
+        }
       );
       console.log(
-        `Conversation with ID: ${conversationId} successfully updated in Nillion`,
+        `Conversation with ID: ${conversationId} successfully updated in Nillion`
       );
       return conversationId;
     } catch (error) {
       console.error(
         `Error saving conversation ${conversationId} to Nillion:`,
-        error,
+        error
       );
       throw error;
     }
@@ -313,7 +315,7 @@ Always use tools when appropriate rather than making up information. Study the e
 
     if (!apiUrl || !apiKey) {
       throw new Error(
-        "Missing NILAI_API_URL or NILAI_API_KEY environment variables",
+        "Missing NILAI_API_URL or NILAI_API_KEY environment variables"
       );
     }
 
@@ -360,7 +362,7 @@ Always use tools when appropriate rather than making up information. Study the e
     } catch (error) {
       console.error(
         `Error retrieving conversation history for user ${this.user_id}:`,
-        error,
+        error
       );
       throw error;
     }
@@ -385,7 +387,7 @@ Always use tools when appropriate rather than making up information. Study the e
     } catch (error) {
       console.error(
         `Error deleting conversation ${conversationId} from Nillion:`,
-        error,
+        error
       );
       throw error;
     }
