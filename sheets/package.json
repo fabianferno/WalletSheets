@@ -11,7 +11,8 @@
         "start": "node dist/scripts/example.js",
         "example": "ts-node example.ts",
         "update-portfolio": "ts-node update-portfolio.ts",
-        "lint": "tsc --noEmit"
+        "lint": "tsc --noEmit",
+        "wallet": "ts-node index.ts"
     },
     "keywords": [
         "google",
@@ -22,6 +23,9 @@
     "license": "MIT",
     "dependencies": {
         "@types/axios": "^0.14.4",
+        "@walletconnect/core": "^2.19.1",
+        "@walletconnect/sign-client": "^2.19.1",
+        "@walletconnect/web3wallet": "^1.16.1",
         "axios": "^1.8.4",
         "dotenv": "^16.4.7",
         "ethers": "^6.13.5",
