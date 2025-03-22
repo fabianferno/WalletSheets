@@ -343,39 +343,19 @@ export async function createPendingTransactionsSheet(
         ],
       ]);
 
-      // Format the Approve and Reject columns as checkboxes
-      try {
-        // Simply log that checkboxes need to be set up manually
-        // We'll handle checkbox values through the existing cell value methods
-        logEvent(
-          `Note: Please set up columns G and H as checkboxes in Google Sheets manually`
-        );
-
-        // Add a note at the top of the sheet explaining how to use the checkboxes
-        await sheetClient.setRangeValues(
-          `${PENDING_TRANSACTIONS_SHEET}!A3:H3`,
-          [
-            [
-              "NOTE",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "For approval to work, please format columns G & H as checkboxes",
-              "Right-click column header > Data validation > Checkbox",
-            ],
-          ]
-        );
-      } catch (formatError: unknown) {
-        logEvent(
-          `Warning: Could not set up instructions for checkboxes: ${
-            formatError instanceof Error
-              ? formatError.message
-              : String(formatError)
-          }`
-        );
-      }
+      // Add a note at the top of the sheet explaining how to use the checkboxes
+      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A3:H3`, [
+        [
+          "NOTE",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "Checkboxes appear when transactions are added",
+          "Click to approve or reject",
+        ],
+      ]);
 
       logEvent(`${PENDING_TRANSACTIONS_SHEET} sheet created`);
     }
@@ -571,39 +551,6 @@ export async function updatePendingTransactionsSheet(
           [["Check this box to approve", "Check this box to reject"]]
         );
 
-        // Add note about setting up checkboxes
-        await sheetClient.setRangeValues(
-          `${PENDING_TRANSACTIONS_SHEET}!A3:H3`,
-          [
-            [
-              "NOTE",
-              "",
-              "",
-              "",
-              "",
-              "",
-              "For approval to work, please format columns G & H as checkboxes",
-              "Right-click column header > Data validation > Checkbox",
-            ],
-          ]
-        );
-
-        // Update any existing pending transactions to add checkbox columns
-        if (values.length > 1) {
-          for (let i = 1; i < values.length; i++) {
-            const row = values[i];
-            if (row.length >= 5 && row[4] === "Pending") {
-              // Add empty checkbox cells (false) for this pending row
-              await sheetClient.setRangeValues(
-                `${PENDING_TRANSACTIONS_SHEET}!G${i + 1}:H${i + 1}`,
-                [[false, false]]
-              );
-
-              logEvent(`Updated row ${i + 1} with approval checkboxes`);
-            }
-          }
-        }
-
         logEvent(
           `Successfully updated ${PENDING_TRANSACTIONS_SHEET} sheet with approval/rejection columns`
         );
@@ -631,7 +578,7 @@ export async function forceUpdatePendingTransactions(
   logEvent: Function
 ) {
   try {
-    logEvent(`Force updating all pending transactions to add checkbox columns`);
+    logEvent(`Updating pending transactions with checkbox formatting`);
 
     // First make sure the sheet structure is correct
     await updatePendingTransactionsSheet(sheetClient, logEvent);
@@ -639,39 +586,247 @@ export async function forceUpdatePendingTransactions(
     // Get all rows to find pending transactions
     const values = await sheetClient.getSheetValues(PENDING_TRANSACTIONS_SHEET);
 
-    if (values.length <= 1) {
+    if (values.length <= 3) {
       logEvent(`No transactions found to update`);
       return;
     }
 
     let updatedCount = 0;
 
-    // Start from row 1 (after header)
-    for (let i = 1; i < values.length; i++) {
+    // Start from row 3 (after header and instructions)
+    for (let i = 3; i < values.length; i++) {
       const row = values[i];
-      // Skip instruction/note rows
-      if (i <= 2) continue;
 
       // Check if it's a transaction row
-      if (row.length >= 5) {
+      if (row && row.length >= 5) {
         const status = row[4];
         if (status === "Pending") {
-          // Add checkbox cells if they don't exist or update existing ones
-          await sheetClient.setRangeValues(
-            `${PENDING_TRANSACTIONS_SHEET}!G${i + 1}:H${i + 1}`,
-            [[false, false]]
-          );
-          updatedCount++;
+          // Apply checkbox formatting for this specific row
+          try {
+            const sheets = await sheetClient.getSheetMetadata();
+            const sheet = sheets.find(
+              (s) => s.title === PENDING_TRANSACTIONS_SHEET
+            );
+            if (!sheet) throw new Error("Could not find sheet metadata");
+
+            // Set up checkboxes using cell formatting and checkbox validation for this specific row
+            const requests = [
+              {
+                repeatCell: {
+                  range: {
+                    sheetId: sheet.sheetId,
+                    startRowIndex: i, // Format just this row
+                    endRowIndex: i + 1,
+                    startColumnIndex: 6, // Column G
+                    endColumnIndex: 8, // Column H
+                  },
+                  cell: {
+                    userEnteredFormat: {
+                      horizontalAlignment: "CENTER",
+                      textFormat: {
+                        bold: true,
+                      },
+                    },
+                  },
+                  fields: "userEnteredFormat",
+                },
+              },
+              {
+                setDataValidation: {
+                  range: {
+                    sheetId: sheet.sheetId,
+                    startRowIndex: i, // Validate just this row
+                    endRowIndex: i + 1,
+                    startColumnIndex: 6, // Column G
+                    endColumnIndex: 8, // Column H
+                  },
+                  rule: {
+                    condition: {
+                      type: "BOOLEAN",
+                    },
+                    strict: true,
+                    showCustomUi: true,
+                  },
+                },
+              },
+            ];
+
+            // Apply the formatting
+            await sheetClient.batchUpdate({
+              requests,
+            });
+
+            updatedCount++;
+          } catch (validationError) {
+            logEvent(
+              `Warning: Could not set up checkbox validation for row ${
+                i + 1
+              }: ${
+                validationError instanceof Error
+                  ? validationError.message
+                  : String(validationError)
+              }`
+            );
+          }
         }
       }
     }
 
-    logEvent(
-      `Updated ${updatedCount} pending transactions with checkbox columns`
-    );
+    if (updatedCount > 0) {
+      logEvent(
+        `Updated ${updatedCount} pending transactions with checkbox formatting`
+      );
+    } else {
+      logEvent(`No pending transactions found to update`);
+    }
   } catch (error: unknown) {
     logEvent(
       `Error force updating pending transactions: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+/**
+ * Add checkboxes to a specific row in the Pending Transactions sheet
+ * This should be called whenever a new transaction is added
+ */
+export async function addCheckboxesToRow(
+  sheetClient: SheetClient,
+  rowIndex: number,
+  logEvent: Function
+) {
+  try {
+    const sheets = await sheetClient.getSheetMetadata();
+    const sheet = sheets.find((s) => s.title === PENDING_TRANSACTIONS_SHEET);
+    if (!sheet) throw new Error("Could not find sheet metadata");
+
+    // Set up checkboxes using cell formatting and checkbox validation for this specific row
+    const requests = [
+      {
+        repeatCell: {
+          range: {
+            sheetId: sheet.sheetId,
+            startRowIndex: rowIndex - 1, // Convert to 0-based index
+            endRowIndex: rowIndex, // Exclusive end index
+            startColumnIndex: 6, // Column G
+            endColumnIndex: 8, // Column H
+          },
+          cell: {
+            userEnteredFormat: {
+              horizontalAlignment: "CENTER",
+              textFormat: {
+                bold: true,
+              },
+            },
+          },
+          fields: "userEnteredFormat",
+        },
+      },
+      {
+        setDataValidation: {
+          range: {
+            sheetId: sheet.sheetId,
+            startRowIndex: rowIndex - 1, // Convert to 0-based index
+            endRowIndex: rowIndex, // Exclusive end index
+            startColumnIndex: 6, // Column G
+            endColumnIndex: 8, // Column H
+          },
+          rule: {
+            condition: {
+              type: "BOOLEAN",
+            },
+            strict: true,
+            showCustomUi: true,
+          },
+        },
+      },
+    ];
+
+    // Apply the formatting
+    await sheetClient.batchUpdate({
+      requests,
+    });
+
+    logEvent(`Added checkbox formatting to row ${rowIndex}`);
+  } catch (error: unknown) {
+    logEvent(
+      `Error adding checkboxes to row ${rowIndex}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+/**
+ * Clear completed transactions from the Pending Transactions sheet
+ * This will remove all transactions that have been approved or rejected
+ */
+export async function clearCompletedTransactions(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
+  try {
+    logEvent(`Clearing completed transactions from sheet`);
+
+    // Get all rows
+    const values = await sheetClient.getSheetValues(PENDING_TRANSACTIONS_SHEET);
+
+    if (values.length <= 3) {
+      logEvent(`No transactions found to clear`);
+      return;
+    }
+
+    // Find sheet ID for batch operations
+    const sheets = await sheetClient.getSheetMetadata();
+    const sheet = sheets.find((s) => s.title === PENDING_TRANSACTIONS_SHEET);
+    if (!sheet) {
+      logEvent(`Could not find sheet metadata`);
+      return;
+    }
+
+    // Keep track of rows to delete (in reverse order to avoid index shifting)
+    const rowsToDelete = [];
+
+    // Start from row 3 (after header and instructions)
+    for (let i = 3; i < values.length; i++) {
+      const row = values[i];
+      if (row.length >= 5) {
+        const status = row[4];
+        if (status === "Approved" || status === "Rejected") {
+          rowsToDelete.push(i);
+        }
+      }
+    }
+
+    // Sort in reverse order to delete from bottom up
+    rowsToDelete.sort((a, b) => b - a);
+
+    // Create delete requests
+    const requests = rowsToDelete.map((rowIndex) => ({
+      deleteDimension: {
+        range: {
+          sheetId: sheet.sheetId,
+          dimension: "ROWS",
+          startIndex: rowIndex,
+          endIndex: rowIndex + 1,
+        },
+      },
+    }));
+
+    if (requests.length > 0) {
+      // Apply the deletions
+      await sheetClient.batchUpdate({
+        requests,
+      });
+      logEvent(`Removed ${rowsToDelete.length} completed transactions`);
+    } else {
+      logEvent(`No completed transactions to remove`);
+    }
+  } catch (error: unknown) {
+    logEvent(
+      `Error clearing completed transactions: ${
         error instanceof Error ? error.message : String(error)
       }`
     );
