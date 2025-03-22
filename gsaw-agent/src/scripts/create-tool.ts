@@ -12,7 +12,7 @@ const rl = readline.createInterface({
 function getToolTemplate(toolName: string, toolDescription: string): string {
     const camelCaseName = toolName.charAt(0).toLowerCase() + toolName.slice(1);
 
-    return `import { Tool } from './types';
+    return `import { Tool, ToolExample } from './types';
 
 /**
  * Initialize the ${camelCaseName} tool
@@ -20,9 +20,36 @@ function getToolTemplate(toolName: string, toolDescription: string): string {
 export async function initialize${toolName}Tool(): Promise<Tool | null> {
     // Add any initialization logic or environment variable checks here
     
+    // Define examples of how to use this tool
+    const examples: ToolExample[] = [
+        {
+            userQuery: "Example user query that would trigger this tool",
+            toolInput: "The exact input that should be passed to the tool",
+            toolOutput: JSON.stringify({
+                // Sample output data structure
+                result: "Sample result from the tool",
+                additionalInfo: "Any additional information",
+                timestamp: new Date().toISOString()
+            }),
+            finalResponse: "This is how the assistant should respond after receiving the tool output. It should incorporate the tool results in a natural, helpful way."
+        },
+        // Add at least one more example
+        {
+            userQuery: "Another example user query for this tool",
+            toolInput: "Different input for the tool",
+            toolOutput: JSON.stringify({
+                result: "Different sample result",
+                additionalInfo: "More information",
+                timestamp: new Date().toISOString()
+            }),
+            finalResponse: "Another example of how the assistant should respond using these tool results."
+        }
+    ];
+    
     return {
         name: "${camelCaseName}",
         description: "${toolDescription}",
+        examples: examples,
         execute: async (input: string) => {
             try {
                 console.log(\`🔧 Executing ${camelCaseName} tool with input: "\${input}"\`);
