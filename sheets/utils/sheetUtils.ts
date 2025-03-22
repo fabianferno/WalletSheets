@@ -910,7 +910,7 @@ export async function createChatSheet(
 
       // Set up initial UI structure - put the input field at the top for better visibility
       await sheetClient.setRangeValues(`${CHAT_SHEET}!A1:F5`, [
-        ["Wallet Sheets Chat Assistant", "", "", "", "", ""],
+        ["WalletSheets Agent", "", "", "", "", ""],
         ["Your message:", "", "", "", "", ""],
         ["", "", "", "", "", ""],
         ["Chat History", "", "", "", "", ""],
@@ -1024,7 +1024,7 @@ export async function createChatSheet(
                 endIndex: 1, // Second column (B)
               },
               properties: {
-                pixelSize: 120, // Width in pixels
+                pixelSize: 200, // Increase width from 120 to 150 pixels
               },
               fields: "pixelSize",
             },
