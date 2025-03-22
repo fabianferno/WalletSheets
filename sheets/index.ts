@@ -1,4 +1,8 @@
-import { runAllWalletAgents, fixPendingTransactions } from "./walletManager";
+import {
+  runAllWalletAgents,
+  fixPendingTransactions,
+  updatePortfolio,
+} from "./walletManager";
 import * as readline from "readline";
 
 // Parse command line arguments
@@ -12,7 +16,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-// Check if this is a fix-pending-transactions command
+// Process different commands
 if (command === "fix-pending-transactions" && sheetId) {
   console.log(`🛠️ Fixing pending transactions for sheet: ${sheetId}`);
   fixPendingTransactions(sheetId)
@@ -30,6 +34,47 @@ if (command === "fix-pending-transactions" && sheetId) {
       rl.close();
       process.exit(1);
     });
+} else if (command === "update-portfolio" && sheetId) {
+  console.log(`📊 Manually updating portfolio for sheet: ${sheetId}`);
+  updatePortfolio(sheetId)
+    .then((success) => {
+      if (success) {
+        console.log("✅ Successfully updated portfolio dashboard!");
+      } else {
+        console.error("❌ Failed to update portfolio dashboard");
+      }
+      rl.close();
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error("❌ Error:", error);
+      rl.close();
+      process.exit(1);
+    });
+} else if (command === "help") {
+  console.log("Google Sheets Crypto Wallet Agent - Help");
+  console.log("========================================");
+  console.log("Available commands:");
+  console.log("");
+  console.log(
+    "node index.js                           - Start wallet agents for all accessible spreadsheets"
+  );
+  console.log(
+    "node index.js fix-pending-transactions <sheetId> - Fix pending transactions for a specific sheet"
+  );
+  console.log(
+    "node index.js update-portfolio <sheetId>     - Manually update portfolio dashboard for a specific sheet"
+  );
+  console.log(
+    "node index.js help                      - Show this help message"
+  );
+  rl.close();
+  process.exit(0);
+} else if (command) {
+  console.log(`❌ Unknown command: ${command}`);
+  console.log("Use 'node index.js help' to see available commands");
+  rl.close();
+  process.exit(1);
 } else {
   // Normal startup mode
   console.log("Google Sheets Crypto Wallet Agent");
