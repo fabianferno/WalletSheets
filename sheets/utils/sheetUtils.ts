@@ -38,6 +38,10 @@ export async function initializeSheets(
     if (missingSheets.length === 0) {
       console.log(`✅ All required sheets exist, no need to create any.`);
       logEvent("All required sheets already exist");
+
+      // Even if sheets exist, check if Pending Transactions needs to be updated
+      await updatePendingTransactionsSheet(sheetClient, logEvent);
+
       return;
     }
 
@@ -64,6 +68,11 @@ export async function initializeSheets(
           await createLogsSheet(sheetClient, logEvent);
           break;
       }
+    }
+
+    // Even if Pending Transactions sheet was just created, check if it has the correct structure
+    if (!missingSheets.includes(PENDING_TRANSACTIONS_SHEET)) {
+      await updatePendingTransactionsSheet(sheetClient, logEvent);
     }
 
     logEvent("Sheets initialized successfully");
@@ -304,10 +313,10 @@ export async function createPendingTransactionsSheet(
       return;
     } catch {
       // Create the sheet
-      await sheetClient.createSheet(PENDING_TRANSACTIONS_SHEET);
+      const sheetId = await sheetClient.createSheet(PENDING_TRANSACTIONS_SHEET);
 
       // Set up headers
-      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A1:F1`, [
+      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A1:H1`, [
         [
           "Request ID",
           "Connection ID",
@@ -315,8 +324,58 @@ export async function createPendingTransactionsSheet(
           "Details",
           "Status",
           "Timestamp",
+          "Approve",
+          "Reject",
         ],
       ]);
+
+      // Add instructions for approval/rejection
+      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A2:H2`, [
+        [
+          "INSTRUCTIONS",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "Check this box to approve",
+          "Check this box to reject",
+        ],
+      ]);
+
+      // Format the Approve and Reject columns as checkboxes
+      try {
+        // Simply log that checkboxes need to be set up manually
+        // We'll handle checkbox values through the existing cell value methods
+        logEvent(
+          `Note: Please set up columns G and H as checkboxes in Google Sheets manually`
+        );
+
+        // Add a note at the top of the sheet explaining how to use the checkboxes
+        await sheetClient.setRangeValues(
+          `${PENDING_TRANSACTIONS_SHEET}!A3:H3`,
+          [
+            [
+              "NOTE",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "For approval to work, please format columns G & H as checkboxes",
+              "Right-click column header > Data validation > Checkbox",
+            ],
+          ]
+        );
+      } catch (formatError: unknown) {
+        logEvent(
+          `Warning: Could not set up instructions for checkboxes: ${
+            formatError instanceof Error
+              ? formatError.message
+              : String(formatError)
+          }`
+        );
+      }
 
       logEvent(`${PENDING_TRANSACTIONS_SHEET} sheet created`);
     }
@@ -468,6 +527,151 @@ export async function addTransactionToSheet(
   } catch (error: unknown) {
     console.error(
       `Error adding transaction to sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+/**
+ * Update existing Pending Transactions sheet to add Approve/Reject columns if needed
+ */
+export async function updatePendingTransactionsSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
+  try {
+    // Check if sheet exists
+    try {
+      const values = await sheetClient.getSheetValues(
+        PENDING_TRANSACTIONS_SHEET
+      );
+
+      // Check if the header has Approve and Reject columns
+      const headers = values[0] || [];
+
+      if (
+        headers.length < 7 ||
+        headers[6] !== "Approve" ||
+        headers[7] !== "Reject"
+      ) {
+        logEvent(
+          `Updating ${PENDING_TRANSACTIONS_SHEET} sheet to add approve/reject columns`
+        );
+
+        // Add headers for Approve and Reject columns
+        await sheetClient.setRangeValues(
+          `${PENDING_TRANSACTIONS_SHEET}!G1:H1`,
+          [["Approve", "Reject"]]
+        );
+
+        // Add instructions
+        await sheetClient.setRangeValues(
+          `${PENDING_TRANSACTIONS_SHEET}!G2:H2`,
+          [["Check this box to approve", "Check this box to reject"]]
+        );
+
+        // Add note about setting up checkboxes
+        await sheetClient.setRangeValues(
+          `${PENDING_TRANSACTIONS_SHEET}!A3:H3`,
+          [
+            [
+              "NOTE",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "For approval to work, please format columns G & H as checkboxes",
+              "Right-click column header > Data validation > Checkbox",
+            ],
+          ]
+        );
+
+        // Update any existing pending transactions to add checkbox columns
+        if (values.length > 1) {
+          for (let i = 1; i < values.length; i++) {
+            const row = values[i];
+            if (row.length >= 5 && row[4] === "Pending") {
+              // Add empty checkbox cells (false) for this pending row
+              await sheetClient.setRangeValues(
+                `${PENDING_TRANSACTIONS_SHEET}!G${i + 1}:H${i + 1}`,
+                [[false, false]]
+              );
+
+              logEvent(`Updated row ${i + 1} with approval checkboxes`);
+            }
+          }
+        }
+
+        logEvent(
+          `Successfully updated ${PENDING_TRANSACTIONS_SHEET} sheet with approval/rejection columns`
+        );
+      }
+    } catch (error) {
+      logEvent(
+        `${PENDING_TRANSACTIONS_SHEET} sheet doesn't exist yet, will be created later`
+      );
+    }
+  } catch (error: unknown) {
+    logEvent(
+      `Error updating ${PENDING_TRANSACTIONS_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+/**
+ * Force update all pending transactions to ensure they have checkbox cells
+ * This can be called manually to fix existing transactions
+ */
+export async function forceUpdatePendingTransactions(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
+  try {
+    logEvent(`Force updating all pending transactions to add checkbox columns`);
+
+    // First make sure the sheet structure is correct
+    await updatePendingTransactionsSheet(sheetClient, logEvent);
+
+    // Get all rows to find pending transactions
+    const values = await sheetClient.getSheetValues(PENDING_TRANSACTIONS_SHEET);
+
+    if (values.length <= 1) {
+      logEvent(`No transactions found to update`);
+      return;
+    }
+
+    let updatedCount = 0;
+
+    // Start from row 1 (after header)
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      // Skip instruction/note rows
+      if (i <= 2) continue;
+
+      // Check if it's a transaction row
+      if (row.length >= 5) {
+        const status = row[4];
+        if (status === "Pending") {
+          // Add checkbox cells if they don't exist or update existing ones
+          await sheetClient.setRangeValues(
+            `${PENDING_TRANSACTIONS_SHEET}!G${i + 1}:H${i + 1}`,
+            [[false, false]]
+          );
+          updatedCount++;
+        }
+      }
+    }
+
+    logEvent(
+      `Updated ${updatedCount} pending transactions with checkbox columns`
+    );
+  } catch (error: unknown) {
+    logEvent(
+      `Error force updating pending transactions: ${
         error instanceof Error ? error.message : String(error)
       }`
     );

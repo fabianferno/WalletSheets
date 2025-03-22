@@ -8,6 +8,8 @@ import {
   storeSheetOwnerEmail,
   getSheetOwnerEmail,
   addTransactionToSheet as addTxToSheet,
+  updatePendingTransactionsSheet,
+  forceUpdatePendingTransactions,
 } from "./utils/sheetUtils";
 import { initializeWalletConnect } from "./utils/walletConnectUtils";
 import { monitorDAppConnections } from "./utils/sessionUtils";
@@ -147,6 +149,9 @@ async function initializeWalletAgent(sheetId: string) {
     try {
       await initializeSheets(sheetClient, logEvent);
       console.log(`✅ Sheets initialized successfully for ${sheetId}`);
+
+      // Force update of the Pending Transactions sheet to ensure it has approve/reject columns
+      await updatePendingTransactionsSheet(sheetClient, logEvent);
     } catch (error) {
       console.error(`❌ Error initializing sheets for ${sheetId}:`, error);
       throw error;
@@ -271,6 +276,36 @@ export async function runAllWalletAgents() {
     );
   } catch (error: unknown) {
     console.error("Error running wallet agents:", error);
+  }
+}
+
+/**
+ * Manually force update pending transactions for a specific sheet
+ * This can be called to fix sheets where checkboxes aren't showing up
+ */
+export async function fixPendingTransactions(sheetId: string) {
+  try {
+    console.log(`🛠️ Fixing pending transactions for sheet ${sheetId}...`);
+
+    // Create a logger function for this specific sheet
+    const logEvent = (message: string) => {
+      console.log(`[Sheet ${sheetId}] ${message}`);
+    };
+
+    // Create the sheet client
+    const sheetClient = new SheetClient(sheetId, CREDENTIALS_PATH);
+
+    // Force update pending transactions
+    await forceUpdatePendingTransactions(sheetClient, logEvent);
+
+    console.log(`✅ Fixed pending transactions for sheet ${sheetId}`);
+    return true;
+  } catch (error: unknown) {
+    console.error(
+      `❌ Error fixing pending transactions for sheet ${sheetId}:`,
+      error
+    );
+    return false;
   }
 }
 
