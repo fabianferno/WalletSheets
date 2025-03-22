@@ -14,7 +14,6 @@ import {
 } from "./utils/sheetUtils";
 import { initializeWalletConnect } from "./utils/walletConnectUtils";
 import { monitorDAppConnections } from "./utils/sessionUtils";
-import { logEvent as logEventToSheet } from "./utils/logUtils";
 import { ethers } from "ethers";
 import {
   initializePortfolioSheet,
@@ -130,10 +129,9 @@ async function initializeWalletAgent(sheetId: string) {
   try {
     console.log(`🔄 Initializing wallet agent for sheet ${sheetId}...`);
 
-    // Create a logger function for this specific sheet
+    // Create a logger function for this specific sheet that only logs to console
     const logEvent = (message: string) => {
       console.log(`[Sheet ${sheetId}] ${message}`);
-      return logEventToSheet(sheetClient, message);
     };
 
     console.log(
@@ -348,7 +346,7 @@ export async function fixPendingTransactions(sheetId: string) {
   try {
     console.log(`🛠️ Fixing pending transactions for sheet ${sheetId}...`);
 
-    // Create a logger function for this specific sheet
+    // Create a logger function for this specific sheet that only logs to console
     const logEvent = (message: string) => {
       console.log(`[Sheet ${sheetId}] ${message}`);
     };
