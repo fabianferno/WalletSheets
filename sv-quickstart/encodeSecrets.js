@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import { compileFunction } from "vm";
 dotenv.config();
 
 function base64EncodeEnv(envs) {
