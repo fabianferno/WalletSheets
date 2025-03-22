@@ -15,15 +15,67 @@ export async function initializeSheets(
   logEvent: Function
 ) {
   try {
-    // Create Settings sheet if it doesn't exist
-    try {
-      await sheetClient.getSheetValues(SETTINGS_SHEET);
-    } catch {
-      await createSheets(sheetClient, logEvent);
+    console.log(`📊 Checking if all required sheets exist...`);
+
+    // Get list of all sheets in the spreadsheet
+    const allSheets = await sheetClient.getAllSheets();
+    const existingSheetTitles = allSheets.map((sheet) => sheet.title);
+    console.log(`📋 Existing sheets: ${existingSheetTitles.join(", ")}`);
+
+    // Check which required sheets are missing
+    const requiredSheets = [
+      SETTINGS_SHEET,
+      WALLET_EXPLORER_SHEET,
+      ACTIVE_SESSIONS_SHEET,
+      PENDING_TRANSACTIONS_SHEET,
+      LOGS_SHEET,
+    ];
+
+    const missingSheets = requiredSheets.filter(
+      (sheet) => !existingSheetTitles.includes(sheet)
+    );
+
+    if (missingSheets.length === 0) {
+      console.log(`✅ All required sheets exist, no need to create any.`);
+      logEvent("All required sheets already exist");
+      return;
+    }
+
+    console.log(`🛠️ Missing sheets: ${missingSheets.join(", ")}`);
+    logEvent(`Creating missing sheets: ${missingSheets.join(", ")}`);
+
+    // Create each missing sheet
+    for (const sheetName of missingSheets) {
+      console.log(`📝 Creating "${sheetName}" sheet...`);
+      switch (sheetName) {
+        case SETTINGS_SHEET:
+          await createSettingsSheet(sheetClient, logEvent);
+          break;
+        case WALLET_EXPLORER_SHEET:
+          await createWalletExplorerSheet(sheetClient, logEvent);
+          break;
+        case ACTIVE_SESSIONS_SHEET:
+          await createActiveSessionsSheet(sheetClient, logEvent);
+          break;
+        case PENDING_TRANSACTIONS_SHEET:
+          await createPendingTransactionsSheet(sheetClient, logEvent);
+          break;
+        case LOGS_SHEET:
+          await createLogsSheet(sheetClient, logEvent);
+          break;
+      }
     }
 
     logEvent("Sheets initialized successfully");
   } catch (error: unknown) {
+    console.error(`❌ Error in initializeSheets:`, error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
     logEvent(
       `Error initializing sheets: ${
         error instanceof Error ? error.message : String(error)
@@ -291,16 +343,40 @@ export async function storeSheetOwnerEmail(
 }
 
 /**
- * Get sheet owner email from Settings sheet
+ * Get sheet owner email from settings
  */
 export async function getSheetOwnerEmail(
   sheetClient: SheetClient,
   logEvent: Function
 ): Promise<string> {
   try {
-    const email = await sheetClient.getCellValue(SETTINGS_SHEET, 3, "B");
-    return email ? email.toString() : "";
+    console.log(
+      `🔍 Attempting to get owner email from "${SETTINGS_SHEET}" sheet...`
+    );
+    const values = await sheetClient.getSheetValues(SETTINGS_SHEET);
+    console.log(
+      `✅ Successfully retrieved values from "${SETTINGS_SHEET}" sheet`
+    );
+
+    // Find the owner email in the settings
+    for (const row of values) {
+      if (row[0] === "Owner Email") {
+        console.log(`✅ Found owner email: ${row[1]}`);
+        return row[1];
+      }
+    }
+
+    console.log(`⚠️ Owner email not found in settings`);
+    return "";
   } catch (error: unknown) {
+    console.error(`❌ Error getting sheet owner email:`, error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
     logEvent(
       `Error getting sheet owner email: ${
         error instanceof Error ? error.message : String(error)

@@ -18,15 +18,30 @@ export class SheetClient {
   constructor(sheetIdOrUrl: string, keyFilePath?: string) {
     this.sheetId = this.extractSheetId(sheetIdOrUrl);
 
-    // Initialize the Google Sheets API client
-    const auth = keyFilePath
-      ? new GoogleAuth({
-          keyFile: keyFilePath,
-          scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-        })
-      : undefined; // For cases when using API key or default credentials
+    console.log(`🔑 Creating SheetClient for sheet ID: ${this.sheetId}`);
+    console.log(
+      `📄 Using credentials file: ${keyFilePath || "default credentials"}`
+    );
 
-    this.sheets = google.sheets({ version: "v4", auth });
+    // Initialize the Google Sheets API client
+    try {
+      const auth = keyFilePath
+        ? new GoogleAuth({
+            keyFile: keyFilePath,
+            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+          })
+        : undefined; // For cases when using API key or default credentials
+
+      console.log(
+        `🔐 Created GoogleAuth instance with scopes: https://www.googleapis.com/auth/spreadsheets`
+      );
+
+      this.sheets = google.sheets({ version: "v4", auth });
+      console.log(`✅ Successfully created Google Sheets API client`);
+    } catch (error) {
+      console.error(`❌ Error creating Google Sheets API client:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -49,15 +64,34 @@ export class SheetClient {
   /**
    * Get all values from a specific sheet
    * @param sheetName - Name of the sheet (tab)
-   * @returns Promise with the sheet values
+   * @returns Promise resolving to a 2D array of values
    */
   async getSheetValues(sheetName: string): Promise<any[][]> {
-    const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.sheetId,
-      range: sheetName,
-    });
+    try {
+      console.log(
+        `📡 Making API request to get values from sheet: "${sheetName}"`
+      );
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.sheetId,
+        range: `${sheetName}!A1:ZZ`,
+      });
 
-    return response.data.values || [];
+      console.log(`✅ Successfully retrieved values from "${sheetName}"`);
+
+      if (!response.data.values) {
+        console.log(`⚠️ No values found in "${sheetName}" sheet`);
+        return [];
+      }
+
+      return response.data.values;
+    } catch (error: any) {
+      console.error(`❌ Error getting sheet values for "${sheetName}":`, error);
+      if (error.response) {
+        console.error(`Response status: ${error.response.status}`);
+        console.error(`Response data:`, error.response.data);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -86,17 +120,56 @@ export class SheetClient {
     row: number,
     column: number | string
   ): Promise<any> {
-    const colLetter =
-      typeof column === "string" ? column : this.columnIndexToLetter(column);
-    const range = `${sheetName}!${colLetter}${row}`;
+    try {
+      // First check if the sheet exists and has enough rows
+      try {
+        const sheetValues = await this.getSheetValues(sheetName);
+        // Check if the sheet has enough rows
+        if (sheetValues.length < row) {
+          console.log(
+            `Sheet ${sheetName} doesn't have row ${row}, returning empty value`
+          );
+          return "";
+        }
+      } catch (error) {
+        console.log(
+          `Error accessing sheet ${sheetName}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        return ""; // Return empty string if sheet doesn't exist
+      }
 
-    const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.sheetId,
-      range,
-    });
+      // Convert column to letter if it's a number
+      const colLetter =
+        typeof column === "string" ? column : this.columnIndexToLetter(column);
+      const range = `${sheetName}!${colLetter}${row}`;
 
-    const values = response.data.values;
-    return values && values.length > 0 ? values[0][0] : null;
+      try {
+        const response = await this.sheets.spreadsheets.values.get({
+          spreadsheetId: this.sheetId,
+          range,
+        });
+
+        const values = response.data.values;
+        return values && values.length > 0 ? values[0][0] : "";
+      } catch (error: any) {
+        console.log(`Error getting cell value for ${range}: ${error.message}`);
+
+        // If the error is about an invalid range, it's likely that the sheet structure is not as expected
+        if (error.message && error.message.includes("Unable to parse range")) {
+          return ""; // Return empty string on range parsing errors
+        }
+
+        throw error;
+      }
+    } catch (error: any) {
+      console.error(
+        `Error in getCellValue for ${sheetName}!${column}${row}:`,
+        error
+      );
+      return ""; // Return empty string on any error
+    }
   }
 
   /**
@@ -188,7 +261,7 @@ export class SheetClient {
   async appendRows(sheetName: string, rows: any[][]): Promise<void> {
     await this.sheets.spreadsheets.values.append({
       spreadsheetId: this.sheetId,
-      range: sheetName,
+      range: `${sheetName}!A1`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
       requestBody: {
@@ -337,27 +410,63 @@ export class SheetClient {
    * @returns Promise with the new sheet's ID
    */
   async createSheet(title: string): Promise<number> {
-    const response = await this.sheets.spreadsheets.batchUpdate({
-      spreadsheetId: this.sheetId,
-      requestBody: {
-        requests: [
-          {
-            addSheet: {
-              properties: {
-                title,
+    try {
+      // Check if the sheet already exists
+      try {
+        const allSheets = await this.getAllSheets();
+        const existingSheet = allSheets.find((sheet) => sheet.title === title);
+        if (existingSheet) {
+          console.log(
+            `Sheet "${title}" already exists with ID ${existingSheet.id}`
+          );
+          return existingSheet.id;
+        }
+      } catch (error) {
+        console.log(`Error checking if sheet "${title}" exists:`, error);
+        // Continue with creation even if check fails
+      }
+
+      // Create the new sheet
+      const response = await this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.sheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title,
+                },
               },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      });
 
-    const reply = response.data.replies?.[0]?.addSheet?.properties;
-    if (!reply || !reply.sheetId) {
-      throw new Error("Failed to create sheet");
+      const reply = response.data.replies?.[0]?.addSheet?.properties;
+      if (!reply || !reply.sheetId) {
+        throw new Error("Failed to create sheet");
+      }
+
+      console.log(
+        `Successfully created sheet "${title}" with ID ${reply.sheetId}`
+      );
+      return reply.sheetId;
+    } catch (error: any) {
+      // Check for "already exists" error
+      if (error.message && error.message.includes("already exists")) {
+        console.log(`Sheet "${title}" already exists, trying to get its ID`);
+        // If sheet already exists, get its ID
+        const allSheets = await this.getAllSheets();
+        const existingSheet = allSheets.find((sheet) => sheet.title === title);
+        if (existingSheet) {
+          return existingSheet.id;
+        }
+      }
+
+      // Re-throw other errors
+      console.error(`Error creating sheet "${title}":`, error);
+      throw error;
     }
-
-    return reply.sheetId;
   }
 
   /**
