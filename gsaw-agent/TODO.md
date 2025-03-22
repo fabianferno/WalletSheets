@@ -1,6 +1,6 @@
 ~~1. Test Nillion chat~~ 
-2. Create scripts to get all chats and decrypt and display
-3. Create and deploy agent flow with Autonome
+~~2. Create scripts to get all chats and decrypt and display~~
+~~3. Create and deploy agent flow with Autonome~~
 
 Creation flow
 

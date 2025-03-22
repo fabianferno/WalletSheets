@@ -108,6 +108,36 @@ function runServerMode() {
         }
     });
 
+    app.get('/conversations', async (req, res) => {
+        try {
+            const conversations = await agentService.getConversations();
+            res.status(200).json({ conversations });
+        } catch (error) {
+            console.error('Error fetching conversations:', error);
+            res.status(500).json({
+                error: `Failed to fetch conversations: ${error}`,
+            });
+        }
+    });
+
+    app.delete('/conversations/:conversationId', async (req, res) => {
+        try {
+            const { conversationId } = req.params;
+
+            if (!conversationId) {
+                return res.status(400).json({ error: 'Conversation ID is required' });
+            }
+
+            await agentService.deleteConversation(conversationId);
+            res.status(200).json({ success: true, message: 'Conversation deleted' });
+        } catch (error) {
+            console.error('Error deleting conversation:', error);
+            res.status(500).json({
+                error: `Failed to delete conversation: ${error}`,
+            });
+        }
+    });
+
     // Start the server
     app.listen(port, () => {
         console.log(`🚀 Server running at http://localhost:${port}`);

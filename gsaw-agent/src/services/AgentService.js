@@ -240,16 +240,6 @@ Always use tools when appropriate rather than making up information. Study the e
     }
 
     /**
-     * Convert Nillion format to local format for processing
-     */
-    convertFromNillionFormat(encryptedConversation) {
-        return encryptedConversation.messages.map(message => ({
-            role: message.role,
-            content: message.content['%allot']
-        }));
-    }
-
-    /**
      * Save conversation to Nillion
      */
     async saveConversationToNillion(conversationId) {
@@ -333,20 +323,15 @@ Always use tools when appropriate rather than making up information. Study the e
     /**
      * Retrieve conversation history for a user
      */
-    async getConversationHistory() {
+    async getConversations() {
         try {
             // Query Nillion for all conversations for this user
             const conversations = await this.nillionCollection.readFromNodes({
-                "filter": { "user_id": this.user_id }
+                "user_id": this.user_id
             });
 
             // Return metadata only for listing purposes
-            return conversations.map((conv) => ({
-                id: conv.conversation_metadata['%allot'].title,
-                summary: conv.conversation_metadata['%allot'].summary,
-                created_at: conv.created_at,
-                updated_at: conv.updated_at
-            }));
+            return conversations
         } catch (error) {
             console.error(`Error retrieving conversation history for user ${this.user_id}:`, error);
             throw error;
@@ -359,13 +344,11 @@ Always use tools when appropriate rather than making up information. Study the e
     async deleteConversation(conversationId) {
         try {
             // Delete from Nillion
-            await this.nillionCollection.deleteFromNodes({
-                "filter": {
-                    "$and": [
-                        { "user_id": this.user_id },
-                        { "conversation_metadata.%allot.title": conversationId }
-                    ]
-                }
+            await this.nillionCollection.deleteDataFromNodes({
+                "$and": [
+                    { "user_id": this.user_id },
+                    { "_id": conversationId }
+                ]
             });
 
             // Also remove from temporary storage if exists
