@@ -1,5 +1,6 @@
 import { SheetClient } from "../sheets.api";
 import { ethers } from "ethers";
+import axios from "axios";
 
 // Sheet names
 export const SETTINGS_SHEET = "Settings";
@@ -907,29 +908,21 @@ export async function createChatSheet(
       // Create the sheet
       const sheetId = await sheetClient.createSheet(CHAT_SHEET);
 
-      // Set up initial UI structure
-      await sheetClient.setRangeValues(`${CHAT_SHEET}!A1:F6`, [
+      // Set up initial UI structure - put the input field at the top for better visibility
+      await sheetClient.setRangeValues(`${CHAT_SHEET}!A1:F5`, [
         ["Wallet Sheets Chat Assistant", "", "", "", "", ""],
-        ["", "", "", "", "", ""],
-        [
-          "Agent",
-          "Hello! I'm your WalletSheets agent. How can I help you today?",
-          "",
-          "",
-          "",
-          "",
-        ],
-        ["", "", "", "", "", ""],
         ["Your message:", "", "", "", "", ""],
+        ["", "", "", "", "", ""],
+        ["Chat History", "", "", "", "", ""],
         ["", "", "", "", "", ""],
       ]);
 
       // Add the send button as text with instructions
       await sheetClient.setCellValue(
         CHAT_SHEET,
-        5,
+        2,
         "C",
-        "Type your message in B5 and press Enter to send"
+        "Type your message in B2 and press Enter to send"
       );
 
       // Format the header
@@ -952,44 +945,11 @@ export async function createChatSheet(
           }
         );
 
-        // Format the agent label cell
-        await sheetClient.formatRange(
-          sheetId,
-          2, // startRowIndex
-          3, // endRowIndex
-          0, // startColumnIndex
-          1, // endColumnIndex
-          {
-            backgroundColor: { red: 0.2, green: 0.6, blue: 0.2 }, // Green background
-            textFormat: {
-              bold: true,
-              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
-            },
-            horizontalAlignment: "CENTER",
-          }
-        );
-
-        // Format the agent message cell
-        await sheetClient.formatRange(
-          sheetId,
-          2, // startRowIndex
-          3, // endRowIndex
-          1, // startColumnIndex
-          6, // endColumnIndex
-          {
-            backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 }, // Light gray background
-            textFormat: {
-              fontSize: 11,
-            },
-            wrapStrategy: "WRAP",
-          }
-        );
-
         // Format the user input label
         await sheetClient.formatRange(
           sheetId,
-          4, // startRowIndex
-          5, // endRowIndex
+          1, // startRowIndex
+          2, // endRowIndex
           0, // startColumnIndex
           1, // endColumnIndex
           {
@@ -1005,8 +965,8 @@ export async function createChatSheet(
         // Format user input area
         await sheetClient.formatRange(
           sheetId,
-          4, // startRowIndex
-          5, // endRowIndex
+          1, // startRowIndex
+          2, // endRowIndex
           1, // startColumnIndex
           2, // endColumnIndex
           {
@@ -1023,8 +983,8 @@ export async function createChatSheet(
         // Format the instructions
         await sheetClient.formatRange(
           sheetId,
-          4, // startRowIndex
-          5, // endRowIndex
+          1, // startRowIndex
+          2, // endRowIndex
           2, // startColumnIndex
           6, // endColumnIndex
           {
@@ -1032,6 +992,24 @@ export async function createChatSheet(
               italic: true,
               foregroundColor: { red: 0.4, green: 0.4, blue: 0.4 }, // Gray text
             },
+          }
+        );
+
+        // Format the chat history header
+        await sheetClient.formatRange(
+          sheetId,
+          3, // startRowIndex
+          4, // endRowIndex
+          0, // startColumnIndex
+          6, // endColumnIndex
+          {
+            backgroundColor: { red: 0.3, green: 0.3, blue: 0.3 }, // Dark gray background
+            textFormat: {
+              bold: true,
+              fontSize: 12,
+              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+            },
+            horizontalAlignment: "CENTER",
           }
         );
 
@@ -1065,9 +1043,21 @@ export async function createChatSheet(
               fields: "pixelSize",
             },
           },
+          // Freeze the first 3 rows (title, input field, and spacing)
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: sheetId,
+                gridProperties: {
+                  frozenRowCount: 3,
+                },
+              },
+              fields: "gridProperties.frozenRowCount",
+            },
+          },
         ];
 
-        // Apply column width changes
+        // Apply column width changes and freeze rows
         await sheetClient.batchUpdate({
           requests,
         });
@@ -1103,8 +1093,8 @@ export async function monitorChatSheet(
 
     const checkForNewMessages = async () => {
       try {
-        // Get the message from cell B5
-        const userMessage = await sheetClient.getCellValue(CHAT_SHEET, 5, "B");
+        // Get the message from cell B2 (input field is now in row 2)
+        const userMessage = await sheetClient.getCellValue(CHAT_SHEET, 2, "B");
 
         // Check if there's a new non-empty message and it's different from the last one
         // Also add a small delay check to prevent processing the same message multiple times
@@ -1121,42 +1111,25 @@ export async function monitorChatSheet(
           lastMessageTimestamp = currentTime;
 
           // Clear the input field
-          await sheetClient.setCellValue(CHAT_SHEET, 5, "B", "");
+          await sheetClient.setCellValue(CHAT_SHEET, 2, "B", "");
 
-          // Add the user message to the chat history
-          // First, shift all existing messages down to make room
-          const chatHistory = await sheetClient.getSheetValues(CHAT_SHEET);
-
-          // Start from row 7 (index 6) or create a new row if needed
-          let insertRow = 6;
-          if (chatHistory.length <= 6) {
-            // Add two new rows (for user message and agent response)
-            await sheetClient.appendRows(CHAT_SHEET, [
-              ["", "", "", "", "", ""],
-              ["", "", "", "", "", ""],
-            ]);
-          } else {
-            // Insert two new rows at the top of the history section
-            insertRow = 6;
-            const sheetId = await sheetClient.getSheetIdByName(CHAT_SHEET);
-            await sheetClient.insertRow(sheetId, 6);
-            await sheetClient.insertRow(sheetId, 7);
-          }
-
-          // Add user message at the first row
-          await sheetClient.setRangeValues(
-            `${CHAT_SHEET}!A${insertRow + 1}:B${insertRow + 1}`,
-            [["You", userMessage]]
-          );
-
-          // Format the user message
+          // Get the sheet ID for formatting
           const sheetId = await sheetClient.getSheetIdByName(CHAT_SHEET);
+
+          // Insert two new rows at the beginning of the chat history section (after row 4)
+          await sheetClient.insertRow(sheetId, 4);
+          await sheetClient.insertRow(sheetId, 5);
+
+          // Add user message at the first row of the chat history
+          await sheetClient.setRangeValues(`${CHAT_SHEET}!A5:B5`, [
+            ["You", userMessage],
+          ]);
 
           // Format the "You" label
           await sheetClient.formatRange(
             sheetId,
-            insertRow, // startRowIndex
-            insertRow + 1, // endRowIndex
+            4, // startRowIndex (row 5, zero-based)
+            5, // endRowIndex
             0, // startColumnIndex
             1, // endColumnIndex
             {
@@ -1172,8 +1145,8 @@ export async function monitorChatSheet(
           // Format the user message cell
           await sheetClient.formatRange(
             sheetId,
-            insertRow, // startRowIndex
-            insertRow + 1, // endRowIndex
+            4, // startRowIndex
+            5, // endRowIndex
             1, // startColumnIndex
             6, // endColumnIndex
             {
@@ -1185,16 +1158,15 @@ export async function monitorChatSheet(
           // Call the chat API
           try {
             // Show "Agent is typing..." indicator
-            await sheetClient.setRangeValues(
-              `${CHAT_SHEET}!A${insertRow + 2}:B${insertRow + 2}`,
-              [["Agent", "Thinking..."]]
-            );
+            await sheetClient.setRangeValues(`${CHAT_SHEET}!A6:B6`, [
+              ["Agent", "Thinking..."],
+            ]);
 
             // Format the agent label
             await sheetClient.formatRange(
               sheetId,
-              insertRow + 1, // startRowIndex
-              insertRow + 2, // endRowIndex
+              5, // startRowIndex
+              6, // endRowIndex
               0, // startColumnIndex
               1, // endColumnIndex
               {
@@ -1217,26 +1189,20 @@ export async function monitorChatSheet(
               );
 
               // Get API URL from environment or use default
-              const apiUrl = process.env.AGENT_API_URL || "/api/agent/message";
+              const apiUrl = "http://localhost:3000/chat";
 
               // Make API call to the agent service
-              const response = await fetch(apiUrl, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  message: userMessage,
-                  walletAddress: walletAddress || "unknown",
-                  context: "chat",
-                }),
+              const response = await axios.post(apiUrl, {
+                message: userMessage,
+                walletAddress: walletAddress || "unknown",
+                context: "chat",
               });
 
-              if (!response.ok) {
+              if (response.status !== 200) {
                 throw new Error(`API error: ${response.status}`);
               }
 
-              const data = await response.json();
+              const data = response.data;
               // Extract response from your API's response format
               const agentResponse =
                 data.response ||
@@ -1245,18 +1211,13 @@ export async function monitorChatSheet(
                 "Sorry, I couldn't process your request.";
 
               // Update the agent response
-              await sheetClient.setCellValue(
-                CHAT_SHEET,
-                insertRow + 2,
-                "B",
-                agentResponse
-              );
+              await sheetClient.setCellValue(CHAT_SHEET, 6, "B", agentResponse);
 
               // Format the agent response cell
               await sheetClient.formatRange(
                 sheetId,
-                insertRow + 1, // startRowIndex
-                insertRow + 2, // endRowIndex
+                5, // startRowIndex
+                6, // endRowIndex
                 1, // startColumnIndex
                 6, // endColumnIndex
                 {
@@ -1278,7 +1239,7 @@ export async function monitorChatSheet(
               // Update with error message
               await sheetClient.setCellValue(
                 CHAT_SHEET,
-                insertRow + 2,
+                6,
                 "B",
                 `Sorry, there was an error connecting to the agent service: ${
                   apiError instanceof Error
@@ -1305,8 +1266,8 @@ export async function monitorChatSheet(
         );
       }
 
-      // Continue checking every second
-      setTimeout(checkForNewMessages, 1000);
+      // Continue checking every 5 seconds
+      setTimeout(checkForNewMessages, 5000);
     };
 
     // Start the monitoring loop

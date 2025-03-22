@@ -10,9 +10,16 @@ The Chat feature provides a conversational interface to interact with your Walle
 
 1. Open your Google Sheet that's connected to the WalletSheets agent
 2. Navigate to the "Chat" tab
-3. In the "Your message:" input field (cell B5), type your message
+3. In the "Your message:" input field (cell B2), type your message
 4. Press Enter to send your message
 5. The agent will respond in the chat history section below
+
+## Key Features
+
+- **Fixed Input Area**: The message input field always remains at the top of the sheet for easy access
+- **Frozen Rows**: The top 3 rows (title, input field, and spacing) remain visible even as you scroll down
+- **Chat History**: Your conversation is displayed in chronological order with the most recent messages at the top
+- **Automatic Formatting**: User and agent messages are clearly distinguished with different colors
 
 ## Example Questions
 
