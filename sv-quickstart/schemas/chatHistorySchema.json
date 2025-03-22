@@ -24,18 +24,6 @@
                 "format": "date-time",
                 "description": "When the conversation was last updated"
             },
-            "conversation_metadata": {
-                "type": "object",
-                "properties": {
-                    "%share": {
-                        "type": "string",
-                        "description": "Encrypted conversation metadata including title and summary"
-                    }
-                },
-                "required": [
-                    "%share"
-                ]
-            },
             "messages": {
                 "type": "array",
                 "items": {
@@ -67,43 +55,6 @@
                             "type": "string",
                             "format": "date-time",
                             "description": "When the message was sent"
-                        },
-                        "tool_info": {
-                            "type": "object",
-                            "properties": {
-                                "tool_name": {
-                                    "type": "string",
-                                    "description": "Name of the tool used"
-                                },
-                                "input": {
-                                    "type": "object",
-                                    "properties": {
-                                        "%share": {
-                                            "type": "string",
-                                            "description": "Encrypted tool input"
-                                        }
-                                    },
-                                    "required": [
-                                        "%share"
-                                    ]
-                                },
-                                "result": {
-                                    "type": "object",
-                                    "properties": {
-                                        "%share": {
-                                            "type": "string",
-                                            "description": "Encrypted tool result"
-                                        }
-                                    },
-                                    "required": [
-                                        "%share"
-                                    ]
-                                }
-                            },
-                            "required": [
-                                "tool_name",
-                                "input"
-                            ]
                         }
                     },
                     "required": [

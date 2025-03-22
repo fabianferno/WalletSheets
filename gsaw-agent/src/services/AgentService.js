@@ -205,24 +205,6 @@ Always use tools when appropriate rather than making up information. Study the e
         const messages = this.tempConversations[conversationId];
         const currentTime = new Date().toISOString();
 
-        // Extract a title and summary from the conversation
-        let title = conversationId;
-        let summary = "Conversation with assistant";
-
-        if (messages.length > 1 && messages[1].role === "user") {
-            // Use first user message for title (truncated)
-            title = messages[1].content.length > 30 ?
-                messages[1].content.substring(0, 30) + "..." :
-                messages[1].content;
-
-            // Try to generate a summary based on conversation content
-            if (messages.length > 2) {
-                const userMessages = messages.filter(m => m.role === "user");
-                summary = `Conversation about ${userMessages.map(m => m.content.substring(0, 20)).join(", ")}`;
-                if (summary.length > 100) summary = summary.substring(0, 100) + "...";
-            }
-        }
-
         // Convert messages to Nillion format
         const encryptedMessages = messages.map((message, index) => {
             // Calculate a reasonable timestamp with 30 second intervals between messages
@@ -241,12 +223,6 @@ Always use tools when appropriate rather than making up information. Study the e
             user_id: this.user_id,
             created_at: encryptedMessages[0].timestamp,
             updated_at: currentTime,
-            conversation_metadata: {
-                '%allot': {
-                    title: title,
-                    summary: summary
-                }
-            },
             messages: encryptedMessages
         };
     }
