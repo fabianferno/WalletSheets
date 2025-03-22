@@ -12,7 +12,7 @@ const rl = readline.createInterface({
 function getToolTemplate(toolName, toolDescription) {
     const camelCaseName = toolName.charAt(0).toLowerCase() + toolName.slice(1);
 
-    return `import { Tool, ToolExample } from './types';
+    return `
 
 /**
  * Initialize the ${camelCaseName} tool

@@ -1,4 +1,3 @@
-import { Tool, ToolExample } from './types';
 import { Hyperliquid } from "hyperliquid";
 /**
  * Initialize the hyperliquid tool

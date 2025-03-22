@@ -1,5 +1,5 @@
 import { initializeSearchTool } from './search.js';
-import { initializeHyperliquidTool } from './hyperliquid';
+import { initializeHyperliquidTool } from './hyperliquid.js';
 
 
 /**
