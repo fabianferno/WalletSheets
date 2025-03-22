@@ -16,6 +16,11 @@ import { initializeWalletConnect } from "./utils/walletConnectUtils";
 import { monitorDAppConnections } from "./utils/sessionUtils";
 import { logEvent as logEventToSheet } from "./utils/logUtils";
 import { ethers } from "ethers";
+import {
+  initializePortfolioSheet,
+  updatePortfolioData,
+  schedulePortfolioUpdates,
+} from "./utils/portfolioUtils";
 
 // Load environment variables
 dotenv.config();
@@ -182,8 +187,6 @@ async function initializeWalletAgent(sheetId: string) {
     // Store wallet address
     await storeWalletAddress(sheetClient, wallet.address, logEvent);
 
-    // TODO: Deploy agent
-
     // Initialize WalletConnect
     const web3wallet = await initializeWalletConnect(wallet, logEvent);
 
@@ -201,6 +204,31 @@ async function initializeWalletAgent(sheetId: string) {
 
     // Set up periodic stuck transaction checker
     setupStuckTransactionChecker(sheetClient, wallet, logEvent);
+
+    // NEW: Initialize enhanced portfolio dashboard
+    try {
+      logEvent("Initializing enhanced portfolio dashboard...");
+
+      // Initialize portfolio sheet with enhanced UI
+      await initializePortfolioSheet(sheetClient, logEvent);
+
+      // Update portfolio data
+      await updatePortfolioData(sheetClient, wallet, logEvent);
+
+      // Schedule regular updates
+      schedulePortfolioUpdates(sheetClient, wallet, logEvent, 30); // Update every 30 minutes
+
+      logEvent("Enhanced portfolio dashboard initialized successfully!");
+    } catch (portfolioError) {
+      logEvent(
+        `Warning: Could not initialize portfolio dashboard: ${portfolioError}`
+      );
+      console.error(
+        `Portfolio initialization error for ${sheetId}:`,
+        portfolioError
+      );
+      // Continue with the rest of the initialization even if portfolio fails
+    }
 
     logEvent("Agent initialized successfully!");
     console.log(`Wallet Address for ${sheetId}: ${wallet.address}`);
@@ -338,6 +366,49 @@ export async function fixPendingTransactions(sheetId: string) {
       `❌ Error fixing pending transactions for sheet ${sheetId}:`,
       error
     );
+    return false;
+  }
+}
+
+/**
+ * Manually update portfolio for a specific sheet
+ */
+export async function updatePortfolio(sheetId: string) {
+  try {
+    console.log(`📊 Updating portfolio for sheet ${sheetId}...`);
+
+    // Create a logger function for this specific sheet
+    const logEvent = (message: string) => {
+      console.log(`[Sheet ${sheetId}] ${message}`);
+      return logEventToSheet(
+        new SheetClient(sheetId, CREDENTIALS_PATH),
+        message
+      );
+    };
+
+    // Create the sheet client
+    const sheetClient = new SheetClient(sheetId, CREDENTIALS_PATH);
+
+    // Get the owner email
+    const ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
+    if (!ownerEmail) {
+      console.error("Could not determine sheet owner email");
+      return false;
+    }
+
+    // Generate the same wallet
+    const wallet = await generateWallet(sheetId, ownerEmail);
+
+    // Initialize portfolio sheet if it doesn't exist
+    await initializePortfolioSheet(sheetClient, logEvent);
+
+    // Update portfolio data
+    await updatePortfolioData(sheetClient, wallet, logEvent);
+
+    console.log(`✅ Updated portfolio for sheet ${sheetId}`);
+    return true;
+  } catch (error: unknown) {
+    console.error(`❌ Error updating portfolio for sheet ${sheetId}:`, error);
     return false;
   }
 }
