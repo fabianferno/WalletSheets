@@ -1,8 +1,6 @@
 import { Tool, ToolFactory } from './types';
 import { initializeSearchTool } from './search';
 import { initializeWeatherTool } from './weather';
-import { initializeGMXTool } from './gmx';
-
 
 /**
  * Load all available tools
@@ -11,7 +9,6 @@ export async function loadTools(): Promise<Tool[]> {
     const toolFactories: ToolFactory[] = [
         initializeSearchTool,
         initializeWeatherTool,
-        initializeGMXTool,
         // Add new tool factories here
     ];
 

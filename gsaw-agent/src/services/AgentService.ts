@@ -144,22 +144,36 @@ export class AgentService {
      * Create a new conversation with system message
      */
     private createNewConversation(): Message[] {
-        // Create the system message with tool descriptions
-        const toolDescriptions = this.tools.map(tool =>
-            `${tool.name}: ${tool.description}`
-        ).join("\n");
+        // Create tool information with descriptions and examples
+        let toolInfo = "";
+
+        for (const tool of this.tools) {
+            toolInfo += `## ${tool.name}\n${tool.description}\n\nExamples:\n`;
+
+            // Add examples for each tool
+            for (const example of tool.examples) {
+                toolInfo += `
+User: "${example.userQuery}"
+Assistant: <tool>${tool.name}: ${example.toolInput}</tool>
+Tool Result: ${example.toolOutput}
+Assistant's Final Response: "${example.finalResponse}"
+`;
+            }
+
+            toolInfo += "\n\n";
+        }
 
         return [{
             role: "system",
             content: `You are a helpful assistant with access to tools. Follow these steps:
 1. If a user's request requires current data or information you don't have, use an available tool.
 2. To use a tool, respond with: <tool>tool_name: tool_input</tool>
-3. Available tools:
-${toolDescriptions}
+3. After receiving tool results, provide a helpful response incorporating the information.
 
-Always use tools when appropriate rather than making up information. For weather queries, use the weather tool. For current events or factual information, use the search tool.
+# Available Tools and Usage Examples
+${toolInfo}
 
-After receiving tool results, provide a helpful response incorporating the information.`
+Always use tools when appropriate rather than making up information. Study the examples carefully to understand when and how to use each tool.`
         }];
     }
 
