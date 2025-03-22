@@ -11,6 +11,7 @@ dotenv.config();
 // Create agent service
 const agentService = new AgentService(orgConfig, conversationsSchemaId);
 
+
 // Determine if server should run in terminal mode
 const terminalMode = process.argv.includes('--terminal');
 
@@ -38,8 +39,8 @@ async function runTerminalMode() {
     });
 
     // Start the conversation loop
-    let conversationId = `terminal-${Date.now()}`;
 
+    let conversationId = `temp`;
     while (true) {
         const userInput = await askQuestion('👤 You: ');
 
@@ -48,8 +49,9 @@ async function runTerminalMode() {
         }
 
         try {
-            const response = await agentService.processMessage(userInput, conversationId);
+            const { conversationId: receivedConvoId, response } = await agentService.processMessage(userInput, conversationId);
             console.log(`\n🤖 Assistant: ${response}\n`);
+            conversationId = receivedConvoId;
         } catch (error) {
             console.error('\n❌ Error processing message:', error);
         }

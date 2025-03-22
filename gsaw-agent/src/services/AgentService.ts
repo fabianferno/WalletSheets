@@ -1,8 +1,9 @@
 import { Tool } from "../tools/types";
 import { loadTools } from "../tools";
-// @ts-ignore
-import { SecretVaultWrapper } from 'secretvaults';
+import { v5 as uuidv5 } from 'uuid';
+
 import { EncryptedConversation, EncryptedMessage } from "../types";
+import { SecretVaultWrapper } from "secretvaults";
 
 // Message interface
 interface Message {
@@ -10,17 +11,21 @@ interface Message {
     content: string;
 }
 
+const NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+
 export class AgentService {
     private tools: Tool[] = [];
     private tempConversations: { [conversationId: string]: Message[] } = {};
     private initialized: boolean = false;
-    private nillionCollection: SecretVaultWrapper;
+    private nillionCollection: any = null;
     private orgConfig: any;
     private SCHEMA_ID: string;
+    private user_id: string;
 
     constructor(orgConfig: any, schemaId: string) {
         this.orgConfig = orgConfig;
         this.SCHEMA_ID = schemaId;
+        this.user_id = uuidv5("gabriel", NAMESPACE);
     }
 
     /**
@@ -35,7 +40,6 @@ export class AgentService {
 
         // Initialize tools
         this.tools = await loadTools();
-
         // Initialize Nillion collection
         this.nillionCollection = new SecretVaultWrapper(
             this.orgConfig.nodes,
@@ -51,10 +55,17 @@ export class AgentService {
     /**
      * Process a user message and return the agent's response
      */
-    async processMessage(message: string, conversationId: string, userId: string): Promise<string> {
+    async processMessage(message: string, conversationId: string): Promise<{
+        conversationId: string;
+        response: string;
+    }> {
         // Ensure the agent is initialized
         if (!this.initialized) {
             await this.initialize();
+        }
+
+        if (conversationId == "temp") {
+            this.tempConversations["temp"] = this.createNewConversation();
         }
 
         // Get or create conversation from Nillion or temporary storage
@@ -64,7 +75,6 @@ export class AgentService {
                 "filter": {
                     "$and": [
                         { "_id": conversationId },
-                        { "user_id": userId },
                     ]
                 }
             });
@@ -74,7 +84,7 @@ export class AgentService {
                 this.tempConversations[conversationId] = this.convertFromNillionFormat(existingConversations[0]);
             } else {
                 // Create a new conversation with system message
-                this.tempConversations[conversationId] = this.createNewConversation();
+                this.tempConversations["temp"] = this.createNewConversation();
             }
         }
 
@@ -149,9 +159,12 @@ export class AgentService {
         }
 
         // Save conversation to Nillion
-        await this.saveConversationToNillion(conversationId, userId);
+        await this.saveConversationToNillion(conversationId);
 
-        return finalResponse;
+        return {
+            conversationId,
+            response: finalResponse
+        };
     }
 
     /**
@@ -194,7 +207,7 @@ Always use tools when appropriate rather than making up information. Study the e
     /**
      * Convert local format to Nillion format for storage
      */
-    private convertToNillionFormat(conversationId: string, userId: string): EncryptedConversation {
+    private convertToNillionFormat(conversationId: string): EncryptedConversation {
         const messages = this.tempConversations[conversationId];
         const currentTime = new Date().toISOString();
 
@@ -231,7 +244,7 @@ Always use tools when appropriate rather than making up information. Study the e
         });
 
         return {
-            user_id: userId,
+            user_id: this.user_id,
             created_at: encryptedMessages[0].timestamp,
             updated_at: currentTime,
             conversation_metadata: {
@@ -257,18 +270,30 @@ Always use tools when appropriate rather than making up information. Study the e
     /**
      * Save conversation to Nillion
      */
-    private async saveConversationToNillion(conversationId: string, userId: string): Promise<void> {
+    private async saveConversationToNillion(conversationId: string): Promise<string> {
         try {
             const conversation = this.tempConversations[conversationId];
-            if (!conversation) return;
+            if (!conversation) return "Conversation not found";
+            const encryptedConversation = this.convertToNillionFormat(conversationId);
 
-            // Convert to Nillion format
-            const encryptedConversation = this.convertToNillionFormat(conversationId, userId);
+            if (conversationId == 'temp') {
+                const dataWritten = await this.nillionCollection.writeToNodes([encryptedConversation]);
+                const newIds = [
+                    ...new Set(dataWritten.map((item: any) => item.data.created).flat()),
+                ];
+                console.log(`Conversation ${newIds[0]} encrypted and saved to Nillion`);
+                return newIds[0] as string;
+            } else {
+                const updatedData = await this.nillionCollection.updateDataToNodes(
+                    encryptedConversation,
+                    {
+                        _id: conversationId
+                    }
+                );
+                console.log(`Conversation ${conversationId} updated in Nillion`);
+                return conversationId;
+            }
 
-            // Save to Nillion
-            await this.nillionCollection.writeToNodes([encryptedConversation]);
-
-            console.log(`Conversation ${conversationId} encrypted and saved to Nillion`);
         } catch (error) {
             console.error(`Error saving conversation ${conversationId} to Nillion:`, error);
             throw error;
@@ -317,11 +342,11 @@ Always use tools when appropriate rather than making up information. Study the e
     /**
      * Retrieve conversation history for a user
      */
-    async getConversationHistory(userId: string): Promise<any[]> {
+    async getConversationHistory(): Promise<any[]> {
         try {
             // Query Nillion for all conversations for this user
             const conversations: EncryptedConversation[] = await this.nillionCollection.readFromNodes({
-                "filter": { "user_id": userId }
+                "filter": { "user_id": this.user_id }
             });
 
             // Return metadata only for listing purposes
@@ -332,7 +357,7 @@ Always use tools when appropriate rather than making up information. Study the e
                 updated_at: conv.updated_at
             }));
         } catch (error) {
-            console.error(`Error retrieving conversation history for user ${userId}:`, error);
+            console.error(`Error retrieving conversation history for user ${this.user_id}:`, error);
             throw error;
         }
     }
@@ -340,13 +365,13 @@ Always use tools when appropriate rather than making up information. Study the e
     /**
      * Delete a conversation
      */
-    async deleteConversation(conversationId: string, userId: string): Promise<void> {
+    async deleteConversation(conversationId: string): Promise<void> {
         try {
             // Delete from Nillion
             await this.nillionCollection.deleteFromNodes({
                 "filter": {
                     "$and": [
-                        { "user_id": userId },
+                        { "user_id": this.user_id },
                         { "conversation_metadata.%allot.title": conversationId }
                     ]
                 }
