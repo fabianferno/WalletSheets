@@ -10,10 +10,12 @@ import {
   addTransactionToSheet as addTxToSheet,
   updatePendingTransactionsSheet,
   forceUpdatePendingTransactions,
+  checkStuckTransactions,
 } from "./utils/sheetUtils";
 import { initializeWalletConnect } from "./utils/walletConnectUtils";
 import { monitorDAppConnections } from "./utils/sessionUtils";
 import { logEvent as logEventToSheet } from "./utils/logUtils";
+import { ethers } from "ethers";
 
 // Load environment variables
 dotenv.config();
@@ -126,6 +128,7 @@ async function initializeWalletAgent(sheetId: string) {
     // Create a logger function for this specific sheet
     const logEvent = (message: string) => {
       console.log(`[Sheet ${sheetId}] ${message}`);
+      return logEventToSheet(sheetClient, message);
     };
 
     console.log(
@@ -196,6 +199,9 @@ async function initializeWalletAgent(sheetId: string) {
       logEvent
     );
 
+    // Set up periodic stuck transaction checker
+    setupStuckTransactionChecker(sheetClient, wallet, logEvent);
+
     logEvent("Agent initialized successfully!");
     console.log(`Wallet Address for ${sheetId}: ${wallet.address}`);
 
@@ -207,6 +213,33 @@ async function initializeWalletAgent(sheetId: string) {
     );
     return false;
   }
+}
+
+/**
+ * Set up a periodic check for stuck transactions
+ */
+function setupStuckTransactionChecker(
+  sheetClient: SheetClient,
+  wallet: ethers.Wallet,
+  logEvent: Function
+) {
+  // Create a provider
+  const provider = new ethers.JsonRpcProvider(
+    process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+  );
+
+  // First check immediately to resolve any existing stuck transactions
+  checkStuckTransactions(sheetClient, provider, logEvent);
+
+  // Then set up periodic checks every 5 minutes
+  const FIVE_MINUTES = 5 * 60 * 1000;
+
+  setInterval(() => {
+    logEvent(`[DEBUG] Running scheduled check for stuck transactions`);
+    checkStuckTransactions(sheetClient, provider, logEvent);
+  }, FIVE_MINUTES);
+
+  logEvent(`Stuck transaction checker initialized (runs every 5 minutes)`);
 }
 
 /**

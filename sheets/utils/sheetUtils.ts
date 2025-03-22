@@ -1,4 +1,5 @@
 import { SheetClient } from "../sheets.api";
+import { ethers } from "ethers";
 
 // Sheet names
 export const SETTINGS_SHEET = "Settings";
@@ -830,5 +831,95 @@ export async function clearCompletedTransactions(
         error instanceof Error ? error.message : String(error)
       }`
     );
+  }
+}
+
+/**
+ * Check for any stuck "Pending" transactions and update their status
+ * This function can be called periodically to ensure transactions don't get stuck in pending status
+ */
+export async function checkStuckTransactions(
+  sheetClient: SheetClient,
+  provider: ethers.JsonRpcProvider,
+  logEvent: Function
+) {
+  try {
+    logEvent(`[DEBUG] Checking for stuck transactions in Wallet Explorer`);
+
+    // Get all rows from Wallet Explorer
+    const rows = await sheetClient.getSheetValues(WALLET_EXPLORER_SHEET);
+
+    if (!rows || rows.length <= 1) {
+      logEvent(`[DEBUG] No transactions found in Wallet Explorer sheet`);
+      return;
+    }
+
+    let pendingCount = 0;
+    let updatedCount = 0;
+
+    // Skip header row
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+
+      // Check for pending transactions
+      if (row[5] === "Pending" || row[5] === "Processing") {
+        const txHash = row[0];
+
+        // Skip placeholder or invalid hashes
+        if (
+          !txHash ||
+          txHash.startsWith("pending-") ||
+          txHash.startsWith("rejected-")
+        ) {
+          continue;
+        }
+
+        pendingCount++;
+        logEvent(`[DEBUG] Found pending transaction: ${txHash}`);
+
+        try {
+          // Check transaction receipt
+          const receipt = await provider.getTransactionReceipt(txHash);
+
+          if (receipt) {
+            // Transaction is mined, update status
+            const status = receipt.status === 1 ? "Success" : "Failed";
+            logEvent(
+              `[DEBUG] Updating stuck transaction ${txHash} to ${status}`
+            );
+
+            await sheetClient.setCellValue(
+              WALLET_EXPLORER_SHEET,
+              i + 1,
+              "F",
+              status
+            );
+
+            updatedCount++;
+            logEvent(`Updated stuck transaction ${txHash} to ${status}`);
+          } else {
+            logEvent(`[DEBUG] Transaction ${txHash} is still pending on-chain`);
+          }
+        } catch (error) {
+          logEvent(`[DEBUG] Error checking transaction ${txHash}: ${error}`);
+        }
+      }
+    }
+
+    logEvent(
+      `[DEBUG] Checked ${pendingCount} pending transactions, updated ${updatedCount}`
+    );
+
+    if (pendingCount > 0 && updatedCount === 0) {
+      logEvent(
+        `Checked ${pendingCount} pending transactions - all still pending on-chain`
+      );
+    } else if (updatedCount > 0) {
+      logEvent(
+        `Updated ${updatedCount} out of ${pendingCount} pending transactions`
+      );
+    }
+  } catch (error) {
+    logEvent(`[DEBUG] Error checking stuck transactions: ${error}`);
   }
 }
