@@ -4,3 +4,4 @@ package-lock.json
 data 
 agent-conversation.json
 dist
+src/config.ts

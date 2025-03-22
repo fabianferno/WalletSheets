@@ -4,12 +4,12 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import readline from 'readline';
 import { AgentService } from './services/AgentService';
-
+import { conversationsSchemaId, orgConfig } from './config'
 // Load environment variables
 dotenv.config();
 
 // Create agent service
-const agentService = new AgentService();
+const agentService = new AgentService(orgConfig, conversationsSchemaId);
 
 // Determine if server should run in terminal mode
 const terminalMode = process.argv.includes('--terminal');
