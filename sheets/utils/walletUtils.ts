@@ -7,7 +7,7 @@ dotenv.config();
 // Constants from environment variables
 const SALT = process.env.SALT || "xAISalt2025";
 const ETH_RPC_URL =
-  process.env.ETH_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc";
+  process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org";
 
 /**
  * Generate a deterministic wallet from sheetId, email, and salt
