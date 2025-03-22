@@ -11,17 +11,27 @@ dotenv.config();
 /**
  * Initialize WalletConnect
  */
-export async function initializeWalletConnect(wallet: ethers.Wallet) {
+export async function initializeWalletConnect(
+  wallet: ethers.Wallet,
+  logEvent: Function
+) {
   try {
+    logEvent(`[DEBUG] Starting WalletConnect initialization`);
     const projectId = process.env.PROJECT_ID;
 
     // Validate project ID
     if (!projectId || projectId === "your-project-id") {
       const error =
         "PROJECT_ID environment variable is not set. Please set it in your .env file.";
-
+      logEvent(`[ERROR] ${error}`);
+      logEvent(
+        `[INFO] Get a free project ID from https://cloud.walletconnect.com/app`
+      );
       throw new Error(error);
     }
+
+    logEvent(`[DEBUG] Using project ID: ${projectId}`);
+    logEvent(`[DEBUG] Wallet address: ${wallet.address}`);
 
     // Initialize Core with explicit options
     const core = new Core({
@@ -29,6 +39,7 @@ export async function initializeWalletConnect(wallet: ethers.Wallet) {
       relayUrl: "wss://relay.walletconnect.com",
       logger: "debug", // Enable debug logging
     });
+    logEvent(`[DEBUG] WalletConnect Core created successfully`);
 
     const metadata = {
       name: "Google Sheets Wallet",
@@ -38,43 +49,55 @@ export async function initializeWalletConnect(wallet: ethers.Wallet) {
     };
 
     try {
+      logEvent(`[DEBUG] Initializing Web3Wallet with core`);
       const web3wallet = await Web3Wallet.init({
         core,
         metadata,
       });
+      logEvent(`[DEBUG] Web3Wallet initialized successfully`);
 
       // Log active sessions
       try {
         const sessions = await web3wallet.getActiveSessions();
         const sessionCount = Object.keys(sessions).length;
+        logEvent(`[DEBUG] Found ${sessionCount} active sessions`);
 
         if (sessionCount > 0) {
           Object.keys(sessions).forEach((topic) => {
             const session = sessions[topic];
             const peer = session?.peer?.metadata?.name || "Unknown dApp";
+            logEvent(`[DEBUG] Active session with ${peer}, topic: ${topic}`);
           });
         }
       } catch (sessionsError) {
-        console.error(
-          `[DEBUG] Error getting active sessions: ${sessionsError}`
-        );
+        logEvent(`[DEBUG] Error getting active sessions: ${sessionsError}`);
       }
 
+      // Log wallet connection initialized
+      logEvent("WalletConnect initialized successfully");
       return web3wallet;
     } catch (initError: unknown) {
-      console.error(
+      logEvent(
         `[DEBUG] Error in Web3Wallet.init: ${
           initError instanceof Error ? initError.message : String(initError)
         }`
       );
       if (initError instanceof Error && initError.stack) {
-        console.error(`[DEBUG] Error stack: ${initError.stack}`);
+        logEvent(`[DEBUG] Error stack: ${initError.stack}`);
       }
       throw initError;
     }
   } catch (error: unknown) {
-    console.error(
+    logEvent(
       `[DEBUG] General error in initializeWalletConnect: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    if (error instanceof Error && error.stack) {
+      logEvent(`[DEBUG] Error stack: ${error.stack}`);
+    }
+    logEvent(
+      `Error initializing WalletConnect: ${
         error instanceof Error ? error.message : String(error)
       }`
     );

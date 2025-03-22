@@ -37,6 +37,7 @@ export async function generateWallet(
  */
 export async function setUpBlockchainListeners(
   wallet: ethers.Wallet,
+  logEvent: Function,
   addTransactionToSheet: Function
 ) {
   try {
@@ -69,10 +70,10 @@ export async function setUpBlockchainListeners(
               status
             );
 
-            console.log(`Transaction recorded: ${tx.hash}`);
+            logEvent(`Transaction recorded: ${tx.hash}`);
           }
         } catch (error: unknown) {
-          console.error(
+          logEvent(
             `Error processing transaction: ${
               error instanceof Error ? error.message : String(error)
             }`
@@ -81,10 +82,10 @@ export async function setUpBlockchainListeners(
       }
     );
 
-    console.log("Blockchain listeners set up successfully");
+    logEvent("Blockchain listeners set up successfully");
     return connectedWallet;
   } catch (error: unknown) {
-    console.error(
+    logEvent(
       `Error setting up blockchain listeners: ${
         error instanceof Error ? error.message : String(error)
       }`

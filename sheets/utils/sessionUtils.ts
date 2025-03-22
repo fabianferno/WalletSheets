@@ -59,7 +59,8 @@ export async function handleSessionRequest(
   connectionId: string,
   web3wallet: any,
   sheetClient: SheetClient,
-  addTransactionToSheet: Function
+  addTransactionToSheet: Function,
+  logEvent: Function
 ) {
   try {
     const { id, topic, params } = event;
@@ -95,6 +96,8 @@ export async function handleSessionRequest(
       transactionKey += JSON.stringify(requestParams);
     }
 
+    logEvent(`[DEBUG] Transaction key: ${transactionKey}`);
+
     // Check existing transactions in the Pending Transactions sheet
     const existingValues = await sheetClient.getSheetValues(
       PENDING_TRANSACTIONS_SHEET
@@ -126,7 +129,9 @@ export async function handleSessionRequest(
             ) {
               existingTransactionRow = row;
               existingRequestId = row[0];
-
+              logEvent(
+                `[DEBUG] Found duplicate transaction request at row ${i + 1}`
+              );
               break;
             }
           } else {
@@ -134,21 +139,29 @@ export async function handleSessionRequest(
             if (row[3] === JSON.stringify(requestParams)) {
               existingTransactionRow = row;
               existingRequestId = row[0];
-
+              logEvent(`[DEBUG] Found duplicate request at row ${i + 1}`);
               break;
             }
           }
         } catch (e) {
           // If parsing fails, continue to the next row
-          console.error(`[DEBUG] Error comparing row ${i + 1}: ${e}`);
+          logEvent(`[DEBUG] Error comparing row ${i + 1}: ${e}`);
         }
       }
     }
 
     // If the transaction already exists, use the existing request ID instead of creating a new one
     if (existingTransactionRow) {
+      logEvent(
+        `[DEBUG] Duplicate transaction detected with ID ${existingRequestId}`
+      );
+
       // If the transaction is pending, use the existing one
       if (existingTransactionRow[4] === "Pending") {
+        logEvent(
+          `Skipping duplicate transaction request. Using existing request ID ${existingRequestId}`
+        );
+
         // Monitor the existing request
         monitorRequestApproval(
           existingRequestId,
@@ -159,7 +172,8 @@ export async function handleSessionRequest(
           topic,
           web3wallet,
           sheetClient,
-          addTransactionToSheet
+          addTransactionToSheet,
+          logEvent
         );
 
         return;
@@ -195,8 +209,13 @@ export async function handleSessionRequest(
 
     // Add checkboxes to this specific row
     if (rowIndex > 0) {
-      await addCheckboxesToRow(sheetClient, rowIndex);
+      await addCheckboxesToRow(sheetClient, rowIndex, logEvent);
+      logEvent(
+        `Added approval checkboxes to request ${requestId} at row ${rowIndex}`
+      );
     }
+
+    logEvent(`New request: ${method} (${requestId})`);
 
     // Monitor for approval/rejection in the sheet
     monitorRequestApproval(
@@ -208,10 +227,11 @@ export async function handleSessionRequest(
       topic,
       web3wallet,
       sheetClient,
-      addTransactionToSheet
+      addTransactionToSheet,
+      logEvent
     );
   } catch (error: unknown) {
-    console.error(
+    logEvent(
       `Error handling session request: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -234,16 +254,21 @@ export async function monitorRequestApproval(
   topic: string,
   web3wallet: any,
   sheetClient: SheetClient,
-  addTransactionToSheet: Function
+  addTransactionToSheet: Function,
+  logEvent: Function
 ) {
   try {
     // Check if this request is already being monitored
     if (activeMonitors.has(requestId)) {
+      logEvent(
+        `Request ${requestId} is already being monitored - skipping duplicate monitor`
+      );
       return;
     }
 
     // Add to active monitors set
     activeMonitors.add(requestId);
+    logEvent(`Started monitoring request ${requestId}`);
 
     const checkStatus = async () => {
       try {
@@ -262,6 +287,7 @@ export async function monitorRequestApproval(
             try {
               parsedParams = JSON.parse(details);
             } catch (e) {
+              logEvent(`[DEBUG] Error parsing request details: ${e}`);
               parsedParams = [];
             }
 
@@ -295,6 +321,10 @@ export async function monitorRequestApproval(
                   currentTimestamp,
                   "Processing"
                 );
+
+                logEvent(
+                  `Added transaction to Wallet Explorer with Processing status`
+                );
               }
 
               // Process the approved request
@@ -306,8 +336,9 @@ export async function monitorRequestApproval(
                 topic,
                 web3wallet,
                 addTransactionToSheet,
+                logEvent,
                 sheetClient,
-                requestId
+                requestId // Pass the requestId to link the pending transaction
               );
 
               // Clear the checkboxes
@@ -324,8 +355,10 @@ export async function monitorRequestApproval(
                 false
               );
 
+              logEvent(`Request ${requestId} approved and processed`);
+
               // Clear completed transactions
-              await clearCompletedTransactions(sheetClient);
+              await clearCompletedTransactions(sheetClient, logEvent);
 
               // Remove from active monitors
               activeMonitors.delete(requestId);
@@ -354,6 +387,8 @@ export async function monitorRequestApproval(
                   currentTimestamp,
                   "Rejected"
                 );
+
+                logEvent(`Added rejected transaction to Wallet Explorer`);
               }
 
               // Reject the request
@@ -383,8 +418,10 @@ export async function monitorRequestApproval(
                 false
               );
 
+              logEvent(`Request ${requestId} rejected`);
+
               // Clear completed transactions
-              await clearCompletedTransactions(sheetClient);
+              await clearCompletedTransactions(sheetClient, logEvent);
 
               // Remove from active monitors
               activeMonitors.delete(requestId);
@@ -401,12 +438,13 @@ export async function monitorRequestApproval(
                 topic,
                 web3wallet,
                 addTransactionToSheet,
+                logEvent,
                 sheetClient,
                 requestId
               );
 
               // Clear completed transactions
-              await clearCompletedTransactions(sheetClient);
+              await clearCompletedTransactions(sheetClient, logEvent);
 
               // Remove from active monitors
               activeMonitors.delete(requestId);
@@ -427,6 +465,8 @@ export async function monitorRequestApproval(
                   currentTimestamp,
                   "Rejected"
                 );
+
+                logEvent(`Added rejected transaction to Wallet Explorer`);
               }
 
               // Reject the request
@@ -442,8 +482,10 @@ export async function monitorRequestApproval(
                 },
               });
 
+              logEvent(`Request ${requestId} rejected`);
+
               // Clear completed transactions
-              await clearCompletedTransactions(sheetClient);
+              await clearCompletedTransactions(sheetClient, logEvent);
 
               // Remove from active monitors
               activeMonitors.delete(requestId);
@@ -454,6 +496,9 @@ export async function monitorRequestApproval(
 
         // If the request no longer exists in the sheet (cleared/deleted)
         if (!found) {
+          logEvent(
+            `Request ${requestId} no longer found in sheet - stopping monitor`
+          );
           activeMonitors.delete(requestId);
           return;
         }
@@ -461,6 +506,11 @@ export async function monitorRequestApproval(
         // Continue checking
         setTimeout(checkStatus, 5000); // Check every 5 seconds (reduced for faster checkbox response)
       } catch (error: unknown) {
+        logEvent(
+          `Error checking request status: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
         setTimeout(checkStatus, 10000); // Retry after error
       }
     };
@@ -470,6 +520,12 @@ export async function monitorRequestApproval(
   } catch (error: unknown) {
     // Remove from active monitors in case of error
     activeMonitors.delete(requestId);
+
+    logEvent(
+      `Error monitoring request approval: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 }
 
@@ -484,7 +540,8 @@ export async function processRequest(
   topic: string,
   web3wallet: any,
   addTransactionToSheet: Function,
-  sheetClient?: SheetClient,
+  logEvent: Function,
+  sheetClient: SheetClient,
   requestId: string = "" // Original request ID to link with pending entries
 ) {
   try {
@@ -518,6 +575,8 @@ export async function processRequest(
         );
         const connectedWallet = wallet.connect(provider);
 
+        logEvent(`[DEBUG] Preparing to send transaction to: ${txParams.to}`);
+
         try {
           const tx = await connectedWallet.sendTransaction({
             to: txParams.to,
@@ -527,50 +586,93 @@ export async function processRequest(
           });
 
           result = tx.hash;
+          logEvent(
+            `[DEBUG] Transaction sent successfully with hash: ${tx.hash}`
+          );
 
           // Find and update the pending entry in Wallet Explorer
-          if (sheetClient && requestId) {
-            const walletExplorerRows = await sheetClient.getSheetValues(
-              WALLET_EXPLORER_SHEET
-            );
-            let updatedEntry = false;
+          if (requestId) {
+            try {
+              const walletExplorerRows = await sheetClient.getSheetValues(
+                WALLET_EXPLORER_SHEET
+              );
+              let updatedEntry = false;
 
-            // Look for temporary pending entry
-            for (let i = 1; i < walletExplorerRows.length; i++) {
-              const row = walletExplorerRows[i];
-              if (row[0] === "pending-" + requestId) {
-                // Update the transaction hash
-                await sheetClient.setCellValue(
-                  WALLET_EXPLORER_SHEET,
-                  i + 1,
-                  "A",
-                  tx.hash
+              // Look for temporary pending entry
+              for (let i = 1; i < walletExplorerRows.length; i++) {
+                const row = walletExplorerRows[i];
+                if (row[0] === "pending-" + requestId) {
+                  // Update the transaction hash
+                  await sheetClient.setCellValue(
+                    WALLET_EXPLORER_SHEET,
+                    i + 1,
+                    "A",
+                    tx.hash
+                  );
+
+                  // Update status to Pending
+                  await sheetClient.setCellValue(
+                    WALLET_EXPLORER_SHEET,
+                    i + 1,
+                    "F",
+                    "Pending"
+                  );
+
+                  // Verify update was successful
+                  const updatedHash = await sheetClient.getCellValue(
+                    WALLET_EXPLORER_SHEET,
+                    i + 1,
+                    "A"
+                  );
+
+                  if (updatedHash === tx.hash) {
+                    updatedEntry = true;
+                    logEvent(
+                      `[DEBUG] Successfully updated temporary transaction entry with hash ${tx.hash}`
+                    );
+                  } else {
+                    logEvent(
+                      `[DEBUG] Update verification failed. Hash should be ${tx.hash} but got ${updatedHash}`
+                    );
+                  }
+                  break;
+                }
+              }
+
+              // If no entry was found or update failed, create a new one
+              if (!updatedEntry) {
+                logEvent(
+                  `[DEBUG] No existing entry found or update failed. Creating new transaction entry.`
                 );
-
-                // Update status to Pending
-                await sheetClient.setCellValue(
-                  WALLET_EXPLORER_SHEET,
-                  i + 1,
-                  "F",
+                const timestamp = new Date().toISOString();
+                await addTransactionToSheet(
+                  sheetClient,
+                  tx.hash,
+                  wallet.address,
+                  txParams.to,
+                  ethers.formatEther(txParams.value || "0"),
+                  timestamp,
                   "Pending"
                 );
-
-                // Verify update was successful
-                const updatedHash = await sheetClient.getCellValue(
-                  WALLET_EXPLORER_SHEET,
-                  i + 1,
-                  "A"
+                logEvent(
+                  `[DEBUG] Added new transaction to Wallet Explorer: ${tx.hash}`
                 );
-
-                if (updatedHash === tx.hash) {
-                  updatedEntry = true;
-                }
-                break;
               }
-            }
 
-            // If no entry was found or update failed, create a new one
-            if (!updatedEntry) {
+              // Wait a moment to ensure sheet updates are processed
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+
+              // Start transaction status monitoring
+              logEvent(
+                `[DEBUG] Initiating status monitoring for transaction ${tx.hash}`
+              );
+              updateTransactionStatus(tx.hash, provider, sheetClient, logEvent);
+            } catch (error) {
+              logEvent(
+                `[DEBUG] Error updating transaction in Wallet Explorer: ${error}`
+              );
+
+              // Fallback: create a new entry
               const timestamp = new Date().toISOString();
               await addTransactionToSheet(
                 sheetClient,
@@ -581,29 +683,41 @@ export async function processRequest(
                 timestamp,
                 "Pending"
               );
+
+              // Start transaction status monitoring
+              setTimeout(() => {
+                updateTransactionStatus(
+                  tx.hash,
+                  provider,
+                  sheetClient,
+                  logEvent
+                );
+              }, 3000); // Slight delay to ensure the entry is created first
             }
-
-            // Wait a moment to ensure sheet updates are processed
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-
-            // Start transaction status monitoring
-            updateTransactionStatus(tx.hash, provider, sheetClient);
-          }
-        } catch (error) {
-          // Only try to create fallback entry if we have a sheet client
-          if (sheetClient) {
-            // Fallback: create a new entry
+          } else {
+            // If no requestId is provided, just add a new entry
+            logEvent(
+              `[DEBUG] No requestId provided. Creating new transaction entry.`
+            );
             const timestamp = new Date().toISOString();
             await addTransactionToSheet(
               sheetClient,
-              "failed-tx",
+              tx.hash,
               wallet.address,
               txParams.to,
               ethers.formatEther(txParams.value || "0"),
               timestamp,
-              "Failed"
+              "Pending"
             );
+
+            // Start transaction status monitoring with a slight delay
+            setTimeout(() => {
+              updateTransactionStatus(tx.hash, provider, sheetClient, logEvent);
+            }, 3000);
           }
+        } catch (txError) {
+          logEvent(`[DEBUG] Transaction error: ${txError}`);
+          throw txError; // Re-throw to be caught by the outer try/catch
         }
         break;
 
@@ -620,7 +734,15 @@ export async function processRequest(
         result,
       },
     });
+
+    logEvent(`Request ${wcRequestId} processed successfully`);
   } catch (error: unknown) {
+    logEvent(
+      `Error processing approved request: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+
     // Respond with error
     await web3wallet.respondSessionRequest({
       topic,
@@ -644,13 +766,19 @@ export async function processRequest(
 export async function updateTransactionStatus(
   txHash: string,
   provider: ethers.JsonRpcProvider,
-  sheetClient: SheetClient
+  sheetClient: SheetClient,
+  logEvent: Function
 ) {
   if (!sheetClient) {
+    logEvent(
+      `Error: SheetClient not available for updating transaction status`
+    );
     return;
   }
 
   try {
+    logEvent(`[DEBUG] Monitoring transaction ${txHash} for status updates`);
+
     let attemptCount = 0;
     const maxAttempts = 30; // Allow up to 5 minutes of monitoring (10s * 30)
 
@@ -658,21 +786,33 @@ export async function updateTransactionStatus(
     const waitForReceipt = async () => {
       try {
         if (attemptCount >= maxAttempts) {
+          logEvent(
+            `[DEBUG] Max attempts reached for transaction ${txHash}. Stopping monitoring.`
+          );
           return;
         }
 
         attemptCount++;
+        logEvent(
+          `[DEBUG] Checking receipt for ${txHash} (Attempt ${attemptCount}/${maxAttempts})`
+        );
 
         const receipt = await provider.getTransactionReceipt(txHash);
 
         if (!receipt) {
           // Transaction not yet mined, check again in 10 seconds
+          logEvent(
+            `[DEBUG] No receipt yet for transaction ${txHash}. Checking again in 10 seconds.`
+          );
           setTimeout(waitForReceipt, 10000);
           return;
         }
 
         // Transaction is mined, update status in sheet
         const status = receipt.status === 1 ? "Success" : "Failed";
+        logEvent(
+          `[DEBUG] Transaction ${txHash} confirmed with status: ${status}`
+        );
 
         // Perform multiple attempts to update the status in case of sheet API issues
         let updated = false;
@@ -690,6 +830,9 @@ export async function updateTransactionStatus(
 
             for (let i = 1; i < rows.length; i++) {
               if (rows[i][0] === txHash) {
+                logEvent(
+                  `[DEBUG] Found transaction in Wallet Explorer at row ${i + 1}`
+                );
                 found = true;
 
                 await sheetClient.setCellValue(
@@ -707,15 +850,29 @@ export async function updateTransactionStatus(
                 );
 
                 if (updatedValue === status) {
+                  logEvent(
+                    `Transaction ${txHash} status updated to ${status} in Wallet Explorer`
+                  );
                   updated = true;
                   break;
+                } else {
+                  logEvent(
+                    `[DEBUG] Status update verification failed. Got "${updatedValue}" instead of "${status}"`
+                  );
                 }
               }
             }
 
             if (!found) {
+              logEvent(
+                `[DEBUG] Transaction ${txHash} not found in Wallet Explorer sheet. Retrying search...`
+              );
+
               // Try adding the transaction since it wasn't found
               if (retryAttempt === 2) {
+                logEvent(
+                  `[DEBUG] Transaction not found after retries. This may indicate a synchronization issue.`
+                );
               }
             }
 
@@ -723,9 +880,19 @@ export async function updateTransactionStatus(
               break;
             } else if (retryAttempt < 2) {
               // Wait before retrying
+              logEvent(
+                `[DEBUG] Update attempt ${
+                  retryAttempt + 1
+                } failed. Waiting 5s before retry.`
+              );
               await new Promise((resolve) => setTimeout(resolve, 5000));
             }
           } catch (retryError) {
+            logEvent(
+              `[DEBUG] Error during update attempt ${
+                retryAttempt + 1
+              }: ${retryError}`
+            );
             if (retryAttempt < 2) {
               // Wait before retrying
               await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -734,17 +901,19 @@ export async function updateTransactionStatus(
         }
 
         if (!updated) {
-          console.warn(
-            `Failed to update transaction ${txHash} status after multiple attempts`
+          logEvent(
+            `[WARNING] Failed to update transaction ${txHash} status after multiple attempts`
           );
         }
       } catch (error) {
+        logEvent(`[DEBUG] Error checking transaction receipt: ${error}`);
+
         // If we still have attempts left, retry
         if (attemptCount < maxAttempts) {
           setTimeout(waitForReceipt, 15000); // Retry in 15 seconds after an error
         } else {
-          console.warn(
-            `Max retry attempts reached after error. Stopping monitoring for ${txHash}`
+          logEvent(
+            `[DEBUG] Max retry attempts reached after error. Stopping monitoring for ${txHash}`
           );
         }
       }
@@ -756,7 +925,7 @@ export async function updateTransactionStatus(
     // Return immediately to not block execution
     return;
   } catch (error) {
-    console.warn(`Error setting up transaction monitoring: ${error}`);
+    logEvent(`[DEBUG] Error setting up transaction monitoring: ${error}`);
   }
 }
 
@@ -767,28 +936,38 @@ export async function monitorDAppConnections(
   wallet: ethers.Wallet,
   web3wallet: any,
   sheetClient: SheetClient,
-  addTransactionToSheet: Function
+  addTransactionToSheet: Function,
+  logEvent: Function
 ) {
   try {
-    console.log(
+    logEvent(
       `[DEBUG] Starting dApp connection monitoring for wallet: ${wallet.address}`
     );
 
     // Check cell A3 in ActiveSessions sheet for new WalletConnect URL
     const checkUrl = async () => {
       try {
-        console.log(
+        logEvent(
           `[DEBUG] Checking for new WalletConnect URLs in ActiveSessions sheet`
         );
 
         // First check if the ActiveSessions sheet exists
         try {
+          logEvent(
+            `[DEBUG] Attempting to get values from ${ACTIVE_SESSIONS_SHEET} sheet`
+          );
           const sheetValues = await sheetClient.getSheetValues(
             ACTIVE_SESSIONS_SHEET
+          );
+          logEvent(
+            `[DEBUG] Successfully retrieved values from ActiveSessions sheet. Found ${sheetValues.length} rows`
           );
 
           // If we get here, the sheet exists, now check if it has the proper structure
           if (sheetValues.length < 4) {
+            logEvent(
+              `[DEBUG] ActiveSessions sheet doesn't have enough rows (${sheetValues.length}), fixing structure`
+            );
             // Sheet doesn't have enough rows, let's ensure the proper structure
             await sheetClient.setRangeValues(`${ACTIVE_SESSIONS_SHEET}!A1:E4`, [
               [
@@ -814,31 +993,41 @@ export async function monitorDAppConnections(
                 "Example format: wc:a1b2c3...@2?relay-protocol=irn&symKey=abc123...",
               ],
             ]);
+            logEvent(`Fixed structure of ${ACTIVE_SESSIONS_SHEET} sheet`);
             setTimeout(checkUrl, 5000); // Check again after 5 seconds
             return;
           }
 
           // Now it's safe to check cell A3
+          logEvent(`[DEBUG] Checking cell A3 for WalletConnect URL`);
           const url = await sheetClient.getCellValue(
             ACTIVE_SESSIONS_SHEET,
             3,
             "A"
           );
+          logEvent(`[DEBUG] Cell A3 value: "${url}"`);
+
           if (url && typeof url === "string" && url.startsWith("wc:")) {
+            logEvent(`Found WalletConnect URL: ${url}`);
+
             // Clear the cell
+            logEvent(`[DEBUG] Clearing cell A3`);
             await sheetClient.setCellValue(ACTIVE_SESSIONS_SHEET, 3, "A", "");
 
             // Generate unique connection ID
             const connectionId = `conn-${Date.now()}`;
+            logEvent(`[DEBUG] Generated connection ID: ${connectionId}`);
 
             // Connect to dApp
+            logEvent(`[DEBUG] Initiating connection to dApp with URL: ${url}`);
             await connectToDApp(
               url,
               wallet,
               web3wallet,
               connectionId,
               sheetClient,
-              addTransactionToSheet
+              addTransactionToSheet,
+              logEvent
             );
           } else {
             if (
@@ -847,27 +1036,27 @@ export async function monitorDAppConnections(
               !url.startsWith("wc:") &&
               url !== ""
             ) {
-              console.log(
+              logEvent(
                 `[DEBUG] Found non-WalletConnect text in cell A3: "${url}"`
               );
             } else {
-              console.log(`[DEBUG] No WalletConnect URL found in cell A3`);
+              logEvent(`[DEBUG] No WalletConnect URL found in cell A3`);
             }
           }
         } catch (sheetError) {
           // The sheet might not exist or have the right structure
-          console.warn(
+          logEvent(
             `[DEBUG] Error accessing ActiveSessions sheet: ${
               sheetError instanceof Error
                 ? sheetError.message
                 : String(sheetError)
             }`
           );
-          console.log(`Creating or fixing ${ACTIVE_SESSIONS_SHEET} sheet`);
+          logEvent(`Creating or fixing ${ACTIVE_SESSIONS_SHEET} sheet`);
 
           // Try to create the ActiveSessions sheet
           try {
-            console.log(
+            logEvent(
               `[DEBUG] Attempting to create ${ACTIVE_SESSIONS_SHEET} sheet`
             );
             await sheetClient.createSheet(ACTIVE_SESSIONS_SHEET);
@@ -896,17 +1085,17 @@ export async function monitorDAppConnections(
                 "Example format: wc:a1b2c3...@2?relay-protocol=irn&symKey=abc123...",
               ],
             ]);
-            console.log(`${ACTIVE_SESSIONS_SHEET} sheet created successfully`);
+            logEvent(`${ACTIVE_SESSIONS_SHEET} sheet created successfully`);
           } catch (createError) {
             // Sheet might exist but we can't access it properly
-            console.warn(
+            logEvent(
               `[DEBUG] Error creating ${ACTIVE_SESSIONS_SHEET} sheet: ${
                 createError instanceof Error
                   ? createError.message
                   : String(createError)
               }`
             );
-            console.warn(
+            logEvent(
               `Error with ${ACTIVE_SESSIONS_SHEET} sheet: ${
                 createError instanceof Error
                   ? createError.message
@@ -917,7 +1106,7 @@ export async function monitorDAppConnections(
         }
       } catch (error: unknown) {
         // Don't log this error too frequently to avoid cluttering the logs
-        console.warn(
+        logEvent(
           `[DEBUG] Error in checkUrl: ${
             error instanceof Error ? error.message : String(error)
           }`
@@ -930,40 +1119,38 @@ export async function monitorDAppConnections(
       }
 
       // Check again after delay
-      console.log(`[DEBUG] Scheduling next URL check in 30 seconds`);
+      logEvent(`[DEBUG] Scheduling next URL check in 30 seconds`);
       setTimeout(checkUrl, 30000); // Check every 30 seconds
     };
 
     // Start checking
     checkUrl();
 
-    console.log("dApp connection monitoring started");
+    logEvent("dApp connection monitoring started");
 
     // Register for session events
-    console.log(
-      `[DEBUG] Setting up session_request event listener on web3wallet`
-    );
+    logEvent(`[DEBUG] Setting up session_request event listener on web3wallet`);
     web3wallet.on("session_request", async (event: any) => {
       // Handle session requests (transactions, signatures)
       const { topic, params } = event;
       const { request } = params;
 
-      console.log(
+      logEvent(
         `[DEBUG] Received session_request event. Topic: ${topic}, Method: ${request.method}`
       );
-      console.log(`Received session request: ${request.method}`);
+      logEvent(`Received session request: ${request.method}`);
 
       // Find the connection ID for this topic
       let connectionId = "";
       try {
-        console.log(`[DEBUG] Searching for connection ID for topic: ${topic}`);
+        logEvent(`[DEBUG] Searching for connection ID for topic: ${topic}`);
         const sessions = await sheetClient.getSheetValues(
           ACTIVE_SESSIONS_SHEET
         );
         for (let i = 1; i < sessions.length; i++) {
           if (sessions[i][0] && sessions[i][2] === topic) {
             connectionId = sessions[i][0];
-            console.log(
+            logEvent(
               `[DEBUG] Found connection ID: ${connectionId} for topic: ${topic}`
             );
             break;
@@ -971,17 +1158,17 @@ export async function monitorDAppConnections(
         }
 
         if (!connectionId) {
-          console.log(
+          logEvent(
             `[DEBUG] No connection ID found for topic: ${topic}, generating new ID`
           );
           connectionId = `conn-${Date.now()}`;
-          console.log(`[DEBUG] Generated new connection ID: ${connectionId}`);
+          logEvent(`[DEBUG] Generated new connection ID: ${connectionId}`);
         }
       } catch (error) {
         // If we can't find the connection ID, generate a new one
-        console.log(`[DEBUG] Error finding connection ID for topic: ${topic}`);
+        logEvent(`[DEBUG] Error finding connection ID for topic: ${topic}`);
         connectionId = `conn-${Date.now()}`;
-        console.log(`[DEBUG] Generated new connection ID: ${connectionId}`);
+        logEvent(`[DEBUG] Generated new connection ID: ${connectionId}`);
       }
 
       await handleSessionRequest(
@@ -990,19 +1177,20 @@ export async function monitorDAppConnections(
         connectionId,
         web3wallet,
         sheetClient,
-        addTransactionToSheet
+        addTransactionToSheet,
+        logEvent
       );
     });
   } catch (error: unknown) {
-    console.warn(
+    logEvent(
       `[DEBUG] Error in monitorDAppConnections: ${
         error instanceof Error ? error.message : String(error)
       }`
     );
     if (error instanceof Error && error.stack) {
-      console.warn(`[DEBUG] Error stack: ${error.stack}`);
+      logEvent(`[DEBUG] Error stack: ${error.stack}`);
     }
-    console.warn(
+    logEvent(
       `Error monitoring dApp connections: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -1020,23 +1208,38 @@ export async function connectToDApp(
   web3wallet: any,
   connectionId: string,
   sheetClient: SheetClient,
-  addTransactionToSheet: Function
+  addTransactionToSheet: Function,
+  logEvent: Function
 ) {
   try {
+    logEvent(`[DEBUG] Starting connection process for URI: ${wcUrl}`);
+
     if (!web3wallet) {
-      console.log("WalletConnect not initialized");
+      logEvent("WalletConnect not initialized");
       return;
     }
 
     const timestamp = new Date().toISOString();
-    console.log(`[DEBUG] Creating new connection with ID: ${connectionId}`);
+    logEvent(`[DEBUG] Creating new connection with ID: ${connectionId}`);
 
     // Add connection to ActiveSessions sheet with "Connecting" status
     await sheetClient.appendRows(ACTIVE_SESSIONS_SHEET, [
       [connectionId, "Connecting...", wcUrl, "Connecting", timestamp],
     ]);
+    logEvent(
+      `[DEBUG] Added connection to ActiveSessions sheet with status 'Connecting'`
+    );
 
     try {
+      // Pair with the dApp
+      logEvent(`[DEBUG] Attempting to pair with dApp using WalletConnect URL`);
+      logEvent(
+        `[DEBUG] URL format: ${wcUrl.substring(
+          0,
+          Math.min(30, wcUrl.length)
+        )}...`
+      );
+
       // Check URL format
       if (!wcUrl.startsWith("wc:")) {
         throw new Error(
@@ -1044,16 +1247,55 @@ export async function connectToDApp(
         );
       }
 
+      try {
+        // Try to extract components for debugging
+        const [wcProtocol, wcParams] = wcUrl.split("?");
+        const wcProtocolParts = wcProtocol.split("@");
+
+        if (wcProtocolParts.length > 1) {
+          const version = wcProtocolParts[1];
+          logEvent(`[DEBUG] WalletConnect protocol version: ${version}`);
+
+          if (version !== "2") {
+            logEvent(
+              `[WARN] WalletConnect URL uses version ${version}, but this wallet supports v2. Attempting to pair anyway.`
+            );
+          }
+        }
+
+        if (wcParams) {
+          const paramParts = wcParams.split("&");
+          logEvent(`[DEBUG] URL has ${paramParts.length} parameters`);
+        }
+      } catch (parseError) {
+        logEvent(
+          `[DEBUG] Error parsing WalletConnect URL components: ${parseError}`
+        );
+      }
+
       // Attempt pairing with logging for diagnostic purposes
+      logEvent(`[DEBUG] Calling web3wallet.core.pairing.pair`);
       const pairResult = await web3wallet.core.pairing.pair({ uri: wcUrl });
 
       if (!pairResult || (!pairResult.topic && !pairResult.uri)) {
+        logEvent(
+          `[DEBUG] Pairing result seems invalid: ${JSON.stringify(pairResult)}`
+        );
         throw new Error("Pairing returned an invalid result");
       }
 
+      const { uri, topic } = pairResult;
+      logEvent(
+        `[DEBUG] Pairing successful. Topic: ${topic || "Not available"}`
+      );
+
       // Set up session proposal listener
+      logEvent(`[DEBUG] Setting up session proposal listener`);
       web3wallet.on("session_proposal", async (proposal: any) => {
         try {
+          logEvent(`[DEBUG] Received session proposal. ID: ${proposal.id}`);
+          logEvent(`[DEBUG] Full proposal data: ${JSON.stringify(proposal)}`);
+
           // Get dApp metadata safely
           let dAppUrl = "Unknown";
           let dAppName = "Unknown";
@@ -1067,20 +1309,33 @@ export async function connectToDApp(
             const { metadata } = proposal.params.proposer;
             dAppUrl = metadata.url || "Unknown";
             dAppName = metadata.name || "Unknown";
+            logEvent(`[DEBUG] Found metadata in proposal.params.proposer`);
           } else if (proposal.proposer && proposal.proposer.metadata) {
             // Alternative structure
             const { metadata } = proposal.proposer;
             dAppUrl = metadata.url || "Unknown";
             dAppName = metadata.name || "Unknown";
+            logEvent(`[DEBUG] Found metadata in proposal.proposer`);
           } else {
+            // Could not find metadata in expected locations
+            logEvent(
+              `[DEBUG] Could not find metadata in proposal. Using default values.`
+            );
+            logEvent(
+              `[DEBUG] Proposal structure: ${Object.keys(proposal).join(", ")}`
+            );
             if (proposal.params) {
-              console.log(
+              logEvent(
                 `[DEBUG] proposal.params keys: ${Object.keys(
                   proposal.params
                 ).join(", ")}`
               );
             }
           }
+
+          logEvent(
+            `[DEBUG] dApp metadata - Name: ${dAppName}, URL: ${dAppUrl}`
+          );
 
           // Try to extract namespaces regardless of structure
           let requiredNamespaces = {};
@@ -1089,6 +1344,9 @@ export async function connectToDApp(
           } else if (proposal.requiredNamespaces) {
             requiredNamespaces = proposal.requiredNamespaces;
           }
+          logEvent(
+            `[DEBUG] Required namespaces: ${JSON.stringify(requiredNamespaces)}`
+          );
 
           // Update dApp URL in sheet
           await updateConnectionStatus(
@@ -1096,6 +1354,12 @@ export async function connectToDApp(
             connectionId,
             "Pending",
             dAppUrl
+          );
+          logEvent(`[DEBUG] Updated connection status to 'Pending'`);
+
+          // Approve the session
+          logEvent(
+            `[DEBUG] Preparing to approve session with wallet address: ${wallet.address}`
           );
 
           // Format the wallet address according to CAIP-10 for WalletConnect v2
@@ -1105,6 +1369,7 @@ export async function connectToDApp(
 
           const chainId = "421614"; // Arbitrum Sepolia
           const caipAddress = `eip155:${chainId}:${formattedAddress}`;
+          logEvent(`[DEBUG] Formatted CAIP-10 address: ${caipAddress}`);
 
           const namespaces = {
             eip155: {
@@ -1119,8 +1384,13 @@ export async function connectToDApp(
               events: ["accountsChanged", "chainChanged"],
             },
           };
+          logEvent(
+            `[DEBUG] Session namespaces prepared: ${JSON.stringify(namespaces)}`
+          );
 
           try {
+            logEvent(`[DEBUG] Calling approveSession with ID: ${proposal.id}`);
+
             // Prepare the approval parameters
             let approvalParams: any = {
               id: proposal.id,
@@ -1134,10 +1404,19 @@ export async function connectToDApp(
                 proposalId: proposal.proposalId,
                 namespaces,
               };
+              logEvent(`[DEBUG] Using proposalId format for approval`);
             }
+
+            logEvent(
+              `[DEBUG] Approval params: ${JSON.stringify(approvalParams)}`
+            );
 
             // Try to approve the session
             const session = await web3wallet.approveSession(approvalParams);
+
+            logEvent(
+              `[DEBUG] Session approved successfully. Session topic: ${session.topic}`
+            );
 
             // Update connection status to "Connected"
             await updateConnectionStatus(
@@ -1146,22 +1425,29 @@ export async function connectToDApp(
               "Connected",
               dAppUrl
             );
+            logEvent(`Connected to dApp: ${dAppUrl}`);
 
+            // Set up session request listener
+            logEvent(`[DEBUG] Setting up session request listener`);
             web3wallet.on("session_request", async (event: any) => {
+              logEvent(
+                `[DEBUG] Received session request event. Method: ${event?.params?.request?.method}`
+              );
               await handleSessionRequest(
                 event,
                 wallet,
                 connectionId,
                 web3wallet,
                 sheetClient,
-                addTransactionToSheet
+                addTransactionToSheet,
+                logEvent
               );
             });
 
             // Set up session delete listener
-            console.log(`[DEBUG] Setting up session delete listener`);
+            logEvent(`[DEBUG] Setting up session delete listener`);
             web3wallet.on("session_delete", async (event: any) => {
-              console.log(
+              logEvent(
                 `[DEBUG] Received session delete event. Topic: ${event.topic}`
               );
               if (event.topic === session.topic) {
@@ -1171,11 +1457,11 @@ export async function connectToDApp(
                   "Disconnected",
                   dAppUrl
                 );
-                console.log(`Disconnected from dApp: ${dAppUrl}`);
+                logEvent(`Disconnected from dApp: ${dAppUrl}`);
               }
             });
           } catch (approvalError: unknown) {
-            console.warn(
+            logEvent(
               `[DEBUG] Error in approveSession: ${
                 approvalError instanceof Error
                   ? approvalError.message
@@ -1183,21 +1469,21 @@ export async function connectToDApp(
               }`
             );
             if (approvalError instanceof Error && approvalError.stack) {
-              console.warn(`[DEBUG] Error stack: ${approvalError.stack}`);
+              logEvent(`[DEBUG] Error stack: ${approvalError.stack}`);
             }
             throw approvalError;
           }
         } catch (error: unknown) {
-          console.warn(
+          logEvent(
             `[DEBUG] Error in session_proposal handler: ${
               error instanceof Error ? error.message : String(error)
             }`
           );
           if (error instanceof Error && error.stack) {
-            console.warn(`[DEBUG] Error stack: ${error.stack}`);
+            logEvent(`[DEBUG] Error stack: ${error.stack}`);
           }
           await updateConnectionStatus(sheetClient, connectionId, "Failed");
-          console.warn(
+          logEvent(
             `Error handling session proposal: ${
               error instanceof Error ? error.message : String(error)
             }`
@@ -1205,31 +1491,31 @@ export async function connectToDApp(
         }
       });
     } catch (error: unknown) {
-      console.warn(
+      logEvent(
         `[DEBUG] Error in pairing process: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
       if (error instanceof Error && error.stack) {
-        console.warn(`[DEBUG] Error stack: ${error.stack}`);
+        logEvent(`[DEBUG] Error stack: ${error.stack}`);
       }
       await updateConnectionStatus(sheetClient, connectionId, "Failed");
-      console.warn(
+      logEvent(
         `Error connecting to dApp: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   } catch (error: unknown) {
-    console.warn(
+    logEvent(
       `[DEBUG] General error in connectToDApp: ${
         error instanceof Error ? error.message : String(error)
       }`
     );
     if (error instanceof Error && error.stack) {
-      console.warn(`[DEBUG] Error stack: ${error.stack}`);
+      logEvent(`[DEBUG] Error stack: ${error.stack}`);
     }
-    console.warn(
+    logEvent(
       `Error in connectToDApp: ${
         error instanceof Error ? error.message : String(error)
       }`

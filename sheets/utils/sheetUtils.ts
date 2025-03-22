@@ -11,7 +11,10 @@ export const LOGS_SHEET = "Logs";
 /**
  * Initialize or get existing sheets
  */
-export async function initializeSheets(sheetClient: SheetClient) {
+export async function initializeSheets(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     console.log(`📊 Checking if all required sheets exist...`);
 
@@ -35,41 +38,45 @@ export async function initializeSheets(sheetClient: SheetClient) {
 
     if (missingSheets.length === 0) {
       console.log(`✅ All required sheets exist, no need to create any.`);
+      logEvent("All required sheets already exist");
 
       // Even if sheets exist, check if Pending Transactions needs to be updated
-      await updatePendingTransactionsSheet(sheetClient);
+      await updatePendingTransactionsSheet(sheetClient, logEvent);
 
       return;
     }
 
     console.log(`🛠️ Missing sheets: ${missingSheets.join(", ")}`);
+    logEvent(`Creating missing sheets: ${missingSheets.join(", ")}`);
 
     // Create each missing sheet
     for (const sheetName of missingSheets) {
       console.log(`📝 Creating "${sheetName}" sheet...`);
       switch (sheetName) {
         case SETTINGS_SHEET:
-          await createSettingsSheet(sheetClient);
+          await createSettingsSheet(sheetClient, logEvent);
           break;
         case WALLET_EXPLORER_SHEET:
-          await createWalletExplorerSheet(sheetClient);
+          await createWalletExplorerSheet(sheetClient, logEvent);
           break;
         case ACTIVE_SESSIONS_SHEET:
-          await createActiveSessionsSheet(sheetClient);
+          await createActiveSessionsSheet(sheetClient, logEvent);
           break;
         case PENDING_TRANSACTIONS_SHEET:
-          await createPendingTransactionsSheet(sheetClient);
+          await createPendingTransactionsSheet(sheetClient, logEvent);
           break;
         case LOGS_SHEET:
-          await createLogsSheet(sheetClient);
+          await createLogsSheet(sheetClient, logEvent);
           break;
       }
     }
 
     // Even if Pending Transactions sheet was just created, check if it has the correct structure
     if (!missingSheets.includes(PENDING_TRANSACTIONS_SHEET)) {
-      await updatePendingTransactionsSheet(sheetClient);
+      await updatePendingTransactionsSheet(sheetClient, logEvent);
     }
+
+    logEvent("Sheets initialized successfully");
   } catch (error: unknown) {
     console.error(`❌ Error in initializeSheets:`, error);
     if (error instanceof Error) {
@@ -79,7 +86,11 @@ export async function initializeSheets(sheetClient: SheetClient) {
         stack: error.stack,
       });
     }
-
+    logEvent(
+      `Error initializing sheets: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -87,23 +98,33 @@ export async function initializeSheets(sheetClient: SheetClient) {
 /**
  * Create all required sheets
  */
-export async function createSheets(sheetClient: SheetClient) {
+export async function createSheets(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     // Create Settings sheet
-    await createSettingsSheet(sheetClient);
+    await createSettingsSheet(sheetClient, logEvent);
 
     // Create Wallet Explorer sheet
-    await createWalletExplorerSheet(sheetClient);
+    await createWalletExplorerSheet(sheetClient, logEvent);
 
     // Create ActiveSessions sheet
-    await createActiveSessionsSheet(sheetClient);
+    await createActiveSessionsSheet(sheetClient, logEvent);
 
     // Create Pending Transactions sheet
-    await createPendingTransactionsSheet(sheetClient);
+    await createPendingTransactionsSheet(sheetClient, logEvent);
 
     // Create Logs sheet
-    await createLogsSheet(sheetClient);
+    await createLogsSheet(sheetClient, logEvent);
+
+    logEvent("All sheets created successfully");
   } catch (error: unknown) {
+    logEvent(
+      `Error creating sheets: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -111,7 +132,10 @@ export async function createSheets(sheetClient: SheetClient) {
 /**
  * Create Settings sheet
  */
-export async function createSettingsSheet(sheetClient: SheetClient) {
+export async function createSettingsSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     // Check if sheet exists
     try {
@@ -127,8 +151,15 @@ export async function createSettingsSheet(sheetClient: SheetClient) {
         ["Wallet Address", ""],
         ["Sheet Owner Email", ""],
       ]);
+
+      logEvent(`${SETTINGS_SHEET} sheet created`);
     }
   } catch (error: unknown) {
+    logEvent(
+      `Error creating ${SETTINGS_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -136,7 +167,10 @@ export async function createSettingsSheet(sheetClient: SheetClient) {
 /**
  * Create Wallet Explorer sheet
  */
-export async function createWalletExplorerSheet(sheetClient: SheetClient) {
+export async function createWalletExplorerSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     // Check if sheet exists
     try {
@@ -150,8 +184,15 @@ export async function createWalletExplorerSheet(sheetClient: SheetClient) {
       await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A1:F1`, [
         ["Transaction Hash", "From", "To", "Amount", "Timestamp", "Status"],
       ]);
+
+      logEvent(`${WALLET_EXPLORER_SHEET} sheet created`);
     }
   } catch (error: unknown) {
+    logEvent(
+      `Error creating ${WALLET_EXPLORER_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -159,7 +200,10 @@ export async function createWalletExplorerSheet(sheetClient: SheetClient) {
 /**
  * Create ActiveSessions sheet
  */
-export async function createActiveSessionsSheet(sheetClient: SheetClient) {
+export async function createActiveSessionsSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     // Check if sheet exists
     try {
@@ -239,10 +283,19 @@ export async function createActiveSessionsSheet(sheetClient: SheetClient) {
           }
         );
       } catch (formatError) {
-        console.error(`❌ Unable to format instructions row: ${formatError}`);
+        logEvent(`Unable to format instructions row: ${formatError}`);
       }
+
+      logEvent(
+        `${ACTIVE_SESSIONS_SHEET} sheet created with detailed instructions`
+      );
     }
   } catch (error: unknown) {
+    logEvent(
+      `Error creating ${ACTIVE_SESSIONS_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -250,7 +303,10 @@ export async function createActiveSessionsSheet(sheetClient: SheetClient) {
 /**
  * Create Pending Transactions sheet
  */
-export async function createPendingTransactionsSheet(sheetClient: SheetClient) {
+export async function createPendingTransactionsSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     // Check if sheet exists
     try {
@@ -301,8 +357,15 @@ export async function createPendingTransactionsSheet(sheetClient: SheetClient) {
           "Click to approve or reject",
         ],
       ]);
+
+      logEvent(`${PENDING_TRANSACTIONS_SHEET} sheet created`);
     }
   } catch (error: unknown) {
+    logEvent(
+      `Error creating ${PENDING_TRANSACTIONS_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -310,7 +373,10 @@ export async function createPendingTransactionsSheet(sheetClient: SheetClient) {
 /**
  * Create Logs sheet
  */
-export async function createLogsSheet(sheetClient: SheetClient) {
+export async function createLogsSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     // Check if sheet exists
     try {
@@ -324,8 +390,15 @@ export async function createLogsSheet(sheetClient: SheetClient) {
       await sheetClient.setRangeValues(`${LOGS_SHEET}!A1:B1`, [
         ["Timestamp", "Message"],
       ]);
+
+      logEvent(`${LOGS_SHEET} sheet created`);
     }
   } catch (error: unknown) {
+    logEvent(
+      `Error creating ${LOGS_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -335,11 +408,18 @@ export async function createLogsSheet(sheetClient: SheetClient) {
  */
 export async function storeWalletAddress(
   sheetClient: SheetClient,
-  walletAddress: string
+  walletAddress: string,
+  logEvent: Function
 ) {
   try {
     await sheetClient.setCellValue(SETTINGS_SHEET, 2, "B", walletAddress);
+    logEvent(`Wallet address stored: ${walletAddress}`);
   } catch (error: unknown) {
+    logEvent(
+      `Error storing wallet address: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -349,11 +429,18 @@ export async function storeWalletAddress(
  */
 export async function storeSheetOwnerEmail(
   sheetClient: SheetClient,
-  ownerEmail: string
+  ownerEmail: string,
+  logEvent: Function
 ) {
   try {
     await sheetClient.setCellValue(SETTINGS_SHEET, 3, "B", ownerEmail);
+    logEvent(`Sheet owner email stored: ${ownerEmail}`);
   } catch (error: unknown) {
+    logEvent(
+      `Error storing sheet owner email: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw error;
   }
 }
@@ -362,7 +449,8 @@ export async function storeSheetOwnerEmail(
  * Get sheet owner email from settings
  */
 export async function getSheetOwnerEmail(
-  sheetClient: SheetClient
+  sheetClient: SheetClient,
+  logEvent: Function
 ): Promise<string> {
   try {
     console.log(
@@ -392,6 +480,11 @@ export async function getSheetOwnerEmail(
         stack: error.stack,
       });
     }
+    logEvent(
+      `Error getting sheet owner email: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     return "";
   }
 }
@@ -424,7 +517,10 @@ export async function addTransactionToSheet(
 /**
  * Update existing Pending Transactions sheet to add Approve/Reject columns if needed
  */
-export async function updatePendingTransactionsSheet(sheetClient: SheetClient) {
+export async function updatePendingTransactionsSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
     // Check if sheet exists
     try {
@@ -440,6 +536,10 @@ export async function updatePendingTransactionsSheet(sheetClient: SheetClient) {
         headers[6] !== "Approve" ||
         headers[7] !== "Reject"
       ) {
+        logEvent(
+          `Updating ${PENDING_TRANSACTIONS_SHEET} sheet to add approve/reject columns`
+        );
+
         // Add headers for Approve and Reject columns
         await sheetClient.setRangeValues(
           `${PENDING_TRANSACTIONS_SHEET}!G1:H1`,
@@ -451,14 +551,18 @@ export async function updatePendingTransactionsSheet(sheetClient: SheetClient) {
           `${PENDING_TRANSACTIONS_SHEET}!G2:H2`,
           [["Check this box to approve", "Check this box to reject"]]
         );
+
+        logEvent(
+          `Successfully updated ${PENDING_TRANSACTIONS_SHEET} sheet with approval/rejection columns`
+        );
       }
     } catch (error) {
-      console.error(
+      logEvent(
         `${PENDING_TRANSACTIONS_SHEET} sheet doesn't exist yet, will be created later`
       );
     }
   } catch (error: unknown) {
-    console.error(
+    logEvent(
       `Error updating ${PENDING_TRANSACTIONS_SHEET} sheet: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -470,16 +574,21 @@ export async function updatePendingTransactionsSheet(sheetClient: SheetClient) {
  * Force update all pending transactions to ensure they have checkbox cells
  * This can be called manually to fix existing transactions
  */
-export async function forceUpdatePendingTransactions(sheetClient: SheetClient) {
+export async function forceUpdatePendingTransactions(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
+    logEvent(`Updating pending transactions with checkbox formatting`);
+
     // First make sure the sheet structure is correct
-    await updatePendingTransactionsSheet(sheetClient);
+    await updatePendingTransactionsSheet(sheetClient, logEvent);
 
     // Get all rows to find pending transactions
     const values = await sheetClient.getSheetValues(PENDING_TRANSACTIONS_SHEET);
 
     if (values.length <= 3) {
-      console.log(`No transactions found to update`);
+      logEvent(`No transactions found to update`);
       return;
     }
 
@@ -550,7 +659,7 @@ export async function forceUpdatePendingTransactions(sheetClient: SheetClient) {
 
             updatedCount++;
           } catch (validationError) {
-            console.error(
+            logEvent(
               `Warning: Could not set up checkbox validation for row ${
                 i + 1
               }: ${
@@ -565,14 +674,14 @@ export async function forceUpdatePendingTransactions(sheetClient: SheetClient) {
     }
 
     if (updatedCount > 0) {
-      console.log(
+      logEvent(
         `Updated ${updatedCount} pending transactions with checkbox formatting`
       );
     } else {
-      console.log(`No pending transactions found to update`);
+      logEvent(`No pending transactions found to update`);
     }
   } catch (error: unknown) {
-    console.error(
+    logEvent(
       `Error force updating pending transactions: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -586,7 +695,8 @@ export async function forceUpdatePendingTransactions(sheetClient: SheetClient) {
  */
 export async function addCheckboxesToRow(
   sheetClient: SheetClient,
-  rowIndex: number
+  rowIndex: number,
+  logEvent: Function
 ) {
   try {
     const sheets = await sheetClient.getSheetMetadata();
@@ -639,8 +749,10 @@ export async function addCheckboxesToRow(
     await sheetClient.batchUpdate({
       requests,
     });
+
+    logEvent(`Added checkbox formatting to row ${rowIndex}`);
   } catch (error: unknown) {
-    console.error(
+    logEvent(
       `Error adding checkboxes to row ${rowIndex}: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -652,15 +764,18 @@ export async function addCheckboxesToRow(
  * Clear completed transactions from the Pending Transactions sheet
  * This will remove all transactions that have been approved or rejected
  */
-export async function clearCompletedTransactions(sheetClient: SheetClient) {
+export async function clearCompletedTransactions(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
   try {
-    console.log(`Clearing completed transactions from sheet`);
+    logEvent(`Clearing completed transactions from sheet`);
 
     // Get all rows
     const values = await sheetClient.getSheetValues(PENDING_TRANSACTIONS_SHEET);
 
     if (values.length <= 3) {
-      console.log(`No transactions found to clear`);
+      logEvent(`No transactions found to clear`);
       return;
     }
 
@@ -668,7 +783,7 @@ export async function clearCompletedTransactions(sheetClient: SheetClient) {
     const sheets = await sheetClient.getSheetMetadata();
     const sheet = sheets.find((s) => s.title === PENDING_TRANSACTIONS_SHEET);
     if (!sheet) {
-      console.log(`Could not find sheet metadata`);
+      logEvent(`Could not find sheet metadata`);
       return;
     }
 
@@ -706,12 +821,12 @@ export async function clearCompletedTransactions(sheetClient: SheetClient) {
       await sheetClient.batchUpdate({
         requests,
       });
-      console.log(`Removed ${rowsToDelete.length} completed transactions`);
+      logEvent(`Removed ${rowsToDelete.length} completed transactions`);
     } else {
-      console.log(`No completed transactions to remove`);
+      logEvent(`No completed transactions to remove`);
     }
   } catch (error: unknown) {
-    console.error(
+    logEvent(
       `Error clearing completed transactions: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -725,14 +840,17 @@ export async function clearCompletedTransactions(sheetClient: SheetClient) {
  */
 export async function checkStuckTransactions(
   sheetClient: SheetClient,
-  provider: ethers.JsonRpcProvider
+  provider: ethers.JsonRpcProvider,
+  logEvent: Function
 ) {
   try {
+    logEvent(`[DEBUG] Checking for stuck transactions in Wallet Explorer`);
+
     // Get all rows from Wallet Explorer
     const rows = await sheetClient.getSheetValues(WALLET_EXPLORER_SHEET);
 
     if (!rows || rows.length <= 1) {
-      console.log(`[DEBUG] No transactions found in Wallet Explorer sheet`);
+      logEvent(`[DEBUG] No transactions found in Wallet Explorer sheet`);
       return;
     }
 
@@ -757,7 +875,7 @@ export async function checkStuckTransactions(
         }
 
         pendingCount++;
-        console.log(`[DEBUG] Found pending transaction: ${txHash}`);
+        logEvent(`[DEBUG] Found pending transaction: ${txHash}`);
 
         try {
           // Check transaction receipt
@@ -766,6 +884,9 @@ export async function checkStuckTransactions(
           if (receipt) {
             // Transaction is mined, update status
             const status = receipt.status === 1 ? "Success" : "Failed";
+            logEvent(
+              `[DEBUG] Updating stuck transaction ${txHash} to ${status}`
+            );
 
             await sheetClient.setCellValue(
               WALLET_EXPLORER_SHEET,
@@ -775,30 +896,30 @@ export async function checkStuckTransactions(
             );
 
             updatedCount++;
-            console.log(`Updated stuck transaction ${txHash} to ${status}`);
+            logEvent(`Updated stuck transaction ${txHash} to ${status}`);
           } else {
-            console.log(
-              `[DEBUG] Transaction ${txHash} is still pending on-chain`
-            );
+            logEvent(`[DEBUG] Transaction ${txHash} is still pending on-chain`);
           }
         } catch (error) {
-          console.error(
-            `[DEBUG] Error checking transaction ${txHash}: ${error}`
-          );
+          logEvent(`[DEBUG] Error checking transaction ${txHash}: ${error}`);
         }
       }
     }
 
+    logEvent(
+      `[DEBUG] Checked ${pendingCount} pending transactions, updated ${updatedCount}`
+    );
+
     if (pendingCount > 0 && updatedCount === 0) {
-      console.log(
+      logEvent(
         `Checked ${pendingCount} pending transactions - all still pending on-chain`
       );
     } else if (updatedCount > 0) {
-      console.log(
+      logEvent(
         `Updated ${updatedCount} out of ${pendingCount} pending transactions`
       );
     }
   } catch (error) {
-    console.error(`[DEBUG] Error checking stuck transactions: ${error}`);
+    logEvent(`[DEBUG] Error checking stuck transactions: ${error}`);
   }
 }
