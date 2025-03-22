@@ -34,7 +34,7 @@ export async function initializePriceTool() {
         name: "price",
         description: "Fetches the current price, 24-hour change percentage, and trading volume of any cryptocurrency that is traded on Hyperliquid",
         examples: examples,
-        execute: async (input) => {
+        execute: async (input, agent) => {
             try {
                 console.log(`🔧 Executing price tool with input: "${input}"`);
 

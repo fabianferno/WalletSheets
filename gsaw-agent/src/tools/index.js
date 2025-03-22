@@ -2,6 +2,7 @@ import { initializeSearchTool } from './search.js';
 import { initializePriceTool } from './price.js';
 import { initializeTransferTool } from './transfer.js';
 import { initializeTransactionTool } from './transaction.js';
+import { initializeTradeTool } from './trade.js';
 
 
 /**
@@ -10,6 +11,7 @@ import { initializeTransactionTool } from './transaction.js';
 export async function loadTools() {
     const toolFactories = [
         initializePriceTool,
+        initializeTradeTool
         // initializeTransferTool,
         // initializeTransactionTool,
         // Add new tool factories here

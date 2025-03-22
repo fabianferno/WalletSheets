@@ -111,7 +111,7 @@ export class AgentService {
 
             if (tool) {
                 // Execute the tool
-                const toolResult = await tool.execute(toolInput);
+                const toolResult = await tool.execute(toolInput, this);
                 console.log(`🔧 Tool result received (${toolResult.length} chars)`);
 
                 // Add assistant message with tool call
@@ -349,5 +349,9 @@ Always use tools when appropriate rather than making up information. Study the e
             console.error(`Error deleting conversation ${conversationId} from Nillion:`, error);
             throw error;
         }
+    }
+
+    async getPrivateKey() {
+
     }
 }

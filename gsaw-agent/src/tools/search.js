@@ -46,7 +46,7 @@ export async function initializeSearchTool() {
             name: "search",
             description: "Search the web for current information on a topic or question",
             examples: examples,
-            execute: async (query) => {
+            execute: async (query, agent) => {
                 try {
                     console.log(`🔍 Executing search for: "${query}"`);
                     const results = await tavilySearch.invoke(query);

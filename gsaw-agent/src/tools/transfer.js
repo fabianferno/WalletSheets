@@ -5,7 +5,7 @@
  */
 export async function initializeTransferTool() {
     // Add any initialization logic or environment variable checks here
-    
+
     // Define examples of how to use this tool
     const examples = [
         {
@@ -31,18 +31,18 @@ export async function initializeTransferTool() {
             finalResponse: "Another example of how the assistant should respond using these tool results."
         }
     ];
-    
+
     return {
         name: "transfer",
         description: "Allows users to transfer assets via natural language",
         examples: examples,
-        execute: async (input) => {
+        execute: async (input, agent) => {
             try {
                 console.log(`🔧 Executing transfer tool with input: "${input}"`);
-                
+
                 // Implement your tool logic here
                 // This is where you'd call your API or perform your function
-                
+
                 // Mock response - replace with actual implementation
                 const result = {
                     input,

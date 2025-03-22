@@ -35,7 +35,7 @@ export async function initializeWeatherTool() {
         name: "weather",
         description: "Get current weather information for a location",
         examples: examples,
-        execute: async (location) => {
+        execute: async (location, agent) => {
             try {
                 console.log(`🌤️ Getting weather for: "${location}"`);
                 // This is a mock implementation
