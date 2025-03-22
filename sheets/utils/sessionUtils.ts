@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import {
   PENDING_TRANSACTIONS_SHEET,
   ACTIVE_SESSIONS_SHEET,
+  WALLET_EXPLORER_SHEET,
   clearCompletedTransactions,
   addCheckboxesToRow,
 } from "./sheetUtils";
@@ -70,6 +71,115 @@ export async function handleSessionRequest(
     const requestId = `req-${Date.now()}`;
     const timestamp = new Date().toISOString();
 
+    // Create a unique transaction key for deduplication based on:
+    // - connection ID
+    // - method type
+    // - key transaction parameters
+    let transactionKey = `${connectionId}:${method}:`;
+
+    if (method === "eth_sendTransaction" && requestParams?.[0]) {
+      // For transactions, use to-address, value, and data as the unique identifiers
+      const txParams = requestParams[0];
+      transactionKey += `${txParams.to || ""}:${txParams.value || "0"}:${
+        txParams.data || "0x"
+      }`;
+    } else if (method === "personal_sign" || method === "eth_sign") {
+      // For signatures, use the message as the key
+      transactionKey += requestParams?.[0] || "";
+    } else if (method === "eth_signTypedData") {
+      // For typed data, use a hash of the domain and message
+      const typedData = requestParams?.[0];
+      transactionKey +=
+        JSON.stringify(typedData?.domain) + JSON.stringify(typedData?.message);
+    } else {
+      // For other methods, use the full params
+      transactionKey += JSON.stringify(requestParams);
+    }
+
+    logEvent(`[DEBUG] Transaction key: ${transactionKey}`);
+
+    // Check existing transactions in the Pending Transactions sheet
+    const existingValues = await sheetClient.getSheetValues(
+      PENDING_TRANSACTIONS_SHEET
+    );
+
+    // Find if this transaction already exists
+    let existingTransactionRow = null;
+    let existingRequestId = null;
+
+    for (let i = 3; i < existingValues.length; i++) {
+      // Skip header and instruction rows
+      const row = existingValues[i];
+      if (!row || row.length < 5) continue;
+
+      // If this row has the same connection ID and method
+      if (row[1] === connectionId && row[2] === method) {
+        try {
+          // Compare transaction parameters based on method
+          if (method === "eth_sendTransaction" && requestParams?.[0]) {
+            const existingDetails = JSON.parse(row[3] || "[]");
+            const existingTx = existingDetails[0] || {};
+            const newTx = requestParams[0];
+
+            // Compare key transaction parameters (to, value, data)
+            if (
+              existingTx.to === newTx.to &&
+              existingTx.value === newTx.value &&
+              existingTx.data === newTx.data
+            ) {
+              existingTransactionRow = row;
+              existingRequestId = row[0];
+              logEvent(
+                `[DEBUG] Found duplicate transaction request at row ${i + 1}`
+              );
+              break;
+            }
+          } else {
+            // For other requests, use exact details matching
+            if (row[3] === JSON.stringify(requestParams)) {
+              existingTransactionRow = row;
+              existingRequestId = row[0];
+              logEvent(`[DEBUG] Found duplicate request at row ${i + 1}`);
+              break;
+            }
+          }
+        } catch (e) {
+          // If parsing fails, continue to the next row
+          logEvent(`[DEBUG] Error comparing row ${i + 1}: ${e}`);
+        }
+      }
+    }
+
+    // If the transaction already exists, use the existing request ID instead of creating a new one
+    if (existingTransactionRow) {
+      logEvent(
+        `[DEBUG] Duplicate transaction detected with ID ${existingRequestId}`
+      );
+
+      // If the transaction is pending, use the existing one
+      if (existingTransactionRow[4] === "Pending") {
+        logEvent(
+          `Skipping duplicate transaction request. Using existing request ID ${existingRequestId}`
+        );
+
+        // Monitor the existing request
+        monitorRequestApproval(
+          existingRequestId,
+          id, // Use the new WalletConnect request ID
+          method,
+          requestParams,
+          wallet,
+          topic,
+          web3wallet,
+          sheetClient,
+          addTransactionToSheet,
+          logEvent
+        );
+
+        return;
+      }
+    }
+
     // Add request to Pending Transactions sheet
     const details = JSON.stringify(requestParams);
     await sheetClient.appendRows(PENDING_TRANSACTIONS_SHEET, [
@@ -129,6 +239,9 @@ export async function handleSessionRequest(
   }
 }
 
+// Keep track of requests that are already being monitored
+const activeMonitors = new Set<string>();
+
 /**
  * Monitor for request approval/rejection
  */
@@ -145,15 +258,38 @@ export async function monitorRequestApproval(
   logEvent: Function
 ) {
   try {
+    // Check if this request is already being monitored
+    if (activeMonitors.has(requestId)) {
+      logEvent(
+        `Request ${requestId} is already being monitored - skipping duplicate monitor`
+      );
+      return;
+    }
+
+    // Add to active monitors set
+    activeMonitors.add(requestId);
+    logEvent(`Started monitoring request ${requestId}`);
+
     const checkStatus = async () => {
       try {
         const rows = await sheetClient.getSheetValues(
           PENDING_TRANSACTIONS_SHEET
         );
 
+        let found = false;
         for (let i = 1; i < rows.length; i++) {
           if (rows[i][0] === requestId) {
+            found = true;
             const status = rows[i][4];
+            const details = rows[i][3];
+            let parsedParams;
+
+            try {
+              parsedParams = JSON.parse(details);
+            } catch (e) {
+              logEvent(`[DEBUG] Error parsing request details: ${e}`);
+              parsedParams = [];
+            }
 
             // Check if approve checkbox is checked (column G, index 6)
             const isApproved = rows[i][6] === "TRUE" || rows[i][6] === true;
@@ -170,6 +306,27 @@ export async function monitorRequestApproval(
                 "Approved"
               );
 
+              // For transactions, add an entry to Wallet Explorer sheet immediately with "Pending" status
+              if (method === "eth_sendTransaction" && parsedParams?.[0]) {
+                const txParams = parsedParams[0];
+                const currentTimestamp = new Date().toISOString();
+
+                // Add to Wallet Explorer with "Processing" status
+                await addTransactionToSheet(
+                  sheetClient,
+                  "pending-" + requestId, // Temporary hash until real one is available
+                  wallet.address,
+                  txParams.to,
+                  ethers.formatEther(txParams.value || "0"),
+                  currentTimestamp,
+                  "Processing"
+                );
+
+                logEvent(
+                  `Added transaction to Wallet Explorer with Processing status`
+                );
+              }
+
               // Process the approved request
               await processRequest(
                 wcRequestId,
@@ -179,7 +336,9 @@ export async function monitorRequestApproval(
                 topic,
                 web3wallet,
                 addTransactionToSheet,
-                logEvent
+                logEvent,
+                sheetClient,
+                requestId // Pass the requestId to link the pending transaction
               );
 
               // Clear the checkboxes
@@ -201,6 +360,8 @@ export async function monitorRequestApproval(
               // Clear completed transactions
               await clearCompletedTransactions(sheetClient, logEvent);
 
+              // Remove from active monitors
+              activeMonitors.delete(requestId);
               return; // Stop checking
             } else if (isRejected) {
               // Update status to "Rejected"
@@ -210,6 +371,25 @@ export async function monitorRequestApproval(
                 "E",
                 "Rejected"
               );
+
+              // For transactions, add an entry to Wallet Explorer sheet with "Rejected" status
+              if (method === "eth_sendTransaction" && parsedParams?.[0]) {
+                const txParams = parsedParams[0];
+                const currentTimestamp = new Date().toISOString();
+
+                // Add to Wallet Explorer with "Rejected" status
+                await addTransactionToSheet(
+                  sheetClient,
+                  "rejected-" + requestId,
+                  wallet.address,
+                  txParams.to,
+                  ethers.formatEther(txParams.value || "0"),
+                  currentTimestamp,
+                  "Rejected"
+                );
+
+                logEvent(`Added rejected transaction to Wallet Explorer`);
+              }
 
               // Reject the request
               await web3wallet.respondSessionRequest({
@@ -243,6 +423,8 @@ export async function monitorRequestApproval(
               // Clear completed transactions
               await clearCompletedTransactions(sheetClient, logEvent);
 
+              // Remove from active monitors
+              activeMonitors.delete(requestId);
               return; // Stop checking
             }
             // If status is already approved/rejected but not handled by the checkboxes
@@ -256,14 +438,37 @@ export async function monitorRequestApproval(
                 topic,
                 web3wallet,
                 addTransactionToSheet,
-                logEvent
+                logEvent,
+                sheetClient,
+                requestId
               );
 
               // Clear completed transactions
               await clearCompletedTransactions(sheetClient, logEvent);
 
+              // Remove from active monitors
+              activeMonitors.delete(requestId);
               return; // Stop checking
             } else if (status === "Rejected") {
+              // For transactions, add an entry to Wallet Explorer sheet with "Rejected" status
+              if (method === "eth_sendTransaction" && parsedParams?.[0]) {
+                const txParams = parsedParams[0];
+                const currentTimestamp = new Date().toISOString();
+
+                // Add to Wallet Explorer with "Rejected" status
+                await addTransactionToSheet(
+                  sheetClient,
+                  "rejected-" + requestId,
+                  wallet.address,
+                  txParams.to,
+                  ethers.formatEther(txParams.value || "0"),
+                  currentTimestamp,
+                  "Rejected"
+                );
+
+                logEvent(`Added rejected transaction to Wallet Explorer`);
+              }
+
               // Reject the request
               await web3wallet.respondSessionRequest({
                 topic,
@@ -282,9 +487,20 @@ export async function monitorRequestApproval(
               // Clear completed transactions
               await clearCompletedTransactions(sheetClient, logEvent);
 
+              // Remove from active monitors
+              activeMonitors.delete(requestId);
               return; // Stop checking
             }
           }
+        }
+
+        // If the request no longer exists in the sheet (cleared/deleted)
+        if (!found) {
+          logEvent(
+            `Request ${requestId} no longer found in sheet - stopping monitor`
+          );
+          activeMonitors.delete(requestId);
+          return;
         }
 
         // Continue checking
@@ -302,6 +518,9 @@ export async function monitorRequestApproval(
     // Start checking
     checkStatus();
   } catch (error: unknown) {
+    // Remove from active monitors in case of error
+    activeMonitors.delete(requestId);
+
     logEvent(
       `Error monitoring request approval: ${
         error instanceof Error ? error.message : String(error)
@@ -312,7 +531,6 @@ export async function monitorRequestApproval(
 
 /**
  * Process an approved request
- * Moved from walletConnectUtils to avoid circular dependency
  */
 export async function processRequest(
   wcRequestId: string,
@@ -322,7 +540,9 @@ export async function processRequest(
   topic: string,
   web3wallet: any,
   addTransactionToSheet: Function,
-  logEvent: Function
+  logEvent: Function,
+  sheetClient: SheetClient,
+  requestId: string = "" // Original request ID to link with pending entries
 ) {
   try {
     let result;
@@ -355,25 +575,150 @@ export async function processRequest(
         );
         const connectedWallet = wallet.connect(provider);
 
-        const tx = await connectedWallet.sendTransaction({
-          to: txParams.to,
-          value: txParams.value ? ethers.toBigInt(txParams.value) : BigInt(0),
-          data: txParams.data || "0x",
-          gasLimit: txParams.gas ? ethers.toBigInt(txParams.gas) : undefined,
-        });
+        logEvent(`[DEBUG] Preparing to send transaction to: ${txParams.to}`);
 
-        result = tx.hash;
+        try {
+          const tx = await connectedWallet.sendTransaction({
+            to: txParams.to,
+            value: txParams.value ? ethers.toBigInt(txParams.value) : BigInt(0),
+            data: txParams.data || "0x",
+            gasLimit: txParams.gas ? ethers.toBigInt(txParams.gas) : undefined,
+          });
 
-        // Add to Wallet Explorer sheet
-        const timestamp = new Date().toISOString();
-        await addTransactionToSheet(
-          tx.hash,
-          wallet.address,
-          txParams.to,
-          ethers.formatEther(txParams.value || "0"),
-          timestamp,
-          "Pending"
-        );
+          result = tx.hash;
+          logEvent(
+            `[DEBUG] Transaction sent successfully with hash: ${tx.hash}`
+          );
+
+          // Find and update the pending entry in Wallet Explorer
+          if (requestId) {
+            try {
+              const walletExplorerRows = await sheetClient.getSheetValues(
+                WALLET_EXPLORER_SHEET
+              );
+              let updatedEntry = false;
+
+              // Look for temporary pending entry
+              for (let i = 1; i < walletExplorerRows.length; i++) {
+                const row = walletExplorerRows[i];
+                if (row[0] === "pending-" + requestId) {
+                  // Update the transaction hash
+                  await sheetClient.setCellValue(
+                    WALLET_EXPLORER_SHEET,
+                    i + 1,
+                    "A",
+                    tx.hash
+                  );
+
+                  // Update status to Pending
+                  await sheetClient.setCellValue(
+                    WALLET_EXPLORER_SHEET,
+                    i + 1,
+                    "F",
+                    "Pending"
+                  );
+
+                  // Verify update was successful
+                  const updatedHash = await sheetClient.getCellValue(
+                    WALLET_EXPLORER_SHEET,
+                    i + 1,
+                    "A"
+                  );
+
+                  if (updatedHash === tx.hash) {
+                    updatedEntry = true;
+                    logEvent(
+                      `[DEBUG] Successfully updated temporary transaction entry with hash ${tx.hash}`
+                    );
+                  } else {
+                    logEvent(
+                      `[DEBUG] Update verification failed. Hash should be ${tx.hash} but got ${updatedHash}`
+                    );
+                  }
+                  break;
+                }
+              }
+
+              // If no entry was found or update failed, create a new one
+              if (!updatedEntry) {
+                logEvent(
+                  `[DEBUG] No existing entry found or update failed. Creating new transaction entry.`
+                );
+                const timestamp = new Date().toISOString();
+                await addTransactionToSheet(
+                  sheetClient,
+                  tx.hash,
+                  wallet.address,
+                  txParams.to,
+                  ethers.formatEther(txParams.value || "0"),
+                  timestamp,
+                  "Pending"
+                );
+                logEvent(
+                  `[DEBUG] Added new transaction to Wallet Explorer: ${tx.hash}`
+                );
+              }
+
+              // Wait a moment to ensure sheet updates are processed
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+
+              // Start transaction status monitoring
+              logEvent(
+                `[DEBUG] Initiating status monitoring for transaction ${tx.hash}`
+              );
+              updateTransactionStatus(tx.hash, provider, sheetClient, logEvent);
+            } catch (error) {
+              logEvent(
+                `[DEBUG] Error updating transaction in Wallet Explorer: ${error}`
+              );
+
+              // Fallback: create a new entry
+              const timestamp = new Date().toISOString();
+              await addTransactionToSheet(
+                sheetClient,
+                tx.hash,
+                wallet.address,
+                txParams.to,
+                ethers.formatEther(txParams.value || "0"),
+                timestamp,
+                "Pending"
+              );
+
+              // Start transaction status monitoring
+              setTimeout(() => {
+                updateTransactionStatus(
+                  tx.hash,
+                  provider,
+                  sheetClient,
+                  logEvent
+                );
+              }, 3000); // Slight delay to ensure the entry is created first
+            }
+          } else {
+            // If no requestId is provided, just add a new entry
+            logEvent(
+              `[DEBUG] No requestId provided. Creating new transaction entry.`
+            );
+            const timestamp = new Date().toISOString();
+            await addTransactionToSheet(
+              sheetClient,
+              tx.hash,
+              wallet.address,
+              txParams.to,
+              ethers.formatEther(txParams.value || "0"),
+              timestamp,
+              "Pending"
+            );
+
+            // Start transaction status monitoring with a slight delay
+            setTimeout(() => {
+              updateTransactionStatus(tx.hash, provider, sheetClient, logEvent);
+            }, 3000);
+          }
+        } catch (txError) {
+          logEvent(`[DEBUG] Transaction error: ${txError}`);
+          throw txError; // Re-throw to be caught by the outer try/catch
+        }
         break;
 
       default:
@@ -412,6 +757,175 @@ export async function processRequest(
         },
       },
     });
+  }
+}
+
+/**
+ * Update transaction status in Wallet Explorer sheet based on receipt
+ */
+export async function updateTransactionStatus(
+  txHash: string,
+  provider: ethers.JsonRpcProvider,
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
+  if (!sheetClient) {
+    logEvent(
+      `Error: SheetClient not available for updating transaction status`
+    );
+    return;
+  }
+
+  try {
+    logEvent(`[DEBUG] Monitoring transaction ${txHash} for status updates`);
+
+    let attemptCount = 0;
+    const maxAttempts = 30; // Allow up to 5 minutes of monitoring (10s * 30)
+
+    // Function to wait for transaction confirmation
+    const waitForReceipt = async () => {
+      try {
+        if (attemptCount >= maxAttempts) {
+          logEvent(
+            `[DEBUG] Max attempts reached for transaction ${txHash}. Stopping monitoring.`
+          );
+          return;
+        }
+
+        attemptCount++;
+        logEvent(
+          `[DEBUG] Checking receipt for ${txHash} (Attempt ${attemptCount}/${maxAttempts})`
+        );
+
+        const receipt = await provider.getTransactionReceipt(txHash);
+
+        if (!receipt) {
+          // Transaction not yet mined, check again in 10 seconds
+          logEvent(
+            `[DEBUG] No receipt yet for transaction ${txHash}. Checking again in 10 seconds.`
+          );
+          setTimeout(waitForReceipt, 10000);
+          return;
+        }
+
+        // Transaction is mined, update status in sheet
+        const status = receipt.status === 1 ? "Success" : "Failed";
+        logEvent(
+          `[DEBUG] Transaction ${txHash} confirmed with status: ${status}`
+        );
+
+        // Perform multiple attempts to update the status in case of sheet API issues
+        let updated = false;
+        for (
+          let retryAttempt = 0;
+          retryAttempt < 3 && !updated;
+          retryAttempt++
+        ) {
+          try {
+            // Update status in Wallet Explorer sheet
+            const rows = await sheetClient.getSheetValues(
+              WALLET_EXPLORER_SHEET
+            );
+            let found = false;
+
+            for (let i = 1; i < rows.length; i++) {
+              if (rows[i][0] === txHash) {
+                logEvent(
+                  `[DEBUG] Found transaction in Wallet Explorer at row ${i + 1}`
+                );
+                found = true;
+
+                await sheetClient.setCellValue(
+                  WALLET_EXPLORER_SHEET,
+                  i + 1,
+                  "F",
+                  status
+                );
+
+                // Verify the update was successful
+                const updatedValue = await sheetClient.getCellValue(
+                  WALLET_EXPLORER_SHEET,
+                  i + 1,
+                  "F"
+                );
+
+                if (updatedValue === status) {
+                  logEvent(
+                    `Transaction ${txHash} status updated to ${status} in Wallet Explorer`
+                  );
+                  updated = true;
+                  break;
+                } else {
+                  logEvent(
+                    `[DEBUG] Status update verification failed. Got "${updatedValue}" instead of "${status}"`
+                  );
+                }
+              }
+            }
+
+            if (!found) {
+              logEvent(
+                `[DEBUG] Transaction ${txHash} not found in Wallet Explorer sheet. Retrying search...`
+              );
+
+              // Try adding the transaction since it wasn't found
+              if (retryAttempt === 2) {
+                logEvent(
+                  `[DEBUG] Transaction not found after retries. This may indicate a synchronization issue.`
+                );
+              }
+            }
+
+            if (updated) {
+              break;
+            } else if (retryAttempt < 2) {
+              // Wait before retrying
+              logEvent(
+                `[DEBUG] Update attempt ${
+                  retryAttempt + 1
+                } failed. Waiting 5s before retry.`
+              );
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+            }
+          } catch (retryError) {
+            logEvent(
+              `[DEBUG] Error during update attempt ${
+                retryAttempt + 1
+              }: ${retryError}`
+            );
+            if (retryAttempt < 2) {
+              // Wait before retrying
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+            }
+          }
+        }
+
+        if (!updated) {
+          logEvent(
+            `[WARNING] Failed to update transaction ${txHash} status after multiple attempts`
+          );
+        }
+      } catch (error) {
+        logEvent(`[DEBUG] Error checking transaction receipt: ${error}`);
+
+        // If we still have attempts left, retry
+        if (attemptCount < maxAttempts) {
+          setTimeout(waitForReceipt, 15000); // Retry in 15 seconds after an error
+        } else {
+          logEvent(
+            `[DEBUG] Max retry attempts reached after error. Stopping monitoring for ${txHash}`
+          );
+        }
+      }
+    };
+
+    // Start monitoring the transaction immediately
+    waitForReceipt();
+
+    // Return immediately to not block execution
+    return;
+  } catch (error) {
+    logEvent(`[DEBUG] Error setting up transaction monitoring: ${error}`);
   }
 }
 
@@ -648,6 +1162,7 @@ export async function monitorDAppConnections(
             `[DEBUG] No connection ID found for topic: ${topic}, generating new ID`
           );
           connectionId = `conn-${Date.now()}`;
+          logEvent(`[DEBUG] Generated new connection ID: ${connectionId}`);
         }
       } catch (error) {
         // If we can't find the connection ID, generate a new one

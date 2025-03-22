@@ -13,9 +13,10 @@ export async function initializePriceTool() {
                 symbol: "BTC",
                 price: 65432.75,
                 dayChange: "-1.82",
-                volume: "1053445.75"
+                volume: "1053445.75",
             }),
-            finalResponse: "The current price of BTC is $65,432.75 USD. In the last 24 hours, it has changed by -1.82% with a trading volume of $1,053,445.75 USD."
+            finalResponse:
+                "The current price of BTC is $65,432.75 USD. In the last 24 hours, it has changed by -1.82% with a trading volume of $1,053,445.75 USD.",
         },
         {
             userQuery: "How much is ETH worth right now?",
@@ -24,10 +25,11 @@ export async function initializePriceTool() {
                 symbol: "ETH",
                 price: 3245.18,
                 dayChange: "2.35",
-                volume: "875321.42"
+                volume: "875321.42",
             }),
-            finalResponse: "ETH is currently trading at $3,245.18 USD. It's up 2.35% in the last 24 hours with a trading volume of $875,321.42 USD."
-        }
+            finalResponse:
+                "ETH is currently trading at $3,245.18 USD. It's up 2.35% in the last 24 hours with a trading volume of $875,321.42 USD.",
+        },
     ];
 
     return {
@@ -48,19 +50,28 @@ export async function initializePriceTool() {
                 await sdk.connect();
 
                 // Get market data
-                const [spotMeta, spotAssetCtxs] = await sdk.info.spot.getSpotMetaAndAssetCtxs();
-                const [perpsMeta, perpsAssetCtxs] = await sdk.info.perpetuals.getMetaAndAssetCtxs();
+                const [spotMeta, spotAssetCtxs] =
+                    await sdk.info.spot.getSpotMetaAndAssetCtxs();
+                const [perpsMeta, perpsAssetCtxs] =
+                    await sdk.info.perpetuals.getMetaAndAssetCtxs();
                 // Find token and market
-                const tokenIndex = [...spotMeta.tokens, ...perpsMeta.universe].findIndex(
-                    (token) => token.name.toUpperCase() === symbol || token.name.toUpperCase() === symbol + "-PERP"
+                const tokenIndex = [
+                    ...spotMeta.tokens,
+                    ...perpsMeta.universe,
+                ].findIndex(
+                    (token) =>
+                        token.name.toUpperCase() === symbol ||
+                        token.name.toUpperCase() === symbol + "-PERP"
                 );
 
                 if (tokenIndex === -1) {
                     throw new Error(`Could not find token ${symbol}`);
                 }
-                const marketCtx = tokenIndex < spotMeta.tokens.length ? [...spotAssetCtxs].find(
-                    (ctx) => ctx.coin === `${symbol}-SPOT`
-                ) : perpsAssetCtxs[tokenIndex - spotMeta.tokens.length];
+
+                const marketCtx =
+                    tokenIndex < spotMeta.tokens.length
+                        ? [...spotAssetCtxs].find((ctx) => ctx.coin === `${symbol}-SPOT`)
+                        : perpsAssetCtxs[tokenIndex - spotMeta.tokens.length];
 
                 if (!marketCtx || !marketCtx.midPx) {
                     throw new Error(`Could not get market price for ${symbol}`);
@@ -78,7 +89,7 @@ export async function initializePriceTool() {
                     symbol: symbol,
                     price: price,
                     dayChange: dayChange,
-                    volume: volume
+                    volume: volume,
                 };
 
                 return JSON.stringify(result);
@@ -86,10 +97,9 @@ export async function initializePriceTool() {
                 console.error("Error with price tool:", error);
                 if (error instanceof Error) {
                     return `Error executing price: ${error.message}`;
-                } else {
-                    return "Error executing price: An unknown error occurred.";
                 }
+                return `Error executing price: ${error}`;
             }
-        }
+        },
     };
 }

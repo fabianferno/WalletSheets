@@ -1,5 +1,3 @@
-
-
 /**
  * Initialize the transfer tool
  */
@@ -55,10 +53,9 @@ export async function initializeTransferTool() {
                 console.error("Error with transfer tool:", error);
                 if (error instanceof Error) {
                     return `Error executing transfer: ${error.message}`;
-                } else {
-                    return "Error executing transfer: An unknown error occurred.";
                 }
+                return "Error executing transfer: An unknown error occurred.";
             }
-        }
+        },
     };
 }

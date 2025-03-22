@@ -1,5 +1,3 @@
-
-
 /**
  * Initialize the transaction tool
  */
@@ -55,10 +53,9 @@ export async function initializeTransactionTool() {
                 console.error("Error with transaction tool:", error);
                 if (error instanceof Error) {
                     return `Error executing transaction: ${error.message}`;
-                } else {
-                    return "Error executing transaction: An unknown error occurred.";
                 }
+                return "Error executing transaction: An unknown error occurred.";
             }
-        }
+        },
     };
 }
