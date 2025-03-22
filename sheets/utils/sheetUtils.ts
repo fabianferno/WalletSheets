@@ -203,8 +203,8 @@ export async function createActiveSessionsSheet(
       // Create the sheet
       await sheetClient.createSheet(ACTIVE_SESSIONS_SHEET);
 
-      // Set up headers and prompt
-      await sheetClient.setRangeValues(`${ACTIVE_SESSIONS_SHEET}!A1:E2`, [
+      // Set up headers and prompt with detailed instructions
+      await sheetClient.setRangeValues(`${ACTIVE_SESSIONS_SHEET}!A1:E4`, [
         [
           "Connection ID",
           "dApp URL",
@@ -212,10 +212,73 @@ export async function createActiveSessionsSheet(
           "Status",
           "Timestamp",
         ],
-        ["Paste WalletConnect URL here to connect a dApp", "", "", "", ""],
+        [
+          "TO CONNECT: Paste a WalletConnect URL (starting with 'wc:') in cell A3 below",
+          "Copy a WalletConnect URL from any dApp's connect wallet dialog",
+          "The URL must be a v2 format URL starting with 'wc:' and containing '@2'",
+          "The URL will be processed automatically once pasted",
+          "Each URL can be used only once - get a fresh URL from the dApp for each connection",
+        ],
+        [
+          "", // This is cell A3 where users should paste the WalletConnect URL
+          "",
+          "",
+          "",
+          "",
+        ],
+        [
+          "TROUBLESHOOTING",
+          "If connection fails, make sure you're using a fresh WalletConnect URL",
+          "URLs expire after a short time (typically 60 seconds)",
+          "Make sure the URL starts with 'wc:' and contains '@2' for v2 protocol",
+          "Example format: wc:a1b2c3...@2?relay-protocol=irn&symKey=abc123...",
+        ],
       ]);
 
-      logEvent(`${ACTIVE_SESSIONS_SHEET} sheet created`);
+      // Format the instructions row
+      try {
+        // First get the sheet ID
+        const sheetId = await sheetClient.getSheetIdByName(
+          ACTIVE_SESSIONS_SHEET
+        );
+
+        // Format the instructions row (row 2, which is index 1)
+        await sheetClient.formatRange(
+          sheetId,
+          1, // startRowIndex (0-based, so row 2)
+          2, // endRowIndex (exclusive)
+          0, // startColumnIndex
+          5, // endColumnIndex (exclusive, so columns A-E)
+          {
+            backgroundColor: { red: 0.9, green: 0.97, blue: 1.0 }, // Light blue (#e6f7ff)
+            textFormat: {
+              bold: true,
+              italic: true,
+            },
+          }
+        );
+
+        // Format the troubleshooting row
+        await sheetClient.formatRange(
+          sheetId,
+          3, // startRowIndex (row 4)
+          4, // endRowIndex (exclusive)
+          0, // startColumnIndex
+          5, // endColumnIndex (exclusive)
+          {
+            backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red
+            textFormat: {
+              bold: true,
+            },
+          }
+        );
+      } catch (formatError) {
+        logEvent(`Unable to format instructions row: ${formatError}`);
+      }
+
+      logEvent(
+        `${ACTIVE_SESSIONS_SHEET} sheet created with detailed instructions`
+      );
     }
   } catch (error: unknown) {
     logEvent(

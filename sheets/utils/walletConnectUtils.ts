@@ -14,24 +14,83 @@ export async function initializeWalletConnect(
   logEvent: Function
 ) {
   try {
+    logEvent(`[DEBUG] Starting WalletConnect initialization`);
+    const projectId = process.env.PROJECT_ID || "your-project-id";
+    logEvent(`[DEBUG] Using project ID: ${projectId}`);
+    logEvent(`[DEBUG] Wallet address: ${wallet.address}`);
+
+    // Check for valid project ID
+    if (!projectId || projectId === "your-project-id") {
+      logEvent(
+        `[ERROR] Invalid or missing WalletConnect project ID. Please set the PROJECT_ID environment variable.`
+      );
+      logEvent(
+        `[INFO] You can get a free project ID from https://cloud.walletconnect.com/app`
+      );
+    }
+
     const core = new Core({
-      projectId: process.env.PROJECT_ID || "your-project-id",
+      projectId: projectId,
+      relayUrl: "wss://relay.walletconnect.com", // Explicitly set relay URL
     });
+    logEvent(`[DEBUG] WalletConnect Core created successfully`);
 
-    const web3wallet = await Web3Wallet.init({
-      core,
-      metadata: {
-        name: "Google Sheets Wallet",
-        description: "Crypto wallet based on Google Sheets",
-        url: "https://sheets.google.com",
-        icons: ["https://www.google.com/images/about/sheets-icon.svg"],
-      },
-    });
+    const metadata = {
+      name: "Google Sheets Wallet",
+      description: "Crypto wallet based on Google Sheets",
+      url: "https://sheets.google.com",
+      icons: ["https://www.google.com/images/about/sheets-icon.svg"],
+    };
+    logEvent(`[DEBUG] Using metadata: ${JSON.stringify(metadata)}`);
 
-    // Log wallet connection initialized
-    logEvent("WalletConnect initialized successfully");
-    return web3wallet;
+    try {
+      logEvent(`[DEBUG] Initializing Web3Wallet with core`);
+      const web3wallet = await Web3Wallet.init({
+        core,
+        metadata,
+      });
+      logEvent(`[DEBUG] Web3Wallet initialized successfully`);
+
+      // Log active sessions
+      try {
+        const sessions = await web3wallet.getActiveSessions();
+        const sessionCount = Object.keys(sessions).length;
+        logEvent(`[DEBUG] Found ${sessionCount} active sessions`);
+
+        if (sessionCount > 0) {
+          Object.keys(sessions).forEach((topic) => {
+            const session = sessions[topic];
+            const peer = session?.peer?.metadata?.name || "Unknown dApp";
+            logEvent(`[DEBUG] Active session with ${peer}, topic: ${topic}`);
+          });
+        }
+      } catch (sessionsError) {
+        logEvent(`[DEBUG] Error getting active sessions: ${sessionsError}`);
+      }
+
+      // Log wallet connection initialized
+      logEvent("WalletConnect initialized successfully");
+      return web3wallet;
+    } catch (initError: unknown) {
+      logEvent(
+        `[DEBUG] Error in Web3Wallet.init: ${
+          initError instanceof Error ? initError.message : String(initError)
+        }`
+      );
+      if (initError instanceof Error && initError.stack) {
+        logEvent(`[DEBUG] Error stack: ${initError.stack}`);
+      }
+      throw initError;
+    }
   } catch (error: unknown) {
+    logEvent(
+      `[DEBUG] General error in initializeWalletConnect: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    if (error instanceof Error && error.stack) {
+      logEvent(`[DEBUG] Error stack: ${error.stack}`);
+    }
     logEvent(
       `Error initializing WalletConnect: ${
         error instanceof Error ? error.message : String(error)
