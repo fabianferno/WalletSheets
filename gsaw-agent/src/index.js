@@ -39,7 +39,7 @@ async function runTerminalMode() {
     });
 
     // Start the conversation loop
-    let conversationId = `e896594b-0e91-4317-9967-0f381465f92f`;
+    let conversationId = `temp`;
     while (true) {
         const userInput = await askQuestion('👤 You: ');
 
@@ -88,17 +88,17 @@ function runServerMode() {
     // Chat endpoint
     app.post('/chat', async (req, res) => {
         try {
-            const { message, conversationId = `web-${Date.now()}` } = req.body;
+            const { message, conversationId = `temp` } = req.body;
 
             if (!message) {
                 return res.status(400).json({ error: 'Message is required' });
             }
 
-            const response = await agentService.processMessage(message, conversationId);
+            const { conversationId: updatedConversationId, response } = await agentService.processMessage(message, conversationId);
 
             res.status(200).json({
                 response,
-                conversationId
+                conversationId: updatedConversationId
             });
         } catch (error) {
             console.error('Error processing chat request:', error);
