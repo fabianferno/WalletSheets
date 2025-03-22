@@ -10,7 +10,9 @@
     "build": "mkdir -p dist && cp -r src/* dist/",
     "serve": "node dist/index.js",
     "dev": "nodemon src/index.js",
-    "create-tool": "node src/scripts/create-tool.js"
+    "create-tool": "node src/scripts/create-tool.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@langchain/community": "^0.3.36",
@@ -26,5 +28,10 @@
     "nodemon": "^3.1.9",
     "secretvaults": "^0.0.0-alpha.1",
     "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "eslint": "8.57.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.31.0"
   }
 }
