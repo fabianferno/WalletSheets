@@ -14,7 +14,6 @@ import {
 } from "./utils/sheetUtils";
 import { initializeWalletConnect } from "./utils/walletConnectUtils";
 import { monitorDAppConnections } from "./utils/sessionUtils";
-import { logEvent as logEventToSheet } from "./utils/logUtils";
 import { ethers } from "ethers";
 
 // Load environment variables
@@ -125,12 +124,6 @@ async function initializeWalletAgent(sheetId: string) {
   try {
     console.log(`🔄 Initializing wallet agent for sheet ${sheetId}...`);
 
-    // Create a logger function for this specific sheet
-    const logEvent = (message: string) => {
-      console.log(`[Sheet ${sheetId}] ${message}`);
-      return logEventToSheet(sheetClient, message);
-    };
-
     console.log(
       `🔑 Creating SheetClient with ID ${sheetId} and credentials from ${CREDENTIALS_PATH}...`
     );
@@ -150,18 +143,18 @@ async function initializeWalletAgent(sheetId: string) {
     // Initialize sheets
     console.log(`📊 Initializing sheets for ${sheetId}...`);
     try {
-      await initializeSheets(sheetClient, logEvent);
+      await initializeSheets(sheetClient);
       console.log(`✅ Sheets initialized successfully for ${sheetId}`);
 
       // Force update of the Pending Transactions sheet to ensure it has approve/reject columns
-      await updatePendingTransactionsSheet(sheetClient, logEvent);
+      await updatePendingTransactionsSheet(sheetClient);
     } catch (error) {
       console.error(`❌ Error initializing sheets for ${sheetId}:`, error);
       throw error;
     }
 
     // Try to get the owner email from the settings sheet first
-    let ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
+    let ownerEmail = await getSheetOwnerEmail(sheetClient);
 
     // If the owner email is not in the settings, get it from the Drive API
     if (!ownerEmail) {
@@ -169,9 +162,9 @@ async function initializeWalletAgent(sheetId: string) {
       if (emailFromDrive) {
         ownerEmail = emailFromDrive;
         // Store the email in the settings
-        await storeSheetOwnerEmail(sheetClient, ownerEmail, logEvent);
+        await storeSheetOwnerEmail(sheetClient, ownerEmail);
       } else {
-        logEvent("Could not determine sheet owner email");
+        console.log("Could not determine sheet owner email");
         return false;
       }
     }
@@ -180,29 +173,28 @@ async function initializeWalletAgent(sheetId: string) {
     const wallet = await generateWallet(sheetId, ownerEmail);
 
     // Store wallet address
-    await storeWalletAddress(sheetClient, wallet.address, logEvent);
+    await storeWalletAddress(sheetClient, wallet.address);
 
     // TODO: Deploy agent
 
     // Initialize WalletConnect
-    const web3wallet = await initializeWalletConnect(wallet, logEvent);
+    const web3wallet = await initializeWalletConnect(wallet);
 
     // Set up blockchain listeners
-    await setUpBlockchainListeners(wallet, logEvent, addTransactionToSheet);
+    await setUpBlockchainListeners(wallet, addTransactionToSheet);
 
     // Monitor for dApp connections
     await monitorDAppConnections(
       wallet,
       web3wallet,
       sheetClient,
-      addTransactionToSheet,
-      logEvent
+      addTransactionToSheet
     );
 
     // Set up periodic stuck transaction checker
-    setupStuckTransactionChecker(sheetClient, wallet, logEvent);
+    setupStuckTransactionChecker(sheetClient, wallet);
 
-    logEvent("Agent initialized successfully!");
+    console.log("Agent initialized successfully!");
     console.log(`Wallet Address for ${sheetId}: ${wallet.address}`);
 
     return true;
@@ -220,8 +212,7 @@ async function initializeWalletAgent(sheetId: string) {
  */
 function setupStuckTransactionChecker(
   sheetClient: SheetClient,
-  wallet: ethers.Wallet,
-  logEvent: Function
+  wallet: ethers.Wallet
 ) {
   // Create a provider
   const provider = new ethers.JsonRpcProvider(
@@ -229,17 +220,17 @@ function setupStuckTransactionChecker(
   );
 
   // First check immediately to resolve any existing stuck transactions
-  checkStuckTransactions(sheetClient, provider, logEvent);
+  checkStuckTransactions(sheetClient, provider);
 
   // Then set up periodic checks every 5 minutes
   const FIVE_MINUTES = 5 * 60 * 1000;
 
   setInterval(() => {
-    logEvent(`[DEBUG] Running scheduled check for stuck transactions`);
-    checkStuckTransactions(sheetClient, provider, logEvent);
+    console.log(`[DEBUG] Running scheduled check for stuck transactions`);
+    checkStuckTransactions(sheetClient, provider);
   }, FIVE_MINUTES);
 
-  logEvent(`Stuck transaction checker initialized (runs every 5 minutes)`);
+  console.log(`Stuck transaction checker initialized (runs every 5 minutes)`);
 }
 
 /**
@@ -320,16 +311,11 @@ export async function fixPendingTransactions(sheetId: string) {
   try {
     console.log(`🛠️ Fixing pending transactions for sheet ${sheetId}...`);
 
-    // Create a logger function for this specific sheet
-    const logEvent = (message: string) => {
-      console.log(`[Sheet ${sheetId}] ${message}`);
-    };
-
     // Create the sheet client
     const sheetClient = new SheetClient(sheetId, CREDENTIALS_PATH);
 
     // Force update pending transactions
-    await forceUpdatePendingTransactions(sheetClient, logEvent);
+    await forceUpdatePendingTransactions(sheetClient);
 
     console.log(`✅ Fixed pending transactions for sheet ${sheetId}`);
     return true;
