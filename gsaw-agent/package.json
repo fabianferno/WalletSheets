@@ -1,0 +1,32 @@
+{
+  "name": "gsaw-agent",
+  "version": "1.0.0",
+  "description": "Express API with TypeScript for LangChain agent",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "terminal": "ts-node src/index.ts --terminal",
+    "build": "tsc",
+    "serve": "node dist/index.js",
+    "dev": "nodemon --exec ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@langchain/community": "^0.3.36",
+    "@langchain/core": "^0.3.42",
+    "@langchain/langgraph": "^0.2.57",
+    "@langchain/openai": "^0.4.7",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^22.13.11"
+  }
+}
