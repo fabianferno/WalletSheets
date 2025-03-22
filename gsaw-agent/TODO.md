@@ -10,16 +10,15 @@ Creation flow
 
 Services
 1. Wallet info service
-    - Fetches the wallet balance on 3 chains every 30 seconds
+    - Fetches the wallet balance on Hyperliquid
     - Fetches the price of assets every 5 minutes
 2. Trading Service
     - Monitors the trading positions, anlayzes current market conditions, social sentiment for every 5 minutes and decides whether to change/create or stay idle.
 
 Tools
 
-1. 
+1. Hyperliquid for Spot Trading
 2. Hyperliquid for Perp trading
-3. Hyperliquid for Spot Trading
 
 
 Providers

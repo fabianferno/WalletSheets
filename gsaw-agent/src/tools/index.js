@@ -1,5 +1,8 @@
-import { initializeSearchTool } from './search.js';
-import { initializeHyperliquidTool } from './hyperliquid.js';
+import { initializeSearchTool } from "./search.js";
+import { initializeHyperliquidTool } from "./trade.js";
+import { initializePriceTool } from "./price.js";
+import { initializeTransferTool } from "./transfer.js";
+import { initializeTransactionTool } from "./transaction.js";
 
 /**
  * Load all available tools
@@ -8,22 +11,29 @@ export async function loadTools() {
   const toolFactories = [
     initializeSearchTool,
     initializeHyperliquidTool,
+    initializePriceTool,
+    initializeTransferTool,
+    initializeTransactionTool,
     // Add new tool factories here
   ];
 
-  const tools = [];
-
-  for (const factory of toolFactories) {
-    try {
-      const tool = await factory();
-      if (tool) {
-        tools.push(tool);
-        console.log(`✅ ${tool.name} tool initialized`);
+  // Use Promise.all with map instead of for...of
+  const results = await Promise.all(
+    toolFactories.map(async (factory) => {
+      try {
+        const tool = await factory();
+        if (tool) {
+          console.log(`✅ ${tool.name} tool initialized`);
+          return tool;
+        }
+        return null;
+      } catch (error) {
+        console.error("Failed to initialize tool:", error);
+        return null;
       }
-    } catch (error) {
-      console.error('Failed to initialize tool:', error);
-    }
-  }
+    }),
+  );
 
-  return tools;
+  // Filter out any null results
+  return results.filter((tool) => tool !== null);
 }

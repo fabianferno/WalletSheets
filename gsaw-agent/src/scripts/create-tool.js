@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import readline from 'readline';
+import fs from "fs";
+import path from "path";
+import readline from "readline";
 
 // Create readline interface
 const rl = readline.createInterface({
@@ -81,15 +81,15 @@ export async function initialize${toolName}Tool() {
 
 // Function to update index.ts to include the new tool
 function updateIndexFile(toolName) {
-  const indexPath = path.join(process.cwd(), 'src', 'tools', 'index.js');
-  let indexContent = fs.readFileSync(indexPath, 'utf8');
+  const indexPath = path.join(process.cwd(), "src", "tools", "index.js");
+  let indexContent = fs.readFileSync(indexPath, "utf8");
 
   // Add import statement
   const importStatement = `import { initialize${toolName}Tool } from './${toolName.toLowerCase()}';\n`;
-  const importLocation = indexContent.lastIndexOf('import');
+  const importLocation = indexContent.lastIndexOf("import");
 
   // Find the last import statement and insert after it
-  const lastImportEndIndex = indexContent.indexOf(';', importLocation) + 1;
+  const lastImportEndIndex = indexContent.indexOf(";", importLocation) + 1;
   indexContent = `${indexContent.slice(0, lastImportEndIndex)}\n${importStatement}${indexContent.slice(lastImportEndIndex)}`;
 
   // Add to toolFactories array
@@ -98,37 +98,37 @@ function updateIndexFile(toolName) {
 
   if (arrayMatch) {
     const currentArrayContent = arrayMatch[1];
-    const updatedArrayContent = currentArrayContent.includes('// Add new tool factories here')
-      ? currentArrayContent.replace('// Add new tool factories here', `initialize${toolName}Tool,\n        // Add new tool factories here`)
+    const updatedArrayContent = currentArrayContent.includes("// Add new tool factories here")
+      ? currentArrayContent.replace("// Add new tool factories here", `initialize${toolName}Tool,\n        // Add new tool factories here`)
       : `${currentArrayContent}\n        initialize${toolName}Tool,`;
 
     indexContent = indexContent.replace(arrayPattern, `const toolFactories = [${updatedArrayContent}];`);
   }
 
-  fs.writeFileSync(indexPath, indexContent, 'utf8');
+  fs.writeFileSync(indexPath, indexContent, "utf8");
 }
 
 // Main function to create a tool
 async function createTool() {
   // Check if tools directory exists
-  const toolsDir = path.join(process.cwd(), 'src', 'tools');
+  const toolsDir = path.join(process.cwd(), "src", "tools");
   if (!fs.existsSync(toolsDir)) {
     fs.mkdirSync(toolsDir, { recursive: true });
-    console.log('Created tools directory');
+    console.log("Created tools directory");
   }
 
   // Get tool name from argument or prompt
   let toolName = process.argv[2];
   if (!toolName) {
     toolName = await new Promise((resolve) => {
-      rl.question('Enter the tool name (PascalCase, e.g., "Calculator"): ', resolve);
+      rl.question("Enter the tool name (PascalCase, e.g., \"Calculator\"): ", resolve);
     });
   }
 
   // Validate tool name
   toolName = toolName.trim();
   if (!toolName) {
-    console.error('Tool name is required!');
+    console.error("Tool name is required!");
     rl.close();
     return;
   }
@@ -138,7 +138,7 @@ async function createTool() {
 
   // Get tool description
   const toolDescription = await new Promise((resolve) => {
-    rl.question('Enter a brief description for the tool: ', resolve);
+    rl.question("Enter a brief description for the tool: ", resolve);
   });
 
   // Create tool file
@@ -150,8 +150,8 @@ async function createTool() {
       rl.question(`Tool file ${fileName} already exists. Overwrite? (y/N): `, resolve);
     });
 
-    if (overwrite.toLowerCase() !== 'y') {
-      console.log('Operation cancelled');
+    if (overwrite.toLowerCase() !== "y") {
+      console.log("Operation cancelled");
       rl.close();
       return;
     }
@@ -164,16 +164,16 @@ async function createTool() {
   updateIndexFile(toolName);
 
   console.log(`\n✅ Created tool: ${toolName} in ${filePath}`);
-  console.log('✅ Updated tools/index.js to include the new tool');
-  console.log('\nNext steps:');
-  console.log('1. Implement your tool\'s logic in the execute function');
-  console.log('2. Add any necessary environment variables or configuration');
+  console.log("✅ Updated tools/index.js to include the new tool");
+  console.log("\nNext steps:");
+  console.log("1. Implement your tool's logic in the execute function");
+  console.log("2. Add any necessary environment variables or configuration");
 
   rl.close();
 }
 
 // Run the function
 createTool().catch((error) => {
-  console.error('Error creating tool:', error);
+  console.error("Error creating tool:", error);
   process.exit(1);
 });

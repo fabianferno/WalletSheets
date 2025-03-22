@@ -1,27 +1,16 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import dotenv from 'dotenv';
-import cors from 'cors';
-import readline from 'readline';
-import { AgentService } from './services/AgentService.js';
-import { nodes } from './config.js';
+import express from "express";
+import bodyParser from "body-parser";
+import dotenv from "dotenv";
+import cors from "cors";
+import readline from "readline";
+import { AgentService } from "./services/AgentService.js";
+import { nodes } from "./config.js";
 
 // Load environment variables
 dotenv.config();
 
 // Create agent service
 const agentService = new AgentService(nodes);
-
-// Determine if server should run in terminal mode
-const terminalMode = process.argv.includes('--terminal');
-
-if (terminalMode) {
-  console.log('Starting agent in terminal mode...');
-  runTerminalMode();
-} else {
-  console.log('Starting agent in server mode...');
-  runServerMode();
-}
 
 // Terminal mode implementation
 async function runTerminalMode() {
@@ -32,33 +21,51 @@ async function runTerminalMode() {
     output: process.stdout,
   });
 
-  console.log('\n🤖 Agent ready! Type "exit" to quit.\n');
+  console.log("\n🤖 Agent ready! Type \"exit\" to quit.\n");
 
   const askQuestion = (query) => new Promise((resolve) => {
     rl.question(query, resolve);
   });
 
-  // Start the conversation loop
-  let conversationId = 'temp';
-  while (true) {
-    const userInput = await askQuestion('👤 You: ');
-
-    if (userInput.toLowerCase() === 'exit') {
-      break;
-    }
-
+  // Create a function to handle each conversation turn
+  const processTurn = async (input, currentConversationId) => {
     try {
-      const { conversationId: receivedConvoId, response } = await agentService.processMessage(userInput, conversationId);
-      console.log(`\n🤖 Assistant: ${response}\n`);
-      conversationId = receivedConvoId;
+      const result = await agentService.processMessage(
+        input,
+        currentConversationId,
+      );
+      console.log(`\n🤖 Assistant: ${result.response}\n`);
+      return result.conversationId;
     } catch (error) {
-      console.error('\n❌ Error processing message:', error);
+      console.error("\n❌ Error processing message:", error);
+      return currentConversationId;
     }
-  }
+  };
 
-  rl.close();
-  console.log('\nTerminal session ended.');
-  process.exit(0);
+  // Initialize conversation
+  let conversationId = "temp";
+
+  // Create a function for the conversation loop
+  const conversationLoop = async () => {
+    // Get user input
+    const userInput = await askQuestion("👤 You: ");
+
+    if (userInput.toLowerCase() === "exit") {
+      rl.close();
+      console.log("\nTerminal session ended.");
+      process.exit(0);
+      return;
+    }
+
+    // Process the message outside the loop
+    conversationId = await processTurn(userInput, conversationId);
+
+    // Continue the conversation
+    conversationLoop();
+  };
+
+  // Start the conversation
+  conversationLoop();
 }
 
 // Server mode implementation
@@ -71,68 +78,71 @@ function runServerMode() {
   app.use(bodyParser.json());
 
   // Initialize the agent when server starts
-  agentService.initialize()
+  agentService
+    .initialize()
     .then(() => {
-      console.log('✅ Agent initialized and ready');
+      console.log("✅ Agent initialized and ready");
     })
     .catch((error) => {
-      console.error('❌ Failed to initialize agent:', error);
+      console.error("❌ Failed to initialize agent:", error);
       process.exit(1);
     });
 
   // Health check endpoint
-  app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
+  app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok" });
   });
 
   // Chat endpoint
-  app.post('/chat', async (req, res) => {
+  app.post("/chat", async (req, res) => {
     try {
-      const { message, conversationId = 'temp' } = req.body;
+      const { message, conversationId = "temp" } = req.body;
 
       if (!message) {
-        return res.status(400).json({ error: 'Message is required' });
+        return res.status(400).json({ error: "Message is required" });
       }
 
-      const { conversationId: updatedConversationId, response } = await agentService.processMessage(message, conversationId);
+      const result = await agentService.processMessage(message, conversationId);
 
-      res.status(200).json({
-        response,
-        conversationId: updatedConversationId,
+      return res.status(200).json({
+        response: result.response,
+        conversationId: result.conversationId,
       });
     } catch (error) {
-      console.error('Error processing chat request:', error);
-      res.status(500).json({
+      console.error("Error processing chat request:", error);
+      return res.status(500).json({
         error: `Failed to process message ${error}`,
       });
     }
   });
 
-  app.get('/conversations', async (req, res) => {
+  app.get("/conversations", async (req, res) => {
     try {
       const conversations = await agentService.getConversations();
-      res.status(200).json({ conversations });
+      return res.status(200).json({ conversations });
     } catch (error) {
-      console.error('Error fetching conversations:', error);
-      res.status(500).json({
+      console.error("Error fetching conversations:", error);
+      return res.status(500).json({
         error: `Failed to fetch conversations: ${error}`,
       });
     }
   });
 
-  app.delete('/conversations/:conversationId', async (req, res) => {
+  app.delete("/conversations/:conversationId", async (req, res) => {
     try {
       const { conversationId } = req.params;
 
       if (!conversationId) {
-        return res.status(400).json({ error: 'Conversation ID is required' });
+        return res.status(400).json({ error: "Conversation ID is required" });
       }
 
       await agentService.deleteConversation(conversationId);
-      res.status(200).json({ success: true, message: 'Conversation deleted' });
+      return res
+        .status(200)
+        .json({ success: true, message: "Conversation deleted" });
     } catch (error) {
-      console.error('Error deleting conversation:', error);
-      res.status(500).json({
+      console.error("Error deleting conversation:", error);
+      return res.status(500).json({
         error: `Failed to delete conversation: ${error}`,
       });
     }
@@ -144,4 +154,15 @@ function runServerMode() {
     console.log(`📌 Chat endpoint: POST http://localhost:${port}/chat`);
     console.log(`📌 Health check: GET http://localhost:${port}/health`);
   });
+}
+
+// Determine if server should run in terminal mode
+const terminalMode = process.argv.includes("--terminal");
+
+if (terminalMode) {
+  console.log("Starting agent in terminal mode...");
+  runTerminalMode();
+} else {
+  console.log("Starting agent in server mode...");
+  runServerMode();
 }

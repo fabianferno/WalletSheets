@@ -2,6 +2,8 @@ import { Core } from "@walletconnect/core";
 import { Web3Wallet } from "@walletconnect/web3wallet";
 import { ethers } from "ethers";
 import * as dotenv from "dotenv";
+import { ACTIVE_SESSIONS_SHEET } from "./sheetUtils";
+import { SheetClient } from "../sheets.api";
 
 // Load environment variables
 dotenv.config();
@@ -15,23 +17,37 @@ export async function initializeWalletConnect(
 ) {
   try {
     logEvent(`[DEBUG] Starting WalletConnect initialization`);
-    const projectId = process.env.PROJECT_ID || "your-project-id";
+    const projectId = process.env.PROJECT_ID;
+
+    // Validate project ID
+    if (!projectId) {
+      const error =
+        "PROJECT_ID environment variable is not set. Please set it in your .env file.";
+      logEvent(`[ERROR] ${error}`);
+      logEvent(
+        `[INFO] Get a free project ID from https://cloud.walletconnect.com/app`
+      );
+      throw new Error(error);
+    }
+
+    if (projectId === "your-project-id") {
+      const error =
+        "Please replace 'your-project-id' with your actual WalletConnect project ID in the .env file.";
+      logEvent(`[ERROR] ${error}`);
+      logEvent(
+        `[INFO] Get a free project ID from https://cloud.walletconnect.com/app`
+      );
+      throw new Error(error);
+    }
+
     logEvent(`[DEBUG] Using project ID: ${projectId}`);
     logEvent(`[DEBUG] Wallet address: ${wallet.address}`);
 
-    // Check for valid project ID
-    if (!projectId || projectId === "your-project-id") {
-      logEvent(
-        `[ERROR] Invalid or missing WalletConnect project ID. Please set the PROJECT_ID environment variable.`
-      );
-      logEvent(
-        `[INFO] You can get a free project ID from https://cloud.walletconnect.com/app`
-      );
-    }
-
+    // Initialize Core with explicit options
     const core = new Core({
-      projectId: projectId,
-      relayUrl: "wss://relay.walletconnect.com", // Explicitly set relay URL
+      projectId,
+      relayUrl: "wss://relay.walletconnect.com",
+      logger: "debug", // Enable debug logging
     });
     logEvent(`[DEBUG] WalletConnect Core created successfully`);
 
@@ -111,11 +127,15 @@ export async function connectToDApp(
   appendToActiveSessionsSheet: Function,
   updateConnectionStatus: Function,
   handleSessionRequest: Function,
-  logEvent: Function
+  logEvent: Function,
+  sheetClient: SheetClient
 ) {
   try {
+    logEvent(`[DEBUG] Starting connection process for URI: ${wcUrl}`);
+
     if (!web3wallet) {
       logEvent("WalletConnect not initialized");
+      await updateConnectionStatus(connectionId, "Failed");
       return;
     }
 
@@ -127,23 +147,74 @@ export async function connectToDApp(
     ]);
 
     try {
+      // Check URL format
+      if (!wcUrl.startsWith("wc:")) {
+        throw new Error(
+          "Invalid WalletConnect URL format. Must start with 'wc:'"
+        );
+      }
+
+      // Check if URL has expired
+      const [wcProtocol, wcParams] = wcUrl.split("?");
+      if (wcParams) {
+        const params = new URLSearchParams(wcParams);
+        const expiryTimestamp = params.get("expiryTimestamp");
+        if (expiryTimestamp) {
+          const expiry = parseInt(expiryTimestamp) * 1000; // Convert to milliseconds
+          const now = Date.now();
+          if (now > expiry) {
+            throw new Error(
+              "WalletConnect URL has expired. Please get a fresh URL from the dApp."
+            );
+          }
+        }
+      }
+
       // Pair with the dApp
+      logEvent(`[DEBUG] Attempting to pair with dApp`);
       const { uri, topic } = await web3wallet.core.pairing.pair({ uri: wcUrl });
 
       // Set up session proposal listener
       web3wallet.on("session_proposal", async (proposal: any) => {
         try {
+          logEvent(`[DEBUG] Received session proposal. ID: ${proposal.id}`);
+
           // Get dApp metadata
-          const { proposer } = proposal;
-          const dAppUrl = proposer.metadata.url || "Unknown";
+          let dAppUrl = "Unknown";
+          let dAppName = "Unknown";
+
+          if (
+            proposal.params &&
+            proposal.params.proposer &&
+            proposal.params.proposer.metadata
+          ) {
+            const { metadata } = proposal.params.proposer;
+            dAppUrl = metadata.url || "Unknown";
+            dAppName = metadata.name || "Unknown";
+          } else if (proposal.proposer && proposal.proposer.metadata) {
+            const { metadata } = proposal.proposer;
+            dAppUrl = metadata.url || "Unknown";
+            dAppName = metadata.name || "Unknown";
+          }
+
+          logEvent(
+            `[DEBUG] dApp metadata - Name: ${dAppName}, URL: ${dAppUrl}`
+          );
 
           // Update dApp URL in sheet
           await updateConnectionStatus(connectionId, "Pending", dAppUrl);
 
-          // Approve the session
+          // Format the wallet address according to CAIP-10 for WalletConnect v2
+          const formattedAddress = wallet.address.startsWith("0x")
+            ? wallet.address
+            : `0x${wallet.address}`;
+
+          const chainId = "421614"; // Arbitrum Sepolia
+          const caipAddress = `eip155:${chainId}:${formattedAddress}`;
+
           const namespaces = {
             eip155: {
-              accounts: [`eip155:1:${wallet.address}`],
+              accounts: [caipAddress],
               methods: [
                 "eth_sendTransaction",
                 "eth_signTransaction",
@@ -155,10 +226,34 @@ export async function connectToDApp(
             },
           };
 
-          const session = await web3wallet.approveSession({
-            id: proposal.id,
-            namespaces,
-          });
+          // Attempt to approve session with retries
+          let session: { topic: string };
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              logEvent(
+                `[DEBUG] Attempting to approve session (attempt ${attempt}/3)`
+              );
+
+              const approvalParams = proposal.proposalId
+                ? { proposalId: proposal.proposalId, namespaces }
+                : { id: proposal.id, namespaces };
+
+              session = await web3wallet.approveSession(approvalParams);
+              break;
+            } catch (error) {
+              logEvent(
+                `[DEBUG] Session approval attempt ${attempt} failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
+              );
+
+              if (attempt === 3) {
+                throw error;
+              }
+
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+            }
+          }
 
           // Update connection status to "Connected"
           await updateConnectionStatus(connectionId, "Connected", dAppUrl);
@@ -166,31 +261,100 @@ export async function connectToDApp(
 
           // Set up session request listener
           web3wallet.on("session_request", async (event: any) => {
-            await handleSessionRequest(
-              event,
-              wallet,
-              connectionId,
-              web3wallet,
-              // Pass dummy functions since these will be provided by the actual implementation
-              () => {}, // For sheetClient
-              () => {}, // For addTransactionToSheet
-              logEvent
-            );
+            try {
+              logEvent(
+                `[DEBUG] Received session request event. Method: ${event?.params?.request?.method}`
+              );
+              await handleSessionRequest(
+                event,
+                wallet,
+                connectionId,
+                web3wallet,
+                () => {}, // sheetClient
+                () => {}, // addTransactionToSheet
+                logEvent
+              );
+            } catch (error) {
+              logEvent(
+                `Error handling session request: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
+              );
+            }
           });
 
           // Set up session delete listener
           web3wallet.on("session_delete", async (event: any) => {
-            if (event.topic === session.topic) {
-              await updateConnectionStatus(
-                connectionId,
-                "Disconnected",
-                dAppUrl
+            try {
+              if (event.topic === session.topic) {
+                await updateConnectionStatus(
+                  connectionId,
+                  "Disconnected",
+                  dAppUrl
+                );
+                logEvent(`Disconnected from dApp: ${dAppUrl}`);
+              }
+            } catch (error) {
+              logEvent(
+                `Error handling session delete: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
               );
-              logEvent(`Disconnected from dApp: ${dAppUrl}`);
+            }
+          });
+
+          // Set up transport error handler
+          web3wallet.core.relayer.on("transport_error", async (error: any) => {
+            logEvent(
+              `[DEBUG] Transport error detected: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+
+            // Check for WebSocket authentication error
+            if (
+              error instanceof Error &&
+              (error.message.includes(
+                "WebSocket connection closed abnormally"
+              ) ||
+                error.message.includes("Unauthorized: invalid key"))
+            ) {
+              await updateConnectionStatus(connectionId, "Failed", dAppUrl);
+              logEvent(
+                "Connection failed: Invalid or expired WalletConnect URL. Please get a fresh URL from the dApp."
+              );
+              return;
+            }
+
+            // Attempt to reconnect for other errors
+            try {
+              await web3wallet.core.relayer.restartTransport();
+              logEvent("[DEBUG] Successfully restarted transport");
+            } catch (reconnectError) {
+              logEvent(
+                `[DEBUG] Failed to restart transport: ${
+                  reconnectError instanceof Error
+                    ? reconnectError.message
+                    : String(reconnectError)
+                }`
+              );
             }
           });
         } catch (error: unknown) {
-          await updateConnectionStatus(connectionId, "Failed");
+          logEvent(
+            `[DEBUG] Error in session_proposal handler: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+          // Only update to Failed if we're still in Pending or Connecting state
+          const currentStatus = await sheetClient.getCellValue(
+            ACTIVE_SESSIONS_SHEET,
+            3,
+            "D"
+          );
+          if (currentStatus === "Pending" || currentStatus === "Connecting") {
+            await updateConnectionStatus(connectionId, "Failed");
+          }
           logEvent(
             `Error handling session proposal: ${
               error instanceof Error ? error.message : String(error)
@@ -199,7 +363,20 @@ export async function connectToDApp(
         }
       });
     } catch (error: unknown) {
-      await updateConnectionStatus(connectionId, "Failed");
+      logEvent(
+        `[DEBUG] Error in pairing process: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      // Only update to Failed if we're still in Connecting state
+      const currentStatus = await sheetClient.getCellValue(
+        ACTIVE_SESSIONS_SHEET,
+        3,
+        "D"
+      );
+      if (currentStatus === "Connecting") {
+        await updateConnectionStatus(connectionId, "Failed");
+      }
       logEvent(
         `Error connecting to dApp: ${
           error instanceof Error ? error.message : String(error)
@@ -207,6 +384,20 @@ export async function connectToDApp(
       );
     }
   } catch (error: unknown) {
+    logEvent(
+      `[DEBUG] General error in connectToDApp: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    // Only update to Failed if we're still in Connecting state
+    const currentStatus = await sheetClient.getCellValue(
+      ACTIVE_SESSIONS_SHEET,
+      3,
+      "D"
+    );
+    if (currentStatus === "Connecting") {
+      await updateConnectionStatus(connectionId, "Failed");
+    }
     logEvent(
       `Error in connectToDApp: ${
         error instanceof Error ? error.message : String(error)
