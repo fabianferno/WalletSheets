@@ -271,6 +271,19 @@ export async function updatePortfolioSheet(
       new Date().toISOString()
     );
 
+    // Clear and recreate charts
+    try {
+      // First clear existing charts
+      await clearExistingCharts(sheetClient, logEvent);
+
+      // Then create new charts
+      createOrUpdateCharts(sheetClient, logEvent);
+
+      logEvent("Portfolio charts updated");
+    } catch (chartError) {
+      logEvent(`Warning: Could not update charts: ${chartError}`);
+    }
+
     logEvent(`Portfolio sheet updated with ${portfolioData.length} assets.`);
     return true;
   } catch (error) {
@@ -310,6 +323,20 @@ export async function createPortfolioSheet(sheetClient, logEvent) {
       "H",
       new Date().toISOString()
     );
+
+    // Add some spacing rows for charts
+    const spacingRows = Array(70).fill([""]); // Create 70 empty rows for chart space
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:A80`, spacingRows);
+
+    // Create initial charts
+    setTimeout(() => {
+      try {
+        createOrUpdateCharts(sheetClient, logEvent);
+        logEvent("Initial portfolio charts created");
+      } catch (chartError) {
+        logEvent(`Warning: Could not create initial charts: ${chartError}`);
+      }
+    }, 1000); // Small delay to ensure sheet is ready
 
     logEvent(`${PORTFOLIO_SHEET} sheet created.`);
     return sheetId;
@@ -423,5 +450,656 @@ export async function generateRecommendations(
   } catch (error) {
     logEvent(`Error generating recommendations: ${error.message}`);
     return ["Unable to generate recommendations due to an error."];
+  }
+}
+
+/**
+ * Clear existing charts from the portfolio sheet
+ */
+export async function clearExistingCharts(sheetClient, logEvent) {
+  try {
+    logEvent("Clearing existing charts before creating new ones");
+
+    // Get the sheet ID
+    const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+
+    // Get all charts in the sheet
+    const spreadsheet = await sheetClient.getSpreadsheet();
+
+    if (!spreadsheet.sheets) {
+      logEvent("No sheets found in spreadsheet");
+      return false;
+    }
+
+    // Find the sheet that matches our sheet ID
+    const sheet = spreadsheet.sheets.find(
+      (s) => s.properties?.sheetId === sheetId
+    );
+
+    if (!sheet || !sheet.charts || sheet.charts.length === 0) {
+      logEvent("No charts found to clear");
+      return true; // No charts to clear is still a success
+    }
+
+    // Create delete requests for all charts
+    const deleteRequests = sheet.charts.map((chart) => ({
+      deleteEmbeddedObject: {
+        objectId: chart.chartId,
+      },
+    }));
+
+    if (deleteRequests.length > 0) {
+      // Execute batch delete
+      await sheetClient.batchUpdate({ requests: deleteRequests });
+      logEvent(`Cleared ${deleteRequests.length} existing charts`);
+    }
+
+    return true;
+  } catch (error) {
+    logEvent(`Error clearing existing charts: ${error}`);
+    return false; // Failed to clear charts
+  }
+}
+
+/**
+ * Create or update charts in the portfolio sheet
+ */
+export function createOrUpdateCharts(sheetClient, logEvent) {
+  try {
+    logEvent("Attempting to create portfolio charts");
+    const CHART_WIDTH = 400;
+    const CHART_HEIGHT = 350;
+
+    // First clear existing charts, then create new ones
+    clearExistingCharts(sheetClient, logEvent)
+      .then(() => sheetClient.getSheetIdByName(PORTFOLIO_SHEET))
+      .then((sheetId) => {
+        // Create batch update request for charts
+        const chartRequests = {
+          requests: [
+            // Asset Distribution (Pie Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "Asset Distribution",
+                    pieChart: {
+                      legendPosition: "RIGHT_LEGEND",
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 12,
+                              endRowIndex: 25,
+                              startColumnIndex: 0,
+                              endColumnIndex: 1,
+                            },
+                          ],
+                        },
+                      },
+                      series: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 12,
+                              endRowIndex: 25,
+                              startColumnIndex: 2,
+                              endColumnIndex: 3,
+                            },
+                          ],
+                        },
+                      },
+                      pieHole: 0.4, // Add a donut hole for better visualization
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 46,
+                        columnIndex: 0,
+                      },
+                      widthPixels: CHART_WIDTH,
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+            // 24h Performance (Column Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "24h Performance",
+                    basicChart: {
+                      chartType: "COLUMN",
+                      legendPosition: "BOTTOM_LEGEND",
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 1,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      series: [
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 5,
+                                  endColumnIndex: 6,
+                                },
+                              ],
+                            },
+                          },
+                          targetAxis: "LEFT_AXIS",
+                        },
+                      ],
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 46,
+                        columnIndex: 3,
+                      },
+                      widthPixels: CHART_WIDTH,
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+            // Weekly Performance (Line Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "Weekly Performance",
+                    basicChart: {
+                      chartType: "LINE",
+                      legendPosition: "BOTTOM_LEGEND",
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 1,
+                                  endColumnIndex: 2,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      series: [
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 6,
+                                  endColumnIndex: 7,
+                                },
+                              ],
+                            },
+                          },
+                          targetAxis: "LEFT_AXIS",
+                        },
+                      ],
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 46,
+                        columnIndex: 6,
+                      },
+                      widthPixels: CHART_WIDTH,
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+            // Token Balances (Bar Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "Token Balances",
+                    basicChart: {
+                      chartType: "BAR",
+                      legendPosition: "BOTTOM_LEGEND",
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 1, // Symbol column
+                                  endColumnIndex: 2,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      series: [
+                        {
+                          series: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 3, // USD Value column
+                                  endColumnIndex: 4,
+                                },
+                              ],
+                            },
+                          },
+                          targetAxis: "BOTTOM_AXIS",
+                        },
+                      ],
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 66,
+                        columnIndex: 0,
+                      },
+                      widthPixels: CHART_WIDTH + 100, // Slightly wider for bar chart
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        };
+
+        // Execute the batch update to create charts
+        sheetClient
+          .batchUpdate(chartRequests)
+          .then(() => {
+            logEvent("Portfolio charts created successfully");
+          })
+          .catch((error) => {
+            logEvent(`Error in chart batch update: ${error}`);
+
+            // Try simplified charts if the regular ones fail
+            logEvent("Attempting to create simplified charts as fallback");
+            createSimplifiedCharts(sheetClient, logEvent).then((success) => {
+              if (success) {
+                logEvent("Created simplified charts successfully as fallback");
+              } else {
+                logEvent("Failed to create any charts");
+              }
+            });
+          });
+      })
+      .catch((error) => {
+        logEvent(`Error getting sheet ID: ${error}`);
+      });
+  } catch (error) {
+    logEvent(`Error creating charts: ${error}`);
+  }
+}
+
+/**
+ * Create simplified charts as a fallback method
+ * This function uses a more direct approach with explicit dimensions
+ */
+export async function createSimplifiedCharts(sheetClient, logEvent) {
+  try {
+    logEvent("Creating simplified charts as fallback");
+
+    // Clear existing charts first
+    await clearExistingCharts(sheetClient, logEvent);
+
+    // Get the sheet ID
+    const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+
+    // Create a simpler version of the chart requests
+    const simplifiedChartRequests = {
+      requests: [
+        // Simplified asset distribution pie chart
+        {
+          addChart: {
+            chart: {
+              spec: {
+                title: "Asset Distribution",
+                pieChart: {
+                  legendPosition: "RIGHT_LEGEND",
+                  domain: {
+                    sourceRange: {
+                      sources: [
+                        {
+                          sheetId: sheetId,
+                          startRowIndex: 13, // First data row
+                          endRowIndex: 20, // Limit rows for reliability
+                          startColumnIndex: 0, // Asset column
+                          endColumnIndex: 1,
+                        },
+                      ],
+                    },
+                  },
+                  series: {
+                    sourceRange: {
+                      sources: [
+                        {
+                          sheetId: sheetId,
+                          startRowIndex: 13, // First data row
+                          endRowIndex: 20, // Limit rows for reliability
+                          startColumnIndex: 1, // Value column
+                          endColumnIndex: 2,
+                        },
+                      ],
+                    },
+                  },
+                  pieHole: 0.4, // Donut style
+                },
+              },
+              position: {
+                overlayPosition: {
+                  anchorCell: {
+                    sheetId: sheetId,
+                    rowIndex: 46,
+                    columnIndex: 0,
+                  },
+                  widthPixels: 400,
+                  heightPixels: 350,
+                },
+              },
+            },
+          },
+        },
+        // Simplified performance column chart
+        {
+          addChart: {
+            chart: {
+              spec: {
+                title: "24h Performance",
+                basicChart: {
+                  chartType: "COLUMN",
+                  legendPosition: "BOTTOM_LEGEND",
+                  domains: [
+                    {
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 0, // Token column
+                              endColumnIndex: 1,
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                  series: [
+                    {
+                      series: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 5, // 24h change column
+                              endColumnIndex: 6,
+                            },
+                          ],
+                        },
+                      },
+                      targetAxis: "LEFT_AXIS",
+                    },
+                  ],
+                },
+              },
+              position: {
+                overlayPosition: {
+                  anchorCell: {
+                    sheetId: sheetId,
+                    rowIndex: 46,
+                    columnIndex: 3,
+                  },
+                  widthPixels: 400,
+                  heightPixels: 350,
+                },
+              },
+            },
+          },
+        },
+        // Weekly Performance Line Chart (New)
+        {
+          addChart: {
+            chart: {
+              spec: {
+                title: "Weekly Performance",
+                basicChart: {
+                  chartType: "LINE",
+                  legendPosition: "BOTTOM_LEGEND",
+                  domains: [
+                    {
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 1, // Symbol column
+                              endColumnIndex: 2,
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                  series: [
+                    {
+                      series: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 6, // 7d change column
+                              endColumnIndex: 7,
+                            },
+                          ],
+                        },
+                      },
+                      targetAxis: "LEFT_AXIS",
+                    },
+                  ],
+                  lineSmoothing: true,
+                },
+              },
+              position: {
+                overlayPosition: {
+                  anchorCell: {
+                    sheetId: sheetId,
+                    rowIndex: 46,
+                    columnIndex: 6,
+                  },
+                  widthPixels: 400,
+                  heightPixels: 350,
+                },
+              },
+            },
+          },
+        },
+        // Token Balances Bar Chart as a simplified version
+        {
+          addChart: {
+            chart: {
+              spec: {
+                title: "Token Balances",
+                basicChart: {
+                  chartType: "BAR",
+                  legendPosition: "BOTTOM_LEGEND",
+                  domains: [
+                    {
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 1, // Symbol column
+                              endColumnIndex: 2,
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                  series: [
+                    {
+                      series: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 3, // USD Value column
+                              endColumnIndex: 4,
+                            },
+                          ],
+                        },
+                      },
+                      targetAxis: "BOTTOM_AXIS",
+                    },
+                  ],
+                },
+              },
+              position: {
+                overlayPosition: {
+                  anchorCell: {
+                    sheetId: sheetId,
+                    rowIndex: 66,
+                    columnIndex: 0,
+                  },
+                  widthPixels: 500,
+                  heightPixels: 350,
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    await sheetClient.batchUpdate(simplifiedChartRequests);
+    logEvent("Simplified charts created successfully");
+    return true;
+  } catch (error) {
+    logEvent(`Error creating simplified charts: ${error}`);
+
+    // Try creating a single, basic chart as last resort
+    try {
+      const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+      const basicChartRequest = {
+        requests: [
+          {
+            addChart: {
+              chart: {
+                spec: {
+                  title: "Portfolio Overview",
+                  pieChart: {
+                    legendPosition: "RIGHT_LEGEND",
+                    domain: {
+                      sourceRange: {
+                        sources: [
+                          {
+                            sheetId: sheetId,
+                            startRowIndex: 13,
+                            endRowIndex: 17, // Use very few rows to ensure data exists
+                            startColumnIndex: 0,
+                            endColumnIndex: 1,
+                          },
+                        ],
+                      },
+                    },
+                    series: {
+                      sourceRange: {
+                        sources: [
+                          {
+                            sheetId: sheetId,
+                            startRowIndex: 13,
+                            endRowIndex: 17, // Use very few rows to ensure data exists
+                            startColumnIndex: 1,
+                            endColumnIndex: 2,
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+                position: {
+                  overlayPosition: {
+                    anchorCell: {
+                      sheetId: sheetId,
+                      rowIndex: 50,
+                      columnIndex: 2,
+                    },
+                    widthPixels: 600,
+                    heightPixels: 400,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      await sheetClient.batchUpdate(basicChartRequest);
+      logEvent("Basic fallback chart created successfully");
+      return true;
+    } catch (basicError) {
+      logEvent(`Failed to create even basic chart: ${basicError}`);
+      return false;
+    }
   }
 }
