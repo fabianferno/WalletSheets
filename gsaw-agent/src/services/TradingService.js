@@ -11,6 +11,7 @@ export class TradingService {
     }
 
     async start() {
+        await this.executeTradeLogic();
         // Start the periodic trading logic
         this.timer = setInterval(async () => {
             await this.executeTradeLogic();
@@ -29,8 +30,13 @@ export class TradingService {
 
     async executeTradeLogic() {
         try {
+            console.log("Starting trade logic execution...");
+
             // 1. Check balance first
+            console.log("Checking balance...");
             const balance = await this.agent.getBalance();
+            console.log(`Current balance: ${balance}`);
+
             if (balance < BigInt("2000000000000000")) {
                 console.log("Insufficient balance (< 0.002 ETH) to perform trade operations");
                 return {
@@ -40,33 +46,45 @@ export class TradingService {
             }
 
             // 3. Gather all necessary trading data
+            console.log("Gathering trading data...");
             const [candleStickData, socialSentiment] = await Promise.all([
                 processCandles("ETH"),
                 processSentimentCryptoPanic("ETH", this.agent),
             ]);
+            console.log("Trading data gathered successfully.");
 
             // 4. Generate embeddings using RAG service
+            console.log("Generating embeddings...");
             const embeddingsData = await generateEmbeddings(
                 'ETH',
                 candleStickData,
                 socialSentiment,
             );
+            console.log("Embeddings generated successfully.");
 
+            console.log("Processing analysis for decision-making...");
             const decision = await this.agent.processAnalysis({
                 marketData: candleStickData,
                 socialSentiment: socialSentiment,
             }, embeddingsData);
+            console.log(`Decision made: ${JSON.stringify(decision)}`);
+
             let selectedTrade = null;
             if (decision.action === "close_position") {
+                console.log(`Fetching trade details for trade ID: ${decision.data.trade_id}`);
                 selectedTrade = await this.agent.getTradeById(decision.data.trade_id);
+                console.log(`Selected trade: ${JSON.stringify(selectedTrade)}`);
             }
 
             // 6. Execute the decision
-            return await this.executeDecision(decision, selectedTrade);
+            console.log("Executing decision...");
+            const result = await this.executeDecision(decision, selectedTrade);
+            console.log("Decision executed successfully:", result);
+
+            return result;
 
         } catch (error) {
             console.error("Error in trading execution:", error);
-
         }
     }
 
@@ -76,7 +94,7 @@ export class TradingService {
             case "buy_more":
 
                 const hash = await placeTrade(
-                    this.agent.getPrivateKey(),
+                    await this.agent.getPrivateKey(),
                     'ETH',
                     'ETH',
                     '421614',
@@ -141,13 +159,22 @@ export class TradingService {
                         "%allot": decision.reason
                     }
                 })
-
+                return {
+                    success: true,
+                }
             case "stay_idle":
             default:
+                await this.agent.addTradingData({
+                    action: {
+                        "%allot": 'stay_idle'
+                    },
+                    explanation: {
+                        "%allot": decision.reason
+                    }
+                })
                 return {
-                    decision: "stay_idle",
-                    reason: decision.reason || "No trading opportunity identified"
-                };
+                    success: true,
+                }
         }
     }
 }

@@ -256,13 +256,12 @@ export class Agent {
     TECHNICAL ANALYSIS:
     ${JSON.stringify(embeddings, null, 2)}
     
-    CURRENT POSITIONS:
-    ${JSON.stringify(positions, null, 2)}
+    ${positions.length > 0 ? "CURRENT POSITIONS: \n" + JSON.stringify(positions, null, 2) : "NO ACTIVE POSITIONS."}
     
     Based on the above data, recommend ONE of the following actions:
     1. "stay_idle" - Don't make any trades
     2. "buy_more" - Enter a new position or add to existing
-    3. "close_position" - Close an existing position
+    ${positions.length > 0 ? `3. "close_position" - Close an existing position` : ""}
     
     Provide your recommendation in ONE of the following JSON formats based on your analysis:
     
@@ -271,15 +270,6 @@ export class Agent {
       "action": "stay_idle",
       "reason": "detailed explanation of why no action should be taken",
       "data": {}
-    }
-    
-    If recommending to close a position:
-    {
-      "action": "close_position",
-      "reason": "detailed explanation of why the position should be closed",
-      "data": {
-        "trade_id": "id_of_position_to_close"
-      }
     }
     
     If recommending to buy more:
@@ -293,6 +283,15 @@ export class Agent {
         "isLong": boolean (true for long, false for short)
       }
     }
+
+    ${positions.length > 0 ? `If recommending to close a position:
+    {
+      "action": "close_position",
+      "reason": "detailed explanation of why the position should be closed",
+      "data": {
+        "trade_id": "id_of_position_to_close"
+      }
+    }`: ""}
     `;
 
         // Call the LLM API with the constructed prompt
@@ -391,7 +390,9 @@ export class Agent {
         const dataWritten = await this.nillionTradesCollection.writeToNodes([{
             ...tradeData,
             created_at: currentTime,
-            user_id: this.user_id,
+            user_id: {
+                '%allot': this.user_id
+            },
         }])
         const newIds = [
             ...new Set(dataWritten.map((item) => item.data.created).flat()),
@@ -652,4 +653,40 @@ Always use tools when appropriate rather than making up information. Study the e
         return (await wallet.getBalance()).toBigInt()
     }
 
+    async configureAuth(url, apiKey) {
+
+        const userData = await this.nillionUserCollection.readFromNodes({
+            _id: this.user_id,
+        });
+
+        const user = userData[0];
+
+        const updatedUser = {
+            email: {
+                '%allot': user.email
+            },
+            secret_salt: {
+                '%allot': user.secret_salt
+            },
+            sheet_id: {
+                '%allot': user.sheet_id
+            },
+            name: user.name,
+            last_login: user.last_login,
+            created_at: user.created_at,
+            agent: {
+                url: {
+                    '%allot': url
+                },
+                api_key: {
+                    '%allot': apiKey
+                }
+            }
+        };
+
+        await this.nillionUserCollection.updateDataToNodes(updatedUser, {
+            _id: this.user_id,
+        });
+
+    }
 }

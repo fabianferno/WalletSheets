@@ -5,6 +5,7 @@ import cors from "cors";
 import readline from "readline";
 import { Agent } from "./agent.js";
 import { nodes } from "./config.js";
+import { TradingService } from "./services/TradingService.js";
 
 // Load environment variables
 dotenv.config();
@@ -12,10 +13,12 @@ dotenv.config();
 // Create agent service
 const agent = new Agent(nodes);
 
-
 // Terminal mode implementation
 async function runTerminalMode() {
   await agent.initialize();
+
+  const tradingService = new TradingService(agent);
+  tradingService.start();
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -84,6 +87,12 @@ function runServerMode() {
     .initialize()
     .then(() => {
       console.log("✅ Agent initialized and ready");
+      console.log("🚀 Starting trading service...");
+      const tradingService = new TradingService(agent);
+      tradingService.start().then(() => {
+        console.log("✅ Trading service started, will run every 10 minutes");
+      })
+
     })
     .catch((error) => {
       console.error("❌ Failed to initialize agent:", error);
@@ -114,6 +123,29 @@ function runServerMode() {
       console.error("Error processing chat request:", error);
       return res.status(500).json({
         error: `Failed to process message ${error}`,
+      });
+    }
+  });
+
+  app.post('/set-url', async (req, res) => {
+
+    try {
+      const { url, apiKey } = req.body;
+
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      if (!apiKey) {
+        return res.status(400).json({ error: "API Key is required" });
+      }
+
+      await agent.configureAuth(url, apiKey);
+      return res.status(200).json({ success: true, message: "URL set" });
+    } catch (error) {
+      console.error("Error setting URL:", error);
+      return res.status(500).json({
+        error: `Failed to set URL: ${error}`,
       });
     }
   });
