@@ -4,7 +4,6 @@ import axios from "axios";
 import { PORTFOLIO_SHEET } from "./sheetUtils";
 
 // Constants
-const PORTFOLIO_SHEET = "Crypto Portfolio";
 // Set this to true to use mock data, false to fetch real wallet balances
 export const USE_MOCK_DATA = true;
 
