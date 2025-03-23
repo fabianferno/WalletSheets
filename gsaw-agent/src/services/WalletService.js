@@ -9,7 +9,8 @@ export class WalletService {
     async start() {
         // TODO: Fetch and set Balances inside a webhook or a cron job??
         // /* 
-        //  const balances = {
+        // EXAMPLE: 
+        // const balances = {
         //    "HYPE": {
         //      "address": "0x0000000000000000000000000000000000000000",
         //      "decimals": 18,
@@ -36,7 +37,7 @@ export class WalletService {
         //    }
         //  }
         // */   
-        // User this method to fetch balances
+        // Use this method to fetch balances
         // this.agent.getBalances()
         // When a balance update is received, call this method to update the balances
         // this.agent.setBalannces(balances)
