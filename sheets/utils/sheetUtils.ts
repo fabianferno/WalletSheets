@@ -1,12 +1,13 @@
 import { SheetClient } from "../sheets.api";
 import { ethers } from "ethers";
+import axios from "axios";
 
 // Sheet names
 export const SETTINGS_SHEET = "Settings";
 export const WALLET_EXPLORER_SHEET = "Wallet Explorer";
 export const ACTIVE_SESSIONS_SHEET = "ActiveSessions";
 export const PENDING_TRANSACTIONS_SHEET = "Pending Transactions";
-export const LOGS_SHEET = "Logs";
+export const CHAT_SHEET = "Chat";
 
 /**
  * Initialize or get existing sheets
@@ -29,7 +30,7 @@ export async function initializeSheets(
       WALLET_EXPLORER_SHEET,
       ACTIVE_SESSIONS_SHEET,
       PENDING_TRANSACTIONS_SHEET,
-      LOGS_SHEET,
+      CHAT_SHEET,
     ];
 
     const missingSheets = requiredSheets.filter(
@@ -65,8 +66,8 @@ export async function initializeSheets(
         case PENDING_TRANSACTIONS_SHEET:
           await createPendingTransactionsSheet(sheetClient, logEvent);
           break;
-        case LOGS_SHEET:
-          await createLogsSheet(sheetClient, logEvent);
+        case CHAT_SHEET:
+          await createChatSheet(sheetClient, logEvent);
           break;
       }
     }
@@ -115,8 +116,8 @@ export async function createSheets(
     // Create Pending Transactions sheet
     await createPendingTransactionsSheet(sheetClient, logEvent);
 
-    // Create Logs sheet
-    await createLogsSheet(sheetClient, logEvent);
+    // Create Chat sheet
+    await createChatSheet(sheetClient, logEvent);
 
     logEvent("All sheets created successfully");
   } catch (error: unknown) {
@@ -363,39 +364,6 @@ export async function createPendingTransactionsSheet(
   } catch (error: unknown) {
     logEvent(
       `Error creating ${PENDING_TRANSACTIONS_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    throw error;
-  }
-}
-
-/**
- * Create Logs sheet
- */
-export async function createLogsSheet(
-  sheetClient: SheetClient,
-  logEvent: Function
-) {
-  try {
-    // Check if sheet exists
-    try {
-      await sheetClient.getSheetValues(LOGS_SHEET);
-      return;
-    } catch {
-      // Create the sheet
-      await sheetClient.createSheet(LOGS_SHEET);
-
-      // Set up headers
-      await sheetClient.setRangeValues(`${LOGS_SHEET}!A1:B1`, [
-        ["Timestamp", "Message"],
-      ]);
-
-      logEvent(`${LOGS_SHEET} sheet created`);
-    }
-  } catch (error: unknown) {
-    logEvent(
-      `Error creating ${LOGS_SHEET} sheet: ${
         error instanceof Error ? error.message : String(error)
       }`
     );
@@ -921,5 +889,394 @@ export async function checkStuckTransactions(
     }
   } catch (error) {
     logEvent(`[DEBUG] Error checking stuck transactions: ${error}`);
+  }
+}
+
+/**
+ * Create Chat sheet
+ */
+export async function createChatSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
+  try {
+    // Check if sheet exists
+    try {
+      await sheetClient.getSheetValues(CHAT_SHEET);
+      return;
+    } catch {
+      // Create the sheet
+      const sheetId = await sheetClient.createSheet(CHAT_SHEET);
+
+      // Set up initial UI structure - put the input field at the top for better visibility
+      await sheetClient.setRangeValues(`${CHAT_SHEET}!A1:F5`, [
+        ["WalletSheets Agent", "", "", "", "", ""],
+        ["Your message:", "", "", "", "", ""],
+        ["", "", "", "", "", ""],
+        ["Chat History", "", "", "", "", ""],
+        ["", "", "", "", "", ""],
+      ]);
+
+      // Add the send button as text with instructions
+      await sheetClient.setCellValue(
+        CHAT_SHEET,
+        2,
+        "C",
+        "Type your message in B2 and press Enter to send"
+      );
+
+      // Format the header
+      try {
+        // Format the title row
+        await sheetClient.formatRange(
+          sheetId,
+          0, // startRowIndex
+          1, // endRowIndex
+          0, // startColumnIndex
+          6, // endColumnIndex
+          {
+            backgroundColor: { red: 0.2, green: 0.3, blue: 0.8 }, // Blue background
+            textFormat: {
+              bold: true,
+              fontSize: 14,
+              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+            },
+            horizontalAlignment: "CENTER",
+          }
+        );
+
+        // Format the user input label
+        await sheetClient.formatRange(
+          sheetId,
+          1, // startRowIndex
+          2, // endRowIndex
+          0, // startColumnIndex
+          1, // endColumnIndex
+          {
+            backgroundColor: { red: 0.2, green: 0.2, blue: 0.6 }, // Dark blue background
+            textFormat: {
+              bold: true,
+              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+            },
+            horizontalAlignment: "CENTER",
+          }
+        );
+
+        // Format user input area
+        await sheetClient.formatRange(
+          sheetId,
+          1, // startRowIndex
+          2, // endRowIndex
+          1, // startColumnIndex
+          2, // endColumnIndex
+          {
+            backgroundColor: { red: 0.95, green: 0.95, blue: 1.0 }, // Very light blue
+            borders: {
+              top: { style: "SOLID" },
+              bottom: { style: "SOLID" },
+              left: { style: "SOLID" },
+              right: { style: "SOLID" },
+            },
+          }
+        );
+
+        // Format the instructions
+        await sheetClient.formatRange(
+          sheetId,
+          1, // startRowIndex
+          2, // endRowIndex
+          2, // startColumnIndex
+          6, // endColumnIndex
+          {
+            textFormat: {
+              italic: true,
+              foregroundColor: { red: 0.4, green: 0.4, blue: 0.4 }, // Gray text
+            },
+          }
+        );
+
+        // Format the chat history header
+        await sheetClient.formatRange(
+          sheetId,
+          3, // startRowIndex
+          4, // endRowIndex
+          0, // startColumnIndex
+          6, // endColumnIndex
+          {
+            backgroundColor: { red: 0.3, green: 0.3, blue: 0.3 }, // Dark gray background
+            textFormat: {
+              bold: true,
+              fontSize: 12,
+              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+            },
+            horizontalAlignment: "CENTER",
+          }
+        );
+
+        // Set column widths
+        const requests = [
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 0, // First column (A)
+                endIndex: 1, // Second column (B)
+              },
+              properties: {
+                pixelSize: 200, // Increase width from 120 to 150 pixels
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 1, // Second column (B)
+                endIndex: 2, // Third column (C)
+              },
+              properties: {
+                pixelSize: 400, // Width in pixels for the message column
+              },
+              fields: "pixelSize",
+            },
+          },
+          // Freeze the first 3 rows (title, input field, and spacing)
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: sheetId,
+                gridProperties: {
+                  frozenRowCount: 3,
+                },
+              },
+              fields: "gridProperties.frozenRowCount",
+            },
+          },
+        ];
+
+        // Apply column width changes and freeze rows
+        await sheetClient.batchUpdate({
+          requests,
+        });
+      } catch (formatError) {
+        logEvent(`Unable to format Chat sheet: ${formatError}`);
+      }
+
+      logEvent(`${CHAT_SHEET} sheet created`);
+    }
+  } catch (error: unknown) {
+    logEvent(
+      `Error creating ${CHAT_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    throw error;
+  }
+}
+
+/**
+ * Monitor the Chat sheet for new messages
+ */
+export async function monitorChatSheet(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
+  try {
+    logEvent(`Starting Chat sheet monitoring`);
+
+    // Keep track of the last processed message to avoid duplication
+    let lastProcessedMessage = "";
+    let lastMessageTimestamp = Date.now();
+
+    const checkForNewMessages = async () => {
+      try {
+        // Get the message from cell B2 (input field is now in row 2)
+        const userMessage = await sheetClient.getCellValue(CHAT_SHEET, 2, "B");
+
+        // Check if there's a new non-empty message and it's different from the last one
+        // Also add a small delay check to prevent processing the same message multiple times
+        const currentTime = Date.now();
+        if (
+          userMessage &&
+          userMessage !== lastProcessedMessage &&
+          currentTime - lastMessageTimestamp > 2000
+        ) {
+          logEvent(`New message detected: ${userMessage}`);
+
+          // Save this message to avoid processing it again
+          lastProcessedMessage = userMessage;
+          lastMessageTimestamp = currentTime;
+
+          // Clear the input field
+          await sheetClient.setCellValue(CHAT_SHEET, 2, "B", "");
+
+          // Get the sheet ID for formatting
+          const sheetId = await sheetClient.getSheetIdByName(CHAT_SHEET);
+
+          // Insert two new rows at the beginning of the chat history section (after row 4)
+          await sheetClient.insertRow(sheetId, 4);
+          await sheetClient.insertRow(sheetId, 5);
+
+          // Add user message at the first row of the chat history
+          await sheetClient.setRangeValues(`${CHAT_SHEET}!A5:B5`, [
+            ["You", userMessage],
+          ]);
+
+          // Format the "You" label
+          await sheetClient.formatRange(
+            sheetId,
+            4, // startRowIndex (row 5, zero-based)
+            5, // endRowIndex
+            0, // startColumnIndex
+            1, // endColumnIndex
+            {
+              backgroundColor: { red: 0.2, green: 0.2, blue: 0.6 }, // Dark blue background
+              textFormat: {
+                bold: true,
+                foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+              },
+              horizontalAlignment: "CENTER",
+            }
+          );
+
+          // Format the user message cell
+          await sheetClient.formatRange(
+            sheetId,
+            4, // startRowIndex
+            5, // endRowIndex
+            1, // startColumnIndex
+            6, // endColumnIndex
+            {
+              backgroundColor: { red: 0.95, green: 0.95, blue: 1.0 }, // Very light blue
+              wrapStrategy: "WRAP",
+            }
+          );
+
+          // Call the chat API
+          try {
+            // Show "Agent is typing..." indicator
+            await sheetClient.setRangeValues(`${CHAT_SHEET}!A6:B6`, [
+              ["Agent", "Thinking..."],
+            ]);
+
+            // Format the agent label
+            await sheetClient.formatRange(
+              sheetId,
+              5, // startRowIndex
+              6, // endRowIndex
+              0, // startColumnIndex
+              1, // endColumnIndex
+              {
+                backgroundColor: { red: 0.2, green: 0.6, blue: 0.2 }, // Green background
+                textFormat: {
+                  bold: true,
+                  foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+                },
+                horizontalAlignment: "CENTER",
+              }
+            );
+
+            // Use your existing API endpoint instead of a custom local one
+            try {
+              // Get wallet address for context
+              const walletAddress = await sheetClient.getCellValue(
+                SETTINGS_SHEET,
+                2,
+                "B"
+              );
+
+              // Get API URL from environment or use default
+              const apiUrl = "http://localhost:3000/chat";
+
+              // Make API call to the agent service
+              const response = await axios.post(apiUrl, {
+                message: userMessage,
+                walletAddress: walletAddress || "unknown",
+                context: "chat",
+              });
+
+              if (response.status !== 200) {
+                throw new Error(`API error: ${response.status}`);
+              }
+
+              const data = response.data;
+              // Extract response from your API's response format
+              const agentResponse =
+                data.response ||
+                data.message ||
+                data.content ||
+                "Sorry, I couldn't process your request.";
+
+              // Update the agent response
+              await sheetClient.setCellValue(CHAT_SHEET, 6, "B", agentResponse);
+
+              // Format the agent response cell
+              await sheetClient.formatRange(
+                sheetId,
+                5, // startRowIndex
+                6, // endRowIndex
+                1, // startColumnIndex
+                6, // endColumnIndex
+                {
+                  backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 }, // Light gray background
+                  textFormat: {
+                    fontSize: 11,
+                  },
+                  wrapStrategy: "WRAP",
+                }
+              );
+            } catch (apiError) {
+              logEvent(
+                `API Error: ${
+                  apiError instanceof Error
+                    ? apiError.message
+                    : String(apiError)
+                }`
+              );
+              // Update with error message
+              await sheetClient.setCellValue(
+                CHAT_SHEET,
+                6,
+                "B",
+                `Sorry, there was an error connecting to the agent service: ${
+                  apiError instanceof Error
+                    ? apiError.message
+                    : String(apiError)
+                }`
+              );
+            }
+          } catch (formatError) {
+            logEvent(
+              `Format Error: ${
+                formatError instanceof Error
+                  ? formatError.message
+                  : String(formatError)
+              }`
+            );
+          }
+        }
+      } catch (error) {
+        logEvent(
+          `Error checking for messages: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+
+      // Continue checking every 5 seconds
+      setTimeout(checkForNewMessages, 5000);
+    };
+
+    // Start the monitoring loop
+    checkForNewMessages();
+  } catch (error: unknown) {
+    logEvent(
+      `Error monitoring chat sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 }
