@@ -5,8 +5,8 @@ import { placeTrade } from './gmx/index.js';
  */
 export async function initializeTradingTool() {
     // Add any initialization logic or environment variable checks here
-    if (!process.env.ALCHMEY_API_KEY) {
-        console.warn("Warning: ALCHMEY_API_KEY environment variable not set");
+    if (!process.env.ALCHEMY_API_KEY) {
+        console.warn("Warning: ALCHEMY_API_KEY environment variable not set");
     }
 
     // Define examples of how to use this tool
