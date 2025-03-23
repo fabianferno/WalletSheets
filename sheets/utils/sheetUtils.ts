@@ -4,10 +4,10 @@ import axios from "axios";
 
 // Sheet names
 export const SETTINGS_SHEET = "Settings";
-export const WALLET_EXPLORER_SHEET = "Wallet Explorer";
-export const ACTIVE_SESSIONS_SHEET = "ActiveSessions";
+export const WALLET_EXPLORER_SHEET = "View Transactions";
+export const ACTIVE_SESSIONS_SHEET = "Connect to Dapp";
 export const PENDING_TRANSACTIONS_SHEET = "Pending Transactions";
-export const CHAT_SHEET = "Chat";
+export const CHAT_SHEET = "Chat with Wallet";
 export const PORTFOLIO_SHEET = "Portfolio";
 
 // Common styling constants for sheets
@@ -210,7 +210,7 @@ export async function createSettingsSheet(
                 endIndex: 2,
               },
               properties: {
-                pixelSize: 300, // Increased width for Value column
+                pixelSize: 340, // Increased width for Value column
               },
               fields: "pixelSize",
             },
@@ -272,6 +272,28 @@ export async function createSettingsSheet(
               strict: true,
               showCustomUi: true,
             },
+          },
+        },
+        // Add formatting for risk factor value to be left-aligned
+        {
+          repeatCell: {
+            range: {
+              sheetId: sheetId,
+              startRowIndex: 3, // Risk Factor row (4th row, 0-based)
+              endRowIndex: 4,
+              startColumnIndex: 1, // Column B
+              endColumnIndex: 2,
+            },
+            cell: {
+              userEnteredFormat: {
+                horizontalAlignment: "LEFT",
+                textFormat: {
+                  fontFamily: "Roboto",
+                },
+              },
+            },
+            fields:
+              "userEnteredFormat(horizontalAlignment,textFormat.fontFamily)",
           },
         },
       ];
@@ -1653,5 +1675,112 @@ export async function getRiskFactor(
       }. Using default value of 5.`
     );
     return 5; // Default to middle value if error
+  }
+}
+
+/**
+ * Lock a sheet to prevent unauthorized edits
+ * Only the owner (specified by email) will be able to edit the sheet
+ */
+export async function lockSheet(
+  sheetClient: SheetClient,
+  sheetName: string,
+  ownerEmail: string,
+  logEvent: Function
+) {
+  try {
+    console.log(`🔒 Locking "${sheetName}" sheet for owner: ${ownerEmail}`);
+
+    // Get the sheet ID
+    const sheets = await sheetClient.getSheetMetadata();
+    const sheet = sheets.find((s) => s.title === sheetName);
+
+    if (!sheet) {
+      throw new Error(`Sheet "${sheetName}" not found`);
+    }
+
+    // Create a protection that only allows the owner to edit
+    const requests = [
+      {
+        addProtectedRange: {
+          protectedRange: {
+            range: {
+              sheetId: sheet.sheetId,
+              startRowIndex: 0,
+              startColumnIndex: 0,
+            },
+            description: `This sheet is locked and can only be edited by ${ownerEmail}`,
+            warningOnly: false,
+            editors: {
+              users: [ownerEmail],
+            },
+          },
+        },
+      },
+    ];
+
+    await sheetClient.batchUpdate({ requests });
+    logEvent(`Successfully locked "${sheetName}" sheet for ${ownerEmail}`);
+    return true;
+  } catch (error: unknown) {
+    console.error(`❌ Error locking "${sheetName}" sheet:`, error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
+    logEvent(
+      `Error locking "${sheetName}" sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return false;
+  }
+}
+
+/**
+ * Lock Portfolio and Wallet Explorer sheets
+ * This prevents unauthorized edits to important financial data
+ */
+export async function lockFinancialSheets(
+  sheetClient: SheetClient,
+  logEvent: Function
+) {
+  try {
+    console.log(`🔒 Locking financial sheets...`);
+
+    // Get the owner email from settings
+    const ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
+
+    if (!ownerEmail) {
+      logEvent(`Cannot lock sheets: Owner email not found in Settings sheet`);
+      return false;
+    }
+
+    // Lock the Portfolio sheet
+    await lockSheet(sheetClient, PORTFOLIO_SHEET, ownerEmail, logEvent);
+
+    // Lock the Wallet Explorer sheet
+    await lockSheet(sheetClient, WALLET_EXPLORER_SHEET, ownerEmail, logEvent);
+
+    logEvent(`Successfully locked financial sheets for ${ownerEmail}`);
+    return true;
+  } catch (error: unknown) {
+    console.error(`❌ Error locking financial sheets:`, error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
+    logEvent(
+      `Error locking financial sheets: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return false;
   }
 }

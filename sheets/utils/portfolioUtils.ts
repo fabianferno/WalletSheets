@@ -5,7 +5,7 @@ import { PORTFOLIO_SHEET } from "./sheetUtils";
 
 // Constants
 // Set this to true to use mock data, false to fetch real wallet balances
-export const USE_MOCK_DATA = true;
+export const USE_MOCK_DATA = false;
 
 /**
  * Initialize portfolio sheet with enhanced UI
