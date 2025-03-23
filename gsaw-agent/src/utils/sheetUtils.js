@@ -2173,13 +2173,13 @@ export async function createAgentLogsSheet(sheetClient, logEvent) {
  * @param {string} tradeData.trade_data.tx_hash - The transaction hash
  * @param {Function} logEvent - Function to log events
  */
-export async function insertAgentLogEntry(sheetClient, tradeData, logEvent) {
+export async function insertAgentLogEntry(sheetClient, tradeData) {
   try {
     // Check if sheet exists, create if not
     try {
       await sheetClient.getSheetValues(AGENT_LOGS_SHEET);
     } catch {
-      await createAgentLogsSheet(sheetClient, logEvent);
+      console.log("Agent logs sheet doesn't exist yet, will be created later");
     }
 
     // Extract data from the tradeData object
@@ -2193,9 +2193,9 @@ export async function insertAgentLogEntry(sheetClient, tradeData, logEvent) {
       [action, explanation, txHash, createdAt],
     ]);
 
-    logEvent(`Added agent log entry for action: ${action}`);
+    console.log(`Added agent log entry for action: ${action}`);
   } catch (error) {
-    logEvent(
+    console.error(
       `Error inserting agent log entry: ${
         error instanceof Error ? error.message : String(error)
       }`
@@ -2688,7 +2688,7 @@ export async function createChatSheet(sheetClient, logEvent) {
 export async function monitorChatSheet(sheetClient, logEvent, agent) {
   try {
     logEvent(`Starting Chat sheet monitoring`);
-    let url = "placeholder";
+    let url = "http://localhost:3000";
 
     // Keep track of the last processed message to avoid duplication
     let lastProcessedMessage = "";
