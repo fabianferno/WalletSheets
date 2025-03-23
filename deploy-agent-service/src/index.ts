@@ -147,17 +147,14 @@ async function deployAgent(requestBody: {
     }
 
     // Make request to Autonome service
-    const response = await axios.post<AutonomeResponse>(
-      autonomeRpc,
-      requestBody,
-      {
-        headers: {
-          Authorization: `Bearer ${autonomeJwt}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const response = await axios.post(autonomeRpc, requestBody, {
+      headers: {
+        Authorization: `Bearer ${autonomeJwt}`,
+        "Content-Type": "application/json",
+      },
+    });
 
+    console.log("response", response.data);
     // Handle the response
     if (response.data?.app?.id) {
       const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
@@ -168,7 +165,7 @@ async function deployAgent(requestBody: {
       return {
         success: true,
         appId: response.data.app.id,
-        appUrl,
+        appUrl: response.data.app.endpoints.apiUrl,
       };
     } else {
       // Unexpected response format
@@ -235,6 +232,7 @@ export async function runAllWalletAgents() {
           const agentConfig = getAgentConfig(sheet.id, ownerEmail);
 
           const result = await deployAgent(agentConfig);
+          console.log("result", result);
 
           if (result.success) {
             initializedSheets.add(sheet.id);
@@ -282,7 +280,7 @@ export async function runAllWalletAgents() {
 }
 
 function getAgentConfig(sheetId: string, ownerEmail: string) {
-  const name = `${ownerEmail.slice(0, 10)}-${sheetId.slice(0, 10)}`;
+  const name = `${ownerEmail.slice(0, 2)}-${sheetId.slice(0, 3)}`;
 
   const envList: Record<string, string> = {
     SHEET_ID: sheetId,
@@ -315,6 +313,8 @@ function getAgentConfig(sheetId: string, ownerEmail: string) {
   return data;
 }
 
+runAllWalletAgents();
+
 /**
  * Deploy an agent to Autonome
  */
@@ -324,14 +324,14 @@ app.post("/deploy-agent", async (req: Request, res: Response) => {
 
     const agentConfig = getAgentConfig(sheetId, ownerEmail);
 
-    const result = await deployAgent(agentConfig);
+    const result: any = await deployAgent(agentConfig);
 
     if (result.success) {
       return res.status(200).json({
         success: true,
         name,
-        appId: result.appId,
-        appUrl: result.appUrl,
+        appUrl: result.app.endpoints.apiUrl,
+        apiKey: "apikey",
       });
     } else {
       return res.status(500).json({
