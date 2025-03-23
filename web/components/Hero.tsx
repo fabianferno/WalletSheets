@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "./components/ui/dialog";
+} from "./ui/dialog";
 
 const COLOR = "#0F9D58";
 const HIT_COLOR = "#333333";
