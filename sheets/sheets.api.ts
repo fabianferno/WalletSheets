@@ -9,6 +9,8 @@ import { GoogleAuth } from "google-auth-library";
 export class SheetClient {
   private sheetId: string;
   private sheets: sheets_v4.Sheets;
+  private sheetsApi: any;
+  private authClient: any;
 
   /**
    * Constructor for the SheetClient
@@ -85,7 +87,7 @@ export class SheetClient {
 
       return response.data.values;
     } catch (error: any) {
-      console.error(`❌ Error getting sheet values for "${sheetName}":`, error);
+      console.error(`❌ Error getting sheet values for "${sheetName}"`);
       if (error.response) {
         console.error(`Response status: ${error.response.status}`);
         console.error(`Response data:`, error.response.data);
@@ -698,6 +700,27 @@ export class SheetClient {
       spreadsheetId: this.sheetId,
       requestBody: body,
     });
+  }
+
+  /**
+   * Get the full spreadsheet data including sheets and charts
+   */
+  async getSpreadsheet(): Promise<sheets_v4.Schema$Spreadsheet> {
+    try {
+      // Use the existing sheets API client
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId: this.sheetId,
+        // Include chart data in the response
+        includeGridData: false,
+        fields: "sheets.properties,sheets.charts.chartId",
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error("Error getting spreadsheet with charts:", error);
+      // Return empty object on error
+      return {};
+    }
   }
 }
 
