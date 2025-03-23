@@ -49,20 +49,179 @@ export async function initializeSheets(
   try {
     console.log(`📊 Checking if all required sheets exist...`);
 
-    // Get list of all sheets in the spreadsheet
-    const allSheets = await sheetClient.getAllSheets();
-    const existingSheetTitles = allSheets.map((sheet) => sheet.title);
-    console.log(`📋 Existing sheets: ${existingSheetTitles.join(", ")}`);
-
-    // Check which required sheets are missing
+    // Define required sheets - make sure this is a complete list
     const requiredSheets = [
       SETTINGS_SHEET,
       WALLET_EXPLORER_SHEET,
       ACTIVE_SESSIONS_SHEET,
       PENDING_TRANSACTIONS_SHEET,
       CHAT_SHEET,
+      PORTFOLIO_SHEET,
     ];
 
+    console.log(`📋 Required sheets: ${requiredSheets.join(", ")}`);
+
+    // Get list of all sheets in the spreadsheet
+    const allSheets = await sheetClient.getAllSheets();
+    const existingSheetTitles = allSheets.map((sheet) => sheet.title);
+    console.log(`📋 Existing sheets: ${existingSheetTitles.join(", ")}`);
+
+    // Identify unknown sheets that should be deleted
+    const unknownSheets = allSheets.filter(
+      (sheet) => !requiredSheets.includes(sheet.title)
+    );
+
+    // Delete unknown sheets
+    if (unknownSheets.length > 0) {
+      console.log(
+        `🧹 Deleting unknown sheets: ${unknownSheets
+          .map((s) => s.title)
+          .join(", ")}`
+      );
+      logEvent(
+        `Deleting unknown sheets: ${unknownSheets
+          .map((s) => s.title)
+          .join(", ")}`
+      );
+
+      // First, make sure we have at least one required sheet
+      // Google Sheets requires at least one sheet to exist
+      let hasOneRequiredSheet = false;
+      for (const sheetName of requiredSheets) {
+        if (existingSheetTitles.includes(sheetName)) {
+          hasOneRequiredSheet = true;
+          break;
+        }
+      }
+
+      // If no required sheets exist, create one first
+      if (!hasOneRequiredSheet) {
+        console.log(
+          `🛠️ Creating ${SETTINGS_SHEET} sheet first to ensure at least one required sheet exists`
+        );
+        await createSettingsSheet(sheetClient, logEvent);
+      }
+
+      // Now try to delete unknown sheets
+      const deletionPromises = [];
+
+      for (const sheet of unknownSheets) {
+        console.log(
+          `🗑️ Attempting to delete sheet: ${sheet.title} (ID: ${sheet.id})`
+        );
+        try {
+          // Try different approaches for deletion
+          const deleteSheet = async () => {
+            try {
+              // First attempt: Standard deletion
+              await sheetClient.deleteSheet(sheet.id);
+              console.log(`✅ Successfully deleted sheet: ${sheet.title}`);
+              return true;
+            } catch (error) {
+              console.log(
+                `First deletion attempt failed for ${sheet.title}: ${error}`
+              );
+
+              try {
+                // Second attempt: Try batch update with force option
+                await sheetClient.batchUpdate({
+                  requests: [
+                    {
+                      deleteSheet: {
+                        sheetId: sheet.id,
+                        force: true, // Try force option if available
+                      },
+                    },
+                  ],
+                });
+                console.log(
+                  `✅ Successfully deleted sheet with force option: ${sheet.title}`
+                );
+                return true;
+              } catch (forcedError) {
+                console.log(
+                  `Force deletion attempt failed for ${sheet.title}: ${forcedError}`
+                );
+
+                try {
+                  // Third attempt: Try hiding the sheet if deletion fails
+                  await sheetClient.batchUpdate({
+                    requests: [
+                      {
+                        updateSheetProperties: {
+                          properties: {
+                            sheetId: sheet.id,
+                            hidden: true,
+                          },
+                          fields: "hidden",
+                        },
+                      },
+                    ],
+                  });
+                  console.log(
+                    `⚠️ Could not delete sheet ${sheet.title}, but successfully hid it`
+                  );
+                  return false;
+                } catch (hideError) {
+                  console.error(
+                    `❌ All attempts failed for sheet ${sheet.title}`
+                  );
+                  return false;
+                }
+              }
+            }
+          };
+
+          deletionPromises.push(deleteSheet());
+        } catch (deleteError) {
+          console.error(
+            `❌ Failed to delete sheet ${sheet.title}:`,
+            deleteError
+          );
+          logEvent(
+            `Failed to delete sheet ${sheet.title}: ${
+              deleteError instanceof Error
+                ? deleteError.message
+                : String(deleteError)
+            }`
+          );
+        }
+      }
+
+      // Wait for all deletion attempts to complete
+      await Promise.all(deletionPromises);
+
+      // Verify deletion was successful by refreshing the sheet list
+      const remainingSheets = await sheetClient.getAllSheets();
+      const remainingTitles = remainingSheets.map((s) => s.title);
+      console.log(
+        `📋 Remaining sheets after deletion/hiding: ${remainingTitles.join(
+          ", "
+        )}`
+      );
+
+      // Check if any unknown sheets still exist
+      const stillUnknown = remainingSheets.filter(
+        (sheet) => !requiredSheets.includes(sheet.title)
+      );
+
+      if (stillUnknown.length > 0) {
+        console.warn(
+          `⚠️ Some unknown sheets could not be deleted: ${stillUnknown
+            .map((s) => s.title)
+            .join(", ")}`
+        );
+        logEvent(
+          `Warning: Some sheets could not be deleted: ${stillUnknown
+            .map((s) => s.title)
+            .join(", ")}`
+        );
+      }
+    } else {
+      console.log(`✅ No unknown sheets found`);
+    }
+
+    // Check which required sheets are missing
     const missingSheets = requiredSheets.filter(
       (sheet) => !existingSheetTitles.includes(sheet)
     );
@@ -98,6 +257,9 @@ export async function initializeSheets(
           break;
         case CHAT_SHEET:
           await createChatSheet(sheetClient, logEvent);
+          break;
+        case PORTFOLIO_SHEET:
+          // Handle Portfolio sheet creation if needed
           break;
       }
     }
