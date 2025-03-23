@@ -1,72 +1,21 @@
-import { SheetClient } from "./sheets.api";
 import { google } from "googleapis";
 import * as dotenv from "dotenv";
-
-export const SETTINGS_SHEET = "Settings";
 
 // Load environment variables
 dotenv.config();
 
-// Service account credentials
-const CREDENTIALS_PATH =
-  process.env.GOOGLE_APPLICATION_CREDENTIALS || "./credentials.json";
-
 // Initialize the Google Sheets API
-const sheets = google.sheets("v4");
 const drive = google.drive("v3");
-
-export async function getSheetOwnerEmail(
-  sheetClient: SheetClient,
-  logEvent: Function
-): Promise<string> {
-  try {
-    console.log(
-      `🔍 Attempting to get owner email from "${SETTINGS_SHEET}" sheet...`
-    );
-    const values = await sheetClient.getSheetValues(SETTINGS_SHEET);
-    console.log(
-      `✅ Successfully retrieved values from "${SETTINGS_SHEET}" sheet`
-    );
-
-    // Find the owner email in the settings
-    for (const row of values) {
-      if (row[0] === "Owner Email") {
-        console.log(`✅ Found owner email: ${row[1]}`);
-        return row[1];
-      }
-    }
-
-    console.log(`⚠️ Owner email not found in settings`);
-    return "";
-  } catch (error: unknown) {
-    console.error(`❌ Error getting sheet owner email`);
-    if (error instanceof Error) {
-      console.error("Error details:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-      });
-    }
-    logEvent(
-      `Error getting sheet owner email: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    return "";
-  }
-}
 
 /**
  * Get all sheets accessible by the service account
  */
 async function getAccessibleSheets() {
   try {
-    console.log(
-      "🔍 Getting accessible sheets using credentials from:",
-      CREDENTIALS_PATH
-    );
     const auth = new google.auth.GoogleAuth({
-      keyFile: CREDENTIALS_PATH,
+      credentials: JSON.parse(
+        process.env.GOOGLE_APPLICATION_CREDENTIALS || "{}"
+      ),
       scopes: ["https://www.googleapis.com/auth/drive.readonly"],
     });
 
@@ -115,7 +64,9 @@ async function getSheetOwnerEmailFromDrive(sheetId: string) {
   try {
     // Authenticate with the service account
     const auth = new google.auth.GoogleAuth({
-      keyFile: CREDENTIALS_PATH,
+      credentials: JSON.parse(
+        process.env.GOOGLE_APPLICATION_CREDENTIALS || "{}"
+      ),
       scopes: ["https://www.googleapis.com/auth/drive"],
     });
     const authClient = await auth.getClient();
@@ -158,29 +109,11 @@ async function initializeWalletAgent(sheetId: string) {
       console.log(`[Sheet ${sheetId}] ${message}`);
     };
 
-    console.log(
-      `🔑 Creating SheetClient with ID ${sheetId} and credentials from ${CREDENTIALS_PATH}...`
-    );
-    // Create the sheet client
-    const sheetClient = new SheetClient(sheetId, CREDENTIALS_PATH);
-
     // Initialize sheets
     console.log(`📊 Initializing agent for ${sheetId}...`);
 
-    // Try to get the owner email from the settings sheet first
-    let ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
-
     // If the owner email is not in the settings, get it from the Drive API
-    if (!ownerEmail) {
-      const emailFromDrive = await getSheetOwnerEmailFromDrive(sheetId);
-      if (emailFromDrive) {
-        ownerEmail = emailFromDrive;
-        // Store the email in the settings
-      } else {
-        logEvent("Could not determine sheet owner email");
-        return false;
-      }
-    }
+    const emailownerEmailFromDrive = await getSheetOwnerEmailFromDrive(sheetId);
 
     // TODO: Call agent deploy
 
