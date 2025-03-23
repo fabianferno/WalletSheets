@@ -731,15 +731,15 @@ export async function fetchHistoricalTransactions(
 
       // Fetch normal transactions
       const normalTxResponse = await axios.get(ARBISCAN_API_URL, {
-        params: {
-          module: "account",
-          action: "txlist",
-          address: walletAddress,
-          startblock: 0,
-          endblock: 99999999,
-          page: 1,
-          offset: limit,
-          sort: "desc",
+          params: {
+            module: "account",
+            action: "txlist",
+            address: walletAddress,
+            startblock: 0,
+            endblock: 99999999,
+            page: 1,
+            offset: limit,
+            sort: "desc",
           apikey: ARBISCAN_API_KEY,
         },
         timeout: 5000, // 5 second timeout
@@ -766,22 +766,22 @@ export async function fetchHistoricalTransactions(
         normalTxResponse.data.status === "1" &&
         normalTxResponse.data.result
       ) {
-        logEvent(
+          logEvent(
           `Found ${normalTxResponse.data.result.length} normal transactions from Arbiscan API`
-        );
+          );
 
         for (const tx of normalTxResponse.data.result) {
-          const timestamp = new Date(
-            parseInt(tx.timeStamp) * 1000
-          ).toISOString();
-          const status = tx.isError === "0" ? "Success" : "Failed";
+            const timestamp = new Date(
+              parseInt(tx.timeStamp) * 1000
+            ).toISOString();
+            const status = tx.isError === "0" ? "Success" : "Failed";
           const amount = ethers.formatEther(tx.value);
           const explorerUrl = getTransactionExplorerUrl(tx.hash, chainId);
 
-          transactions.push({
-            hash: tx.hash,
-            from: tx.from,
-            to: tx.to,
+            transactions.push({
+              hash: tx.hash,
+              from: tx.from,
+              to: tx.to,
             amount,
             timestamp,
             status,
@@ -826,7 +826,7 @@ export async function fetchHistoricalTransactions(
       }
 
       if (transactions.length > 0) {
-        logEvent(
+      logEvent(
           `Found ${transactions.length} total transactions from Arbiscan API`
         );
 
@@ -894,18 +894,18 @@ export async function fetchHistoricalTransactions(
               tx.from?.toLowerCase() === walletAddress.toLowerCase()
             ) {
               const receipt = await provider.getTransactionReceipt(tx.hash);
-              const status =
+            const status =
                 receipt && receipt.status === 1 ? "Success" : "Failed";
-              const timestamp = new Date(
-                (block.timestamp || 0) * 1000
-              ).toISOString();
+            const timestamp = new Date(
+              (block.timestamp || 0) * 1000
+            ).toISOString();
               const amount = tx.value ? ethers.formatEther(tx.value) : "0";
               const explorerUrl = getTransactionExplorerUrl(tx.hash, chainId);
 
-              transactions.push({
-                hash: tx.hash,
-                from: tx.from || "Unknown",
-                to: tx.to || "Contract Creation",
+            transactions.push({
+              hash: tx.hash,
+              from: tx.from || "Unknown",
+              to: tx.to || "Contract Creation",
                 amount,
                 timestamp,
                 status,
@@ -913,9 +913,9 @@ export async function fetchHistoricalTransactions(
               });
 
               if (transactions.length >= limit) break;
-            }
           }
-        } catch (blockError) {
+        }
+      } catch (blockError) {
           logEvent(`Error checking block ${currentBlock - i}: ${blockError}`);
         }
       }
@@ -2780,27 +2780,27 @@ export async function monitorChatSheet(sheetClient, logEvent, agent) {
               if (url == "placeholder") {
                 agentResponse = "Agent is still deploying. Please wait...";
               } else {
-                // Get API URL from environment or use default
+              // Get API URL from environment or use default
                 const apiUrl = `${url}/chat`;
 
-                // Make API call to the agent service
-                const response = await axios.post(apiUrl, {
-                  message: userMessage,
-                  walletAddress: walletAddress || "unknown",
-                  context: "chat",
-                });
+              // Make API call to the agent service
+              const response = await axios.post(apiUrl, {
+                message: userMessage,
+                walletAddress: walletAddress || "unknown",
+                context: "chat",
+              });
 
-                if (response.status !== 200) {
-                  throw new Error(`API error: ${response.status}`);
-                }
+              if (response.status !== 200) {
+                throw new Error(`API error: ${response.status}`);
+              }
 
-                const data = response.data;
-                // Extract response from your API's response format
+              const data = response.data;
+              // Extract response from your API's response format
                 agentResponse =
-                  data.response ||
-                  data.message ||
-                  data.content ||
-                  "Sorry, I couldn't process your request.";
+                data.response ||
+                data.message ||
+                data.content ||
+                "Sorry, I couldn't process your request.";
               }
 
               // Update the agent response
