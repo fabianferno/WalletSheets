@@ -90,7 +90,7 @@ export async function initializeTradeTool() {
                 }
 
                 // Initialize SDK with private key from environment
-                const privateKey = agent.getPrivateKey();
+                const privateKey = await agent.getPrivateKey();
                 console.log("Generated Private Key: ", privateKey);
                 const sdk = new Hyperliquid({
                     privateKey: privateKey,
@@ -178,19 +178,33 @@ export async function initializeTradeTool() {
                 const rounded_px = Number(finalPrice.toFixed(tokenInfo.szDecimals));
                 const orderRequest = {
                     coin: `${orderParams.coin}-SPOT`,
-                    asset: 10000 + marketIndex,
                     is_buy: orderParams.is_buy,
                     sz: orderParams.sz,
                     limit_px: rounded_px,
                     reduce_only: false,
                     order_type: isMarketOrder
-                        ? { market: {} }
+                        ? { trigger: { isMarket: true } }
                         : { limit: { tif: "Gtc" } },
                 };
 
-                console.log("Placing order:", orderRequest);
-                const result = await sdk.exchange.placeOrder(orderRequest);
-
+                console.log("Placing order:", {
+                    coin: `${orderParams.coin}-SPOT`,
+                    is_buy: orderParams.is_buy,
+                    sz: orderParams.sz,
+                    limit_px: rounded_px,
+                    reduce_only: false,
+                    order_type: isMarketOrder
+                        ? { trigger: { isMarket: true } }
+                        : { limit: { tif: "Gtc" } },
+                });
+                const result = await sdk.exchange.placeOrder({
+                    coin: `${orderParams.coin}-SPOT`,
+                    is_buy: orderParams.is_buy,
+                    sz: orderParams.sz,
+                    limit_px: rounded_px,
+                    reduce_only: false,
+                    order_type: { limit: { tif: "Gtc" } },
+                });
                 // Check if order was rejected
                 if (
                     result.status === "ok" &&
@@ -204,7 +218,7 @@ export async function initializeTradeTool() {
                 const action = orderParams.is_buy ? "buy" : "sell";
                 const executionPrice = result.response?.data?.statuses?.[0]?.px || rounded_px;
                 const resultText = `Successfully placed ${isMarketOrder ? "a market" : "a limit"} order to ${action} ${orderParams.sz} ${orderParams.coin} at ${executionPrice}`;
-
+                console.log(resultText);
                 return JSON.stringify({
                     text: resultText,
                     result: result

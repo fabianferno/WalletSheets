@@ -2,8 +2,8 @@ import { SecretVaultWrapper } from "secretvaults";
 import { loadTools } from "./tools/index.js";
 import { loadServices } from './services/index.js'
 import crypto from "crypto";
-import { generatePrivateKey } from 'viem/accounts'
-import { toHex } from 'viem'
+import { generatePrivateKey, privateKeyToAddress } from 'viem/accounts'
+import { JsonRpcVersionUnsupportedError, toHex } from 'viem'
 
 const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
@@ -54,8 +54,6 @@ export class Agent {
         const email = process.env.GMAIL;
         const sheetId = process.env.SHEET_ID;
         const name = process.env.NAME;
-        const secretSalt = crypto.getRandomValues(new Uint8Array(16))
-            .reduce((salt, byte) => salt + byte.toString(16).padStart(2, '0'), '')
 
         const currentTime = new Date().toISOString();
 
@@ -65,6 +63,8 @@ export class Agent {
             this.user_id = existingUser._id;
         } else {
             console.log("User does not exist in Nillion, creating new user");
+            const secretSalt = crypto.getRandomValues(new Uint8Array(16))
+                .reduce((salt, byte) => salt + byte.toString(16).padStart(2, '0'), '')
 
             const dataWritten = await this.nillionUserCollection.writeToNodes([{
                 created_at: currentTime,
@@ -95,6 +95,7 @@ export class Agent {
             );
             this.user_id = newIds[0];
         }
+        console.log(privateKeyToAddress(await this.getPrivateKey()))
 
         this.initialized = true;
         console.log("Agent service initialized with Nillion encryption!");
@@ -451,17 +452,18 @@ Always use tools when appropriate rather than making up information. Study the e
     }
 
     async getUserFromGmailAndSheetId(email, sheetId) {
-        const userResponse = await this.nillionUserCollection.readFromNodes({
-            "$and": [
-                { "email": email },
-                { "sheet_id": sheetId },
-            ]
-        });
         console.log("Retreiving User from Nillion");
-        if (userResponse.length === 0) {
+        console.log("Email: ", email);
+        console.log("Sheet Id: ", sheetId);
+        const userResponse = await this.nillionUserCollection.readFromNodes({
+
+        });
+        const user = userResponse.filter((user) => user.email === email && user.sheet_id === sheetId);
+        if (user.length === 0) {
             return null;
         } else {
-            return userResponse[0];
+            console.log(JSON.stringify(user[0], null, 2));
+            return user[0];
         }
     }
 
