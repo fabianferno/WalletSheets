@@ -10,11 +10,12 @@ import { nodes } from "./config.js";
 dotenv.config();
 
 // Create agent service
-const agentService = new Agent(nodes);
+const agent = new Agent(nodes);
+
 
 // Terminal mode implementation
 async function runTerminalMode() {
-  await agentService.initialize();
+  await agent.initialize();
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -31,7 +32,7 @@ async function runTerminalMode() {
   // Create a function to handle each conversation turn
   const processTurn = async (input, currentConversationId) => {
     try {
-      const result = await agentService.processMessage(
+      const result = await agent.processMessage(
         input,
         currentConversationId
       );
@@ -79,7 +80,7 @@ function runServerMode() {
   app.use(bodyParser.json());
 
   // Initialize the agent when server starts
-  agentService
+  agent
     .initialize()
     .then(() => {
       console.log("✅ Agent initialized and ready");
@@ -103,7 +104,7 @@ function runServerMode() {
         return res.status(400).json({ error: "Message is required" });
       }
 
-      const result = await agentService.processMessage(message, conversationId);
+      const result = await agent.processMessage(message, conversationId);
 
       return res.status(200).json({
         response: result.response,
@@ -119,7 +120,7 @@ function runServerMode() {
 
   app.get("/conversations", async (req, res) => {
     try {
-      const conversations = await agentService.getConversations();
+      const conversations = await agent.getConversations();
       return res.status(200).json({ conversations });
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -137,7 +138,7 @@ function runServerMode() {
         return res.status(400).json({ error: "Conversation ID is required" });
       }
 
-      await agentService.deleteConversation(conversationId);
+      await agent.deleteConversation(conversationId);
       return res
         .status(200)
         .json({ success: true, message: "Conversation deleted" });
