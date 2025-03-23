@@ -89,8 +89,7 @@ async function getAccessibleSheets() {
     });
 
     console.log(
-      `✅ Drive API response received. Found ${
-        response.data.files?.length || 0
+      `✅ Drive API response received. Found ${response.data.files?.length || 0
       } sheets.`
     );
 
@@ -158,7 +157,7 @@ async function deployAgent(requestBody: {
     // Handle the response
     if (response.data?.app?.id) {
       const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
-      console.log(`Agent "${name}" successfully deployed at: ${appUrl}`);
+      console.log(`Agent "${requestBody.name}" successfully deployed at: ${appUrl}`);
 
       // TODO: Make a POST request to the app ${appUrl}/set-url to the chatURL inside the agent
 
@@ -270,8 +269,7 @@ export async function runAllWalletAgents() {
     }, 60000);
 
     console.log(
-      `Wallet Manager running. Will check for new sheets every ${
-        checkInterval / 60000
+      `Wallet Manager running. Will check for new sheets every ${checkInterval / 60000
       } minutes.`
     );
   } catch (error: unknown) {
