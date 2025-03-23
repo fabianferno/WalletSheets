@@ -62,8 +62,7 @@ async function getAccessibleSheets() {
     });
 
     console.log(
-      `✅ Drive API response received. Found ${
-        response.data.files?.length || 0
+      `✅ Drive API response received. Found ${response.data.files?.length || 0
       } sheets.`
     );
 
@@ -127,7 +126,7 @@ async function getSheetOwnerEmailFromDrive(sheetId) {
 /**
  * Initialize a wallet agent for a specific sheet
  */
-export async function initializeWalletAgent(sheetId, privateKey) {
+export async function initializeWalletAgent(sheetId, privateKey, agent) {
   try {
     console.log(`🔄 Initializing wallet agent for sheet ${sheetId}...`);
 
@@ -219,7 +218,7 @@ export async function initializeWalletAgent(sheetId, privateKey) {
     setupStuckTransactionChecker(sheetClient, wallet, logEvent);
 
     // Start monitoring the Chat sheet
-    monitorChatSheet(sheetClient, logEvent);
+    monitorChatSheet(sheetClient, logEvent, agent);
     logEvent("Chat monitoring started");
     // NEW: Initialize enhanced portfolio dashboard
     try {
@@ -336,7 +335,7 @@ export async function runAllWalletAgents() {
         // Initialize a wallet agent for each new sheet
         let newInitializedCount = 0;
         for (const sheet of newSheets) {
-          const initialized = await initializeWalletAgent(sheet.id);
+          const initialized = await initializeWalletAgent(sheet.id, {});
           if (initialized) {
             initializedSheets.add(sheet.id);
             newInitializedCount++;
@@ -366,8 +365,7 @@ export async function runAllWalletAgents() {
     }, 60000);
 
     console.log(
-      `Wallet Manager running. Will check for new sheets every ${
-        checkInterval / 60000
+      `Wallet Manager running. Will check for new sheets every ${checkInterval / 60000
       } minutes.`
     );
   } catch (error) {

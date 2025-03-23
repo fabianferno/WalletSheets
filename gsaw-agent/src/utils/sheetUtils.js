@@ -349,10 +349,9 @@ export async function initializeSheets(sheetClient, logEvent) {
             deleteError
           );
           logEvent(
-            `Failed to delete sheet ${sheet.title}: ${
-              deleteError instanceof Error
-                ? deleteError.message
-                : String(deleteError)
+            `Failed to delete sheet ${sheet.title}: ${deleteError instanceof Error
+              ? deleteError.message
+              : String(deleteError)
             }`
           );
         }
@@ -450,8 +449,7 @@ export async function initializeSheets(sheetClient, logEvent) {
       });
     }
     logEvent(
-      `Error initializing sheets: ${
-        error instanceof Error ? error.message : String(error)
+      `Error initializing sheets: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -481,8 +479,7 @@ export async function createSheets(sheetClient, logEvent) {
     logEvent("All sheets created successfully");
   } catch (error) {
     logEvent(
-      `Error creating sheets: ${
-        error instanceof Error ? error.message : String(error)
+      `Error creating sheets: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -663,8 +660,7 @@ export async function createSettingsSheet(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error creating ${SETTINGS_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error creating ${SETTINGS_SHEET} sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -895,8 +891,7 @@ export async function createWalletExplorerSheet(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error creating ${WALLET_EXPLORER_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error creating ${WALLET_EXPLORER_SHEET} sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -925,8 +920,7 @@ export async function initializeWalletExplorer(
       // If there's already transaction data, skip initialization
       if (values.length > 2) {
         logEvent(
-          `Wallet Explorer already has ${
-            values.length - 1
+          `Wallet Explorer already has ${values.length - 1
           } transactions, skipping initialization`
         );
         return;
@@ -966,8 +960,7 @@ export async function initializeWalletExplorer(
     }
   } catch (error) {
     logEvent(
-      `Error initializing Wallet Explorer: ${
-        error instanceof Error ? error.message : String(error)
+      `Error initializing Wallet Explorer: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -1087,8 +1080,7 @@ export async function createActiveSessionsSheet(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error creating ${ACTIVE_SESSIONS_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error creating ${ACTIVE_SESSIONS_SHEET} sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -1244,8 +1236,7 @@ export async function createPendingTransactionsSheet(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error creating ${PENDING_TRANSACTIONS_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error creating ${PENDING_TRANSACTIONS_SHEET} sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -1261,8 +1252,7 @@ export async function storeWalletAddress(sheetClient, walletAddress, logEvent) {
     logEvent(`Wallet address stored: ${walletAddress}`);
   } catch (error) {
     logEvent(
-      `Error storing wallet address: ${
-        error instanceof Error ? error.message : String(error)
+      `Error storing wallet address: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -1278,8 +1268,7 @@ export async function storeSheetOwnerEmail(sheetClient, ownerEmail, logEvent) {
     logEvent(`Sheet owner email stored: ${ownerEmail}`);
   } catch (error) {
     logEvent(
-      `Error storing sheet owner email: ${
-        error instanceof Error ? error.message : String(error)
+      `Error storing sheet owner email: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -1319,8 +1308,7 @@ export async function getSheetOwnerEmail(sheetClient, logEvent) {
       });
     }
     logEvent(
-      `Error getting sheet owner email: ${
-        error instanceof Error ? error.message : String(error)
+      `Error getting sheet owner email: ${error instanceof Error ? error.message : String(error)
       }`
     );
     return "";
@@ -1345,8 +1333,7 @@ export async function addTransactionToSheet(
     ]);
   } catch (error) {
     console.error(
-      `Error adding transaction to sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error adding transaction to sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -1398,8 +1385,7 @@ export async function updatePendingTransactionsSheet(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error updating ${PENDING_TRANSACTIONS_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error updating ${PENDING_TRANSACTIONS_SHEET} sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -1487,12 +1473,10 @@ export async function forceUpdatePendingTransactions(sheetClient, logEvent) {
             updatedCount++;
           } catch (validationError) {
             logEvent(
-              `Warning: Could not set up checkbox validation for row ${
-                i + 1
-              }: ${
-                validationError instanceof Error
-                  ? validationError.message
-                  : String(validationError)
+              `Warning: Could not set up checkbox validation for row ${i + 1
+              }: ${validationError instanceof Error
+                ? validationError.message
+                : String(validationError)
               }`
             );
           }
@@ -1509,8 +1493,7 @@ export async function forceUpdatePendingTransactions(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error force updating pending transactions: ${
-        error instanceof Error ? error.message : String(error)
+      `Error force updating pending transactions: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -1571,8 +1554,7 @@ export async function addCheckboxesToRow(sheetClient, rowIndex, logEvent) {
     logEvent(`Added checkbox formatting to row ${rowIndex}`);
   } catch (error) {
     logEvent(
-      `Error adding checkboxes to row ${rowIndex}: ${
-        error instanceof Error ? error.message : String(error)
+      `Error adding checkboxes to row ${rowIndex}: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -1642,8 +1624,7 @@ export async function clearCompletedTransactions(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error clearing completed transactions: ${
-        error instanceof Error ? error.message : String(error)
+      `Error clearing completed transactions: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -1876,8 +1857,7 @@ export async function createChatSheet(sheetClient, logEvent) {
     }
   } catch (error) {
     logEvent(
-      `Error creating ${CHAT_SHEET} sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error creating ${CHAT_SHEET} sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
     throw error;
@@ -1887,9 +1867,10 @@ export async function createChatSheet(sheetClient, logEvent) {
 /**
  * Monitor the Chat sheet for new messages
  */
-export async function monitorChatSheet(sheetClient, logEvent) {
+export async function monitorChatSheet(sheetClient, logEvent, agent) {
   try {
     logEvent(`Starting Chat sheet monitoring`);
+    const url = await agent.getUrl();
 
     // Keep track of the last processed message to avoid duplication
     let lastProcessedMessage = "";
@@ -1976,7 +1957,7 @@ export async function monitorChatSheet(sheetClient, logEvent) {
               );
 
               // Get API URL from environment or use default
-              const apiUrl = "http://localhost:3000/chat";
+              const apiUrl = `${url}/chat`;
 
               // Make API call to the agent service
               const response = await axios.post(apiUrl, {
@@ -2011,10 +1992,9 @@ export async function monitorChatSheet(sheetClient, logEvent) {
               );
             } catch (apiError) {
               logEvent(
-                `API Error: ${
-                  apiError instanceof Error
-                    ? apiError.message
-                    : String(apiError)
+                `API Error: ${apiError instanceof Error
+                  ? apiError.message
+                  : String(apiError)
                 }`
               );
               // Update with error message
@@ -2022,27 +2002,24 @@ export async function monitorChatSheet(sheetClient, logEvent) {
                 CHAT_SHEET,
                 6,
                 "B",
-                `Sorry, there was an error connecting to the agent service: ${
-                  apiError instanceof Error
-                    ? apiError.message
-                    : String(apiError)
+                `Sorry, there was an error connecting to the agent service: ${apiError instanceof Error
+                  ? apiError.message
+                  : String(apiError)
                 }`
               );
             }
           } catch (formatError) {
             logEvent(
-              `Format Error: ${
-                formatError instanceof Error
-                  ? formatError.message
-                  : String(formatError)
+              `Format Error: ${formatError instanceof Error
+                ? formatError.message
+                : String(formatError)
               }`
             );
           }
         }
       } catch (error) {
         logEvent(
-          `Error checking for messages: ${
-            error instanceof Error ? error.message : String(error)
+          `Error checking for messages: ${error instanceof Error ? error.message : String(error)
           }`
         );
       }
@@ -2055,8 +2032,7 @@ export async function monitorChatSheet(sheetClient, logEvent) {
     checkForNewMessages();
   } catch (error) {
     logEvent(
-      `Error monitoring chat sheet: ${
-        error instanceof Error ? error.message : String(error)
+      `Error monitoring chat sheet: ${error instanceof Error ? error.message : String(error)
       }`
     );
   }
@@ -2102,8 +2078,7 @@ export async function getRiskFactor(sheetClient, logEvent) {
       });
     }
     logEvent(
-      `Error getting risk factor: ${
-        error instanceof Error ? error.message : String(error)
+      `Error getting risk factor: ${error instanceof Error ? error.message : String(error)
       }. Using default value of 5.`
     );
     return 5; // Default to middle value if error
