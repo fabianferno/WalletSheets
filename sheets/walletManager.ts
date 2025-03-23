@@ -12,6 +12,8 @@ import {
   forceUpdatePendingTransactions,
   checkStuckTransactions,
   monitorChatSheet,
+  initializeWalletExplorer,
+  WALLET_EXPLORER_SHEET,
 } from "./utils/sheetUtils";
 import { initializeWalletConnect } from "./utils/walletConnectUtils";
 import { monitorDAppConnections } from "./utils/sessionUtils";
@@ -186,6 +188,19 @@ async function initializeWalletAgent(sheetId: string) {
     // Store wallet address
     await storeWalletAddress(sheetClient, wallet.address, logEvent);
 
+    // Set up provider for blockchain interactions
+    const provider = new ethers.JsonRpcProvider(
+      process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+    );
+
+    // Initialize Wallet Explorer with recent transactions
+    await initializeWalletExplorer(
+      sheetClient,
+      wallet.address,
+      provider,
+      logEvent
+    );
+
     // Initialize WalletConnect
     const web3wallet = await initializeWalletConnect(wallet, logEvent);
 
@@ -258,18 +273,41 @@ function setupStuckTransactionChecker(
     process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
   );
 
-  // First check immediately to resolve any existing stuck transactions
-  checkStuckTransactions(sheetClient, provider, logEvent);
+  // Check immediately and then every 5 minutes
+  const checkTransactions = async () => {
+    try {
+      // Check for and update stuck transactions
+      await checkStuckTransactions(sheetClient, provider, logEvent);
 
-  // Then set up periodic checks every 5 minutes
-  const FIVE_MINUTES = 5 * 60 * 1000;
+      // Also check if the Wallet Explorer sheet needs to be initialized with transactions
+      try {
+        const values = await sheetClient.getSheetValues(WALLET_EXPLORER_SHEET);
 
-  setInterval(() => {
-    logEvent(`[DEBUG] Running scheduled check for stuck transactions`);
-    checkStuckTransactions(sheetClient, provider, logEvent);
-  }, FIVE_MINUTES);
+        // If the sheet is empty (just the header row), initialize it with transactions
+        if (values.length <= 1) {
+          logEvent(
+            "Wallet Explorer sheet is empty, initializing with transactions"
+          );
+          await initializeWalletExplorer(
+            sheetClient,
+            wallet.address,
+            provider,
+            logEvent
+          );
+        }
+      } catch (error) {
+        logEvent(`Error checking Wallet Explorer sheet: ${error}`);
+      }
+    } catch (error) {
+      logEvent(`Error in transaction checker: ${error}`);
+    }
+  };
 
-  logEvent(`Stuck transaction checker initialized (runs every 5 minutes)`);
+  // Run check immediately
+  checkTransactions();
+
+  // Then set up interval to check every 5 minutes
+  return setInterval(checkTransactions, 5 * 60 * 1000);
 }
 
 /**
