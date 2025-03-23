@@ -101,6 +101,7 @@ export async function initializeTradingTool() {
         },
     ];
 
+
     return {
         name: "trading",
         description: "Enables users to place leveraged long or short positions on GMX",
@@ -169,6 +170,31 @@ export async function initializeTradingTool() {
                         direction: params.isLong ? "LONG" : "SHORT",
                     }
                 };
+                await agent.addTradingData({
+                    action: {
+                        "%allot": 'buy_more'
+                    },
+                    trade_data: {
+                        is_long: {
+                            "%allot": params.isLong
+                        },
+                        asset: {
+                            "%allot": "ETH"
+                        },
+                        leverage: {
+                            "%allot": params.leverage
+                        },
+                        amount: {
+                            "%allot": params.positionSizeInNative
+                        },
+                        tx_hash: {
+                            "%allot": txHash
+                        },
+                    },
+                    explanation: {
+                        "%allot": "N/A"
+                    }
+                })
 
                 return JSON.stringify(result);
             } catch (error) {

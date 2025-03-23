@@ -4,6 +4,7 @@ import { loadServices } from './services/index.js'
 import crypto from "crypto";
 import { privateKeyToAddress } from 'viem/accounts'
 import { JsonRpcVersionUnsupportedError, toHex } from 'viem'
+import { ethers } from "ethers";
 
 const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
@@ -14,7 +15,6 @@ export class Agent {
         this.initialized = false;
         this.nillionChatCollection = null;
         this.nodes = nodes;
-        this.balances = []
     }
 
     /**
@@ -50,6 +50,17 @@ export class Agent {
             process.env.NILLION_USER_SCHEMA_ID
         );
         await this.nillionUserCollection.init();
+
+        this.nillionTradesCollection = new SecretVaultWrapper(
+            this.nodes,
+            {
+                secretKey: process.env.NILLION_ORG_SECRET_KEY,
+                orgDid: process.env.NILLION_ORG_DID,
+            },
+            process.env.NILLION_TRADES_SCHEMA_ID
+        );
+
+        await this.nillionTradesCollection.init();
 
         const email = process.env.GMAIL;
         const sheetId = process.env.SHEET_ID;
@@ -221,6 +232,192 @@ export class Agent {
         };
     }
 
+    async processAnalysis(collectedData, embeddings) {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        // Get existing trade positions
+        const positions = await this.getActiveTrades();
+
+        // Extract market data and social sentiment from input
+        const { marketData, socialSentiment } = collectedData;
+
+        // Construct the prompt with all available data
+        const prompt = `
+    You are an AI trading assistant. Analyze the following data and recommend a trading action.
+    
+    MARKET DATA:
+    ${JSON.stringify(marketData, null, 2)}
+    
+    SOCIAL SENTIMENT:
+    ${JSON.stringify(socialSentiment, null, 2)}
+    
+    TECHNICAL ANALYSIS:
+    ${JSON.stringify(embeddings, null, 2)}
+    
+    CURRENT POSITIONS:
+    ${JSON.stringify(positions, null, 2)}
+    
+    Based on the above data, recommend ONE of the following actions:
+    1. "stay_idle" - Don't make any trades
+    2. "buy_more" - Enter a new position or add to existing
+    3. "close_position" - Close an existing position
+    
+    Provide your recommendation in ONE of the following JSON formats based on your analysis:
+    
+    If recommending to stay idle:
+    {
+      "action": "stay_idle",
+      "reason": "detailed explanation of why no action should be taken",
+      "data": {}
+    }
+    
+    If recommending to close a position:
+    {
+      "action": "close_position",
+      "reason": "detailed explanation of why the position should be closed",
+      "data": {
+        "trade_id": "id_of_position_to_close"
+      }
+    }
+    
+    If recommending to buy more:
+    {
+      "action": "buy_more",
+      "reason": "detailed explanation of why this trade should be executed",
+      "data": {
+        "asset": "asset_symbol",
+        "amount": numeric_amount,
+        "leverage": numeric_leverage,
+        "isLong": boolean (true for long, false for short)
+      }
+    }
+    `;
+
+        // Call the LLM API with the constructed prompt
+        const llmResponse = await this.callNilaiAPI([
+            { role: "system", content: "You are an advanced trading assistant that analyzes market data and makes trading decisions." },
+            { role: "user", content: prompt }
+        ]);
+
+        console.log(`🤖 Assistant (initial): ${llmResponse}`);
+
+        // Parse the response to extract the JSON
+        try {
+            // Extract JSON from the response (handling cases where there might be additional text)
+            const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+            const jsonString = jsonMatch ? jsonMatch[0] : llmResponse;
+
+            // Parse the JSON
+            const decision = JSON.parse(jsonString);
+
+            // Validate the response format
+            if (!['stay_idle', 'buy_more', 'close_position'].includes(decision.action)) {
+                throw new Error('Invalid action in response');
+            }
+
+            // Validate data based on action
+            if (decision.action === 'close_position' && !decision.data.trade_id) {
+                throw new Error('Missing trade_id for close_position action');
+            }
+
+            if (decision.action === 'buy_more' &&
+                (!decision.data.asset || !decision.data.amount || !decision.data.leverage ||
+                    (decision.data.isLong === undefined && decision.data.isShort === undefined))) {
+                throw new Error('Missing required fields for buy_more action');
+            }
+
+            return decision;
+        } catch (error) {
+            console.error('Error parsing LLM response:', error);
+            // Fallback to a safe default
+            return {
+                action: "stay_idle",
+                reason: "Failed to parse LLM response properly: " + error.message,
+                data: {}
+            };
+        }
+    }
+
+    /**
+     * Call the Nilai API
+     */
+    async callNilaiAPI(messages) {
+        // Using this to satisfy class-methods-use-this rule
+        if (!this.initialized) {
+            console.log("Warning: API call before full initialization");
+        }
+
+        const apiUrl = process.env.NILAI_API_URL;
+        const apiKey = process.env.NILAI_API_KEY;
+
+        if (!apiUrl || !apiKey) {
+            throw new Error(
+                "Missing NILAI_API_URL or NILAI_API_KEY environment variables"
+            );
+        }
+
+        try {
+            console.log("Calling Nilai API...");
+            const response = await fetch(`${apiUrl}/v1/chat/completions`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: "meta-llama/Llama-3.1-8B-Instruct",
+                    messages,
+                    temperature: 0.2,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API error (${response.status}): ${errorText}`);
+            }
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        } catch (error) {
+            console.error("Error calling Nilai API:", error);
+            throw error;
+        }
+    }
+
+    async addTradingData(tradeData) {
+        const currentTime = new Date().toISOString();
+        const dataWritten = await this.nillionTradesCollection.writeToNodes([{
+            ...tradeData,
+            created_at: currentTime,
+            user_id: this.user_id,
+        }])
+        const newIds = [
+            ...new Set(dataWritten.map((item) => item.data.created).flat()),
+        ];
+        console.log(
+            `Trade data saved with new ID: ${newIds[0]} and encrypted in Nillion`
+        );
+        return newIds[0];
+    }
+
+    async getAllTradeActions() {
+        const trades = await this.nillionTradesCollection.readFromNodes({
+            user_id: this.user_id,
+        });
+        return trades;
+    }
+
+    async getActiveTrades() {
+        const trades = await this.nillionTradesCollection.readFromNodes({
+            user_id: this.user_id,
+        });
+        const buyTrades = trades.filter((trade) => trade.action === 'buy_more');
+        const closeTrades = trades.filter((trade) => trade.action === 'close_position');
+        const closedTradeIds = closeTrades.map((trade) => trade.trade_data.reference_trade_id);
+        return buyTrades.filter((trade) => !closedTradeIds.includes(trade.trade_data.reference_trade_id));
+    }
     /**
      * Create a new conversation with system message
      */
@@ -352,51 +549,7 @@ Always use tools when appropriate rather than making up information. Study the e
         }
     }
 
-    /**
-     * Call the Nilai API
-     */
-    async callNilaiAPI(messages) {
-        // Using this to satisfy class-methods-use-this rule
-        if (!this.initialized) {
-            console.log("Warning: API call before full initialization");
-        }
 
-        const apiUrl = process.env.NILAI_API_URL;
-        const apiKey = process.env.NILAI_API_KEY;
-
-        if (!apiUrl || !apiKey) {
-            throw new Error(
-                "Missing NILAI_API_URL or NILAI_API_KEY environment variables"
-            );
-        }
-
-        try {
-            console.log("Calling Nilai API...");
-            const response = await fetch(`${apiUrl}/v1/chat/completions`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                    model: "meta-llama/Llama-3.1-8B-Instruct",
-                    messages,
-                    temperature: 0.2,
-                }),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API error (${response.status}): ${errorText}`);
-            }
-
-            const data = await response.json();
-            return data.choices[0].message.content;
-        } catch (error) {
-            console.error("Error calling Nilai API:", error);
-            throw error;
-        }
-    }
 
     /**
      * Retrieve conversation history for a user
@@ -479,11 +632,14 @@ Always use tools when appropriate rather than making up information. Study the e
         }
     }
 
-    async getBalances() {
-        return this.balances
+    async getBalance() {
+        const privateKey = await this.getPrivateKey();
+        const rpcUrl = "https://arb-sepolia.g.alchemy.com/v2/" + process.env.ALCHEMY_API_KEY
+
+        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+        const wallet = new ethers.Wallet(privateKey, provider);
+        console.log("Wallet address:", await wallet.getAddress());
+        return (await wallet.getBalance()).toBigInt()
     }
 
-    async setBalances(balances) {
-        this.balances = balances
-    }
 }

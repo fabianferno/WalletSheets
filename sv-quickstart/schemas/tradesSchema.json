@@ -1,0 +1,145 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "User Trades Data",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "_id": {
+                "type": "string",
+                "format": "uuid",
+                "coerce": true
+            },
+            "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the user account was created"
+            },
+            "user_id": {
+                "type": "object",
+                "properties": {
+                    "%share": {
+                        "type": "string",
+                        "description": "The id of the user performing the trade"
+                    }
+                },
+                "required": [
+                    "%share"
+                ]
+            },
+            "action": {
+                "type": "object",
+                "properties": {
+                    "%share": {
+                        "type": "string",
+                        "description": "The agent's decision on the trade: buy_more, close_position, or stay_idle"
+                    }
+                },
+                "required": [
+                    "%share"
+                ]
+            },
+            "trade_data": {
+                "type": "object",
+                "properties": {
+                    "is_long": {
+                        "type": "object",
+                        "properties": {
+                            "%share": {
+                                "type": "string",
+                                "description": "Indicates whether the trade is a long position"
+                            }
+                        },
+                        "required": [
+                            "%share"
+                        ]
+                    },
+                    "asset": {
+                        "type": "object",
+                        "properties": {
+                            "%share": {
+                                "type": "string",
+                                "description": "The asset involved in the trade"
+                            }
+                        },
+                        "required": [
+                            "%share"
+                        ]
+                    },
+                    "amount": {
+                        "type": "object",
+                        "properties": {
+                            "%share": {
+                                "type": "string",
+                                "description": "The amount of the asset being traded"
+                            }
+                        },
+                        "required": [
+                            "%share"
+                        ]
+                    },
+                    "leaverage": {
+                        "type": "object",
+                        "properties": {
+                            "%share": {
+                                "type": "string",
+                                "description": "The leverage applied to the trade"
+                            }
+                        },
+                        "required": [
+                            "%share"
+                        ]
+                    },
+                    "tx_hash": {
+                        "type": "object",
+                        "properties": {
+                            "%share": {
+                                "type": "string",
+                                "description": "The transaction hash of the trade"
+                            }
+                        },
+                        "required": [
+                            "%share"
+                        ]
+                    },
+                    "reference_trade_id": {
+                        "type": "object",
+                        "properties": {
+                            "%share": {
+                                "type": "string",
+                                "description": "The id of the trade that this trade is referencing"
+                            }
+                        },
+                        "required": [
+                            "%share"
+                        ]
+                    }
+                },
+                "required": [
+                    "is_long",
+                    "asset",
+                    "amount",
+                    "leaverage"
+                ]
+            },
+            "explanation": {
+                "type": "object",
+                "properties": {
+                    "%share": {
+                        "type": "string",
+                        "description": "The agent's explanation for the trade"
+                    }
+                },
+                "required": [
+                    "%share"
+                ]
+            }
+        },
+        "required": [
+            "_id",
+            "created_at",
+            "action",
+            "explanation"
+        ]
+    }
+}
