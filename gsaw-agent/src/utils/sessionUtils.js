@@ -164,7 +164,9 @@ export async function processRequest(
     // Handle different request types
     if (method === "eth_chainId") {
       // Get chain ID
-      const provider = new ethers.JsonRpcProvider(process.env.ETH_RPC_URL);
+      const provider = new ethers.JsonRpcProvider(
+        "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
+      );
       const chainId = await provider.send("eth_chainId", []);
       response = chainId;
     } else if (method === "eth_accounts") {

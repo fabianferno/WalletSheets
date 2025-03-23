@@ -6,3 +6,5 @@ agent-conversation.json
 dist
 src/config.js
 src/utils/credentials.json
+credentials.json
+src/js/credentials.json

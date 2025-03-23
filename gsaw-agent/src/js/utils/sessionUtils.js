@@ -5,17 +5,16 @@ import {
   WALLET_EXPLORER_SHEET,
   clearCompletedTransactions,
   addCheckboxesToRow,
-} from "./sheetUtils";
-import { SheetClient } from "../sheets.api";
+} from "./sheetUtils.js";
 
 /**
  * Update connection status in ActiveSessions sheet
  */
 export async function updateConnectionStatus(
-  sheetClient: SheetClient,
-  connectionId: string,
-  status: string,
-  dAppUrl?: string
+  sheetClient,
+  connectionId,
+  status,
+  dAppUrl
 ) {
   try {
     const rows = await sheetClient.getSheetValues(ACTIVE_SESSIONS_SHEET);
@@ -41,7 +40,7 @@ export async function updateConnectionStatus(
         break;
       }
     }
-  } catch (error: unknown) {
+  } catch (error) {
     console.error(
       `Error updating connection status: ${
         error instanceof Error ? error.message : String(error)
@@ -54,13 +53,13 @@ export async function updateConnectionStatus(
  * Handle session requests (transactions, signatures)
  */
 export async function handleSessionRequest(
-  event: any,
-  wallet: ethers.Wallet,
-  connectionId: string,
-  web3wallet: any,
-  sheetClient: SheetClient,
-  addTransactionToSheet: Function,
-  logEvent: Function
+  event,
+  wallet,
+  connectionId,
+  web3wallet,
+  sheetClient,
+  addTransactionToSheet,
+  logEvent
 ) {
   try {
     const { id, topic, params } = event;
@@ -230,7 +229,7 @@ export async function handleSessionRequest(
       addTransactionToSheet,
       logEvent
     );
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error handling session request: ${
         error instanceof Error ? error.message : String(error)
@@ -240,22 +239,22 @@ export async function handleSessionRequest(
 }
 
 // Keep track of requests that are already being monitored
-const activeMonitors = new Set<string>();
+const activeMonitors = new Set();
 
 /**
  * Monitor for request approval/rejection
  */
 export async function monitorRequestApproval(
-  requestId: string,
-  wcRequestId: string,
-  method: string,
-  params: any[],
-  wallet: ethers.Wallet,
-  topic: string,
-  web3wallet: any,
-  sheetClient: SheetClient,
-  addTransactionToSheet: Function,
-  logEvent: Function
+  requestId,
+  wcRequestId,
+  method,
+  params,
+  wallet,
+  topic,
+  web3wallet,
+  sheetClient,
+  addTransactionToSheet,
+  logEvent
 ) {
   try {
     // Check if this request is already being monitored
@@ -505,7 +504,7 @@ export async function monitorRequestApproval(
 
         // Continue checking
         setTimeout(checkStatus, 5000); // Check every 5 seconds (reduced for faster checkbox response)
-      } catch (error: unknown) {
+      } catch (error) {
         logEvent(
           `Error checking request status: ${
             error instanceof Error ? error.message : String(error)
@@ -517,7 +516,7 @@ export async function monitorRequestApproval(
 
     // Start checking
     checkStatus();
-  } catch (error: unknown) {
+  } catch (error) {
     // Remove from active monitors in case of error
     activeMonitors.delete(requestId);
 
@@ -533,16 +532,16 @@ export async function monitorRequestApproval(
  * Process an approved request
  */
 export async function processRequest(
-  wcRequestId: string,
-  method: string,
-  params: any[],
-  wallet: ethers.Wallet,
-  topic: string,
-  web3wallet: any,
-  addTransactionToSheet: Function,
-  logEvent: Function,
-  sheetClient: SheetClient,
-  requestId: string = "" // Original request ID to link with pending entries
+  wcRequestId,
+  method,
+  params,
+  wallet,
+  topic,
+  web3wallet,
+  addTransactionToSheet,
+  logEvent,
+  sheetClient,
+  requestId = "" // Original request ID to link with pending entries
 ) {
   try {
     let result;
@@ -736,7 +735,7 @@ export async function processRequest(
     });
 
     logEvent(`Request ${wcRequestId} processed successfully`);
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error processing approved request: ${
         error instanceof Error ? error.message : String(error)
@@ -764,10 +763,10 @@ export async function processRequest(
  * Update transaction status in Wallet Explorer sheet based on receipt
  */
 export async function updateTransactionStatus(
-  txHash: string,
-  provider: ethers.JsonRpcProvider,
-  sheetClient: SheetClient,
-  logEvent: Function
+  txHash,
+  provider,
+  sheetClient,
+  logEvent
 ) {
   if (!sheetClient) {
     logEvent(
@@ -933,11 +932,11 @@ export async function updateTransactionStatus(
  * Monitor for dApp connections
  */
 export async function monitorDAppConnections(
-  wallet: ethers.Wallet,
-  web3wallet: any,
-  sheetClient: SheetClient,
-  addTransactionToSheet: Function,
-  logEvent: Function
+  wallet,
+  web3wallet,
+  sheetClient,
+  addTransactionToSheet,
+  logEvent
 ) {
   try {
     logEvent(
@@ -1104,7 +1103,7 @@ export async function monitorDAppConnections(
             );
           }
         }
-      } catch (error: unknown) {
+      } catch (error) {
         // Don't log this error too frequently to avoid cluttering the logs
         logEvent(
           `[DEBUG] Error in checkUrl: ${
@@ -1130,7 +1129,7 @@ export async function monitorDAppConnections(
 
     // Register for session events
     logEvent(`[DEBUG] Setting up session_request event listener on web3wallet`);
-    web3wallet.on("session_request", async (event: any) => {
+    web3wallet.on("session_request", async (event) => {
       // Handle session requests (transactions, signatures)
       const { topic, params } = event;
       const { request } = params;
@@ -1181,7 +1180,7 @@ export async function monitorDAppConnections(
         logEvent
       );
     });
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `[DEBUG] Error in monitorDAppConnections: ${
         error instanceof Error ? error.message : String(error)
@@ -1203,13 +1202,13 @@ export async function monitorDAppConnections(
  * Connect to dApp using WalletConnect
  */
 export async function connectToDApp(
-  wcUrl: string,
-  wallet: ethers.Wallet,
-  web3wallet: any,
-  connectionId: string,
-  sheetClient: SheetClient,
-  addTransactionToSheet: Function,
-  logEvent: Function
+  wcUrl,
+  wallet,
+  web3wallet,
+  connectionId,
+  sheetClient,
+  addTransactionToSheet,
+  logEvent
 ) {
   try {
     logEvent(`[DEBUG] Starting connection process for URI: ${wcUrl}`);
@@ -1291,7 +1290,7 @@ export async function connectToDApp(
 
       // Set up session proposal listener
       logEvent(`[DEBUG] Setting up session proposal listener`);
-      web3wallet.on("session_proposal", async (proposal: any) => {
+      web3wallet.on("session_proposal", async (proposal) => {
         try {
           logEvent(`[DEBUG] Received session proposal. ID: ${proposal.id}`);
           logEvent(`[DEBUG] Full proposal data: ${JSON.stringify(proposal)}`);
@@ -1392,7 +1391,7 @@ export async function connectToDApp(
             logEvent(`[DEBUG] Calling approveSession with ID: ${proposal.id}`);
 
             // Prepare the approval parameters
-            let approvalParams: any = {
+            let approvalParams = {
               id: proposal.id,
               namespaces,
             };
@@ -1429,7 +1428,7 @@ export async function connectToDApp(
 
             // Set up session request listener
             logEvent(`[DEBUG] Setting up session request listener`);
-            web3wallet.on("session_request", async (event: any) => {
+            web3wallet.on("session_request", async (event) => {
               logEvent(
                 `[DEBUG] Received session request event. Method: ${event?.params?.request?.method}`
               );
@@ -1446,7 +1445,7 @@ export async function connectToDApp(
 
             // Set up session delete listener
             logEvent(`[DEBUG] Setting up session delete listener`);
-            web3wallet.on("session_delete", async (event: any) => {
+            web3wallet.on("session_delete", async (event) => {
               logEvent(
                 `[DEBUG] Received session delete event. Topic: ${event.topic}`
               );
@@ -1460,7 +1459,7 @@ export async function connectToDApp(
                 logEvent(`Disconnected from dApp: ${dAppUrl}`);
               }
             });
-          } catch (approvalError: unknown) {
+          } catch (approvalError) {
             logEvent(
               `[DEBUG] Error in approveSession: ${
                 approvalError instanceof Error
@@ -1473,7 +1472,7 @@ export async function connectToDApp(
             }
             throw approvalError;
           }
-        } catch (error: unknown) {
+        } catch (error) {
           logEvent(
             `[DEBUG] Error in session_proposal handler: ${
               error instanceof Error ? error.message : String(error)
@@ -1490,7 +1489,7 @@ export async function connectToDApp(
           );
         }
       });
-    } catch (error: unknown) {
+    } catch (error) {
       logEvent(
         `[DEBUG] Error in pairing process: ${
           error instanceof Error ? error.message : String(error)
@@ -1506,7 +1505,7 @@ export async function connectToDApp(
         }`
       );
     }
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `[DEBUG] General error in connectToDApp: ${
         error instanceof Error ? error.message : String(error)

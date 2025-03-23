@@ -141,7 +141,7 @@ export async function initializeWalletAgent(sheetId, privateKey) {
 
     // Set up provider
     const provider = new ethers.JsonRpcProvider(
-      process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+      "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
     );
     // Initialize Wallet Explorer with recent transactions
     await initializeWalletExplorer(

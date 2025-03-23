@@ -7,7 +7,6 @@ dotenv.config();
 // Constants from environment variables
 const FAUCET_PRIVATE_KEY = process.env.FAUCET_PK || "";
 const ETH_RPC_URL =
-  process.env.ETH_RPC_URL ||
   "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR";
 const THRESHOLD_ETH = 0.005;
 const FAUCET_AMOUNT_ETH = 0.01;

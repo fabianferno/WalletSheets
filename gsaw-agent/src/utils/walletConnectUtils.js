@@ -14,7 +14,7 @@ dotenv.config();
 export async function initializeWalletConnect(wallet, logEvent) {
   try {
     logEvent(`[DEBUG] Starting WalletConnect initialization`);
-    const projectId = process.env.PROJECT_ID;
+    const projectId = "4ffb0cda1971e8063939ebc64377f532";
 
     // Validate project ID
     if (!projectId || projectId === "your-project-id") {
