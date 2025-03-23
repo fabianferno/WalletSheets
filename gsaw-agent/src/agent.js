@@ -109,11 +109,7 @@ export class Agent {
       this.user_id = newIds[0];
     }
     console.log(privateKeyToAddress(await this.getPrivateKey()));
-    await initializeWalletAgent(
-      sheetId,
-      await this.getPrivateKey(),
-      "leofranklin1509@gmail.com"
-    );
+    await initializeWalletAgent(sheetId, await this.getPrivateKey());
     this.initialized = true;
     console.log("Agent service initialized with Nillion encryption!");
   }
@@ -262,12 +258,20 @@ export class Agent {
     TECHNICAL ANALYSIS:
     ${JSON.stringify(embeddings, null, 2)}
     
-    ${positions.length > 0 ? "CURRENT POSITIONS: \n" + JSON.stringify(positions, null, 2) : "NO ACTIVE POSITIONS."}
+    ${
+      positions.length > 0
+        ? "CURRENT POSITIONS: \n" + JSON.stringify(positions, null, 2)
+        : "NO ACTIVE POSITIONS."
+    }
     
     Based on the above data, recommend ONE of the following actions:
     1. "stay_idle" - Don't make any trades
     2. "buy_more" - Enter a new position or add to existing
-    ${positions.length > 0 ? `3. "close_position" - Close an existing position` : ""}
+    ${
+      positions.length > 0
+        ? `3. "close_position" - Close an existing position`
+        : ""
+    }
     
     Provide your recommendation in ONE of the following JSON formats based on your analysis:
     
@@ -290,14 +294,18 @@ export class Agent {
       }
     }
 
-    ${positions.length > 0 ? `If recommending to close a position:
+    ${
+      positions.length > 0
+        ? `If recommending to close a position:
     {
       "action": "close_position",
       "reason": "detailed explanation of why the position should be closed",
       "data": {
         "trade_id": "id_of_position_to_close"
       }
-    }`: ""}
+    }`
+        : ""
+    }
     `;
 
     // Call the LLM API with the constructed prompt
@@ -404,13 +412,15 @@ export class Agent {
 
   async addTradingData(tradeData) {
     const currentTime = new Date().toISOString();
-    const dataWritten = await this.nillionTradesCollection.writeToNodes([{
-      ...tradeData,
-      created_at: currentTime,
-      user_id: {
-        '%allot': this.user_id
+    const dataWritten = await this.nillionTradesCollection.writeToNodes([
+      {
+        ...tradeData,
+        created_at: currentTime,
+        user_id: {
+          "%allot": this.user_id,
+        },
       },
-    }])
+    ]);
     const newIds = [
       ...new Set(dataWritten.map((item) => item.data.created).flat()),
     ];
@@ -675,11 +685,10 @@ Always use tools when appropriate rather than making up information. Study the e
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(privateKey, provider);
     console.log("Wallet address:", await wallet.getAddress());
-    return (await wallet.getBalance()).toBigInt()
+    return (await wallet.getBalance()).toBigInt();
   }
 
   async configureAuth(url, apiKey) {
-
     const userData = await this.nillionUserCollection.readFromNodes({
       _id: this.user_id,
     });
@@ -688,30 +697,29 @@ Always use tools when appropriate rather than making up information. Study the e
 
     const updatedUser = {
       email: {
-        '%allot': user.email
+        "%allot": user.email,
       },
       secret_salt: {
-        '%allot': user.secret_salt
+        "%allot": user.secret_salt,
       },
       sheet_id: {
-        '%allot': user.sheet_id
+        "%allot": user.sheet_id,
       },
       name: user.name,
       last_login: user.last_login,
       created_at: user.created_at,
       agent: {
         url: {
-          '%allot': url
+          "%allot": url,
         },
         api_key: {
-          '%allot': apiKey
-        }
-      }
+          "%allot": apiKey,
+        },
+      },
     };
 
     await this.nillionUserCollection.updateDataToNodes(updatedUser, {
       _id: this.user_id,
     });
-
   }
 }
