@@ -14,6 +14,7 @@ export class Agent {
         this.initialized = false;
         this.nillionChatCollection = null;
         this.nodes = nodes;
+        this.balances = []
     }
 
     /**
@@ -462,5 +463,13 @@ Always use tools when appropriate rather than making up information. Study the e
         } else {
             return userResponse[0];
         }
+    }
+
+    async getBalances() {
+        return this.balances
+    }
+
+    async setBalances(balances) {
+        this.balances = balances
     }
 }

@@ -7,7 +7,7 @@ export class WalletService {
     }
 
     async start() {
-        // TODO: Fetch and set Balances inside a webhook
+        // TODO: Fetch and set Balances inside a webhook or a cron job??
         // /* 
         //  const balances = {
         //    "HYPE": {
