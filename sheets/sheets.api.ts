@@ -87,7 +87,7 @@ export class SheetClient {
 
       return response.data.values;
     } catch (error: any) {
-      console.error(`❌ Error getting sheet values for "${sheetName}":`, error);
+      console.error(`❌ Error getting sheet values for "${sheetName}"`);
       if (error.response) {
         console.error(`Response status: ${error.response.status}`);
         console.error(`Response data:`, error.response.data);

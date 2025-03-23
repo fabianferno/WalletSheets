@@ -239,7 +239,7 @@ export class Agent {
                         (example) => `
 User: "${example.userQuery}"
 Tool with input: <tool>${tool.name}: ${example.toolInput}</tool>
-Expected Output Format: ${example.toolOutput}
+Expected Tool Output Response Format: ${example.toolOutput}
 `
                     )
                     .join("");

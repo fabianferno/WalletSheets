@@ -15,6 +15,7 @@ export async function initializePriceTool() {
                 dayChange: "-1.82",
                 volume: "1053445.75",
             }),
+            exampleResponse: "The current price of BTC is $65,432.75 with a 24-hour change of -1.82% and a trading volume of $1,053,445.75",
         },
         {
             userQuery: "How much is ETH worth right now?",
@@ -25,6 +26,7 @@ export async function initializePriceTool() {
                 dayChange: "2.35",
                 volume: "875321.42",
             }),
+            exampleResponse: "The current price of ETH is $3,245.18 with a 24-hour change of 2.35% and a trading volume of $875,321.42",
         },
     ];
 

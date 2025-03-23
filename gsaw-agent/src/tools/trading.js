@@ -23,14 +23,15 @@ export async function initializeTradingTool() {
             }),
             toolOutput: JSON.stringify({
                 success: true,
-                txHash: "0x123abc456def789ghi",
-                explorerUrl: "https://sepolia.arbiscan.io/tx/0x123abc456def789ghi",
+                txHash: "0xbe2f5ffd4f00778234ed3d4836c6bf0c473a9c86a5ca823a40278aa73d59a0e1",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0xbe2f5ffd4f00778234ed3d4836c6bf0c473a9c86a5ca823a40278aa73d59a0e1",
                 position: {
                     asset: "BTC",
                     leverage: "2x",
                     direction: "LONG",
                 }
             }),
+            outputResponse: "Successfully placed a 2x long position on BTC with 0.001 ETH. View tx in the explorer https://sepolia.arbiscan.io/tx/0xbe2f5ffd4f00778234ed3d4836c6bf0c473a9c86a5ca823a40278aa73d59a0e1"
         },
         {
             userQuery: "Place a 3x short position on ETH with 0.005 ETH",
@@ -44,14 +45,15 @@ export async function initializeTradingTool() {
             }),
             toolOutput: JSON.stringify({
                 success: true,
-                txHash: "0x789ghi123abc456def",
-                explorerUrl: "https://sepolia.arbiscan.io/tx/0x789ghi123abc456def",
+                txHash: "0x2a95d1c115ca97b57f0d9abdb4870f1475b7ad9cfa706068f5dc27a6449f8f98",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0x2a95d1c115ca97b57f0d9abdb4870f1475b7ad9cfa706068f5dc27a6449f8f98",
                 position: {
                     asset: "ETH",
                     leverage: "3x",
                     direction: "SHORT",
                 }
             }),
+            outputResponse: "Successfully placed a 3x short position on ETH with 0.005 ETH. View tx in the explorer https://sepolia.arbiscan.io/tx/0x2a95d1c115ca97b57f0d9abdb4870f1475b7ad9cfa706068f5dc27a6449f8f98"
         },
         {
             userQuery: "Open a 5x long position on AVAX with 0.01 ETH",
@@ -65,14 +67,15 @@ export async function initializeTradingTool() {
             }),
             toolOutput: JSON.stringify({
                 success: true,
-                txHash: "0x456def789ghi123abc",
-                explorerUrl: "https://sepolia.arbiscan.io/tx/0x456def789ghi123abc",
+                txHash: "0x80cf5456b0a7b37b1d9bf5340a01bae816643cb74e551cfe65f6746fa9a699f6",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0x80cf5456b0a7b37b1d9bf5340a01bae816643cb74e551cfe65f6746fa9a699f6",
                 position: {
                     asset: "AVAX",
                     leverage: "5x",
                     direction: "LONG",
                 }
             }),
+            outputResponse: "Successfully placed a 5x long position on AVAX with 0.01 ETH. View tx in the explorer https://sepolia.arbiscan.io/tx/0x80cf5456b0a7b37b1d9bf5340a01bae816643cb74e551cfe65f6746fa9a699f6"
         },
         {
             userQuery: "I want to short BTC with 0.002 ETH at 4x leverage",
@@ -86,35 +89,15 @@ export async function initializeTradingTool() {
             }),
             toolOutput: JSON.stringify({
                 success: true,
-                txHash: "0xdef789ghi123abc456",
-                explorerUrl: "https://sepolia.arbiscan.io/tx/0xdef789ghi123abc456",
+                txHash: "0x7ef3a502c8e4294e91f4ad011206b9d3e12ac95a669ec6974482587e43a2ab91",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0x7ef3a502c8e4294e91f4ad011206b9d3e12ac95a669ec6974482587e43a2ab91",
                 position: {
                     asset: "BTC",
                     leverage: "4x",
                     direction: "SHORT",
                 }
             }),
-        },
-        {
-            userQuery: "Open a 1.5x long position on SOL with 0.003 ETH",
-            toolInput: JSON.stringify({
-                native: "ETH",
-                asset: "SOL",
-                chain: "421614",
-                leverage: 1.5,
-                positionSizeInNative: 0.003,
-                isLong: true
-            }),
-            toolOutput: JSON.stringify({
-                success: true,
-                txHash: "0xabc456def789ghi123",
-                explorerUrl: "https://sepolia.arbiscan.io/tx/0xabc456def789ghi123",
-                position: {
-                    asset: "SOL",
-                    leverage: "1.5x",
-                    direction: "LONG",
-                }
-            }),
+            outputResponse: "Successfully placed a 4x short position on BTC with 0.002 ETH. View tx in the explorer https://sepolia.arbiscan.io/tx/0x7ef3a502c8e4294e91f4ad011206b9d3e12ac95a669ec6974482587e43a2ab91"
         },
     ];
 
@@ -158,7 +141,7 @@ export async function initializeTradingTool() {
                 const tx = await placeTrade(
                     privateKey,
                     params.native,
-                    params.asset,
+                    params.asset != 'ETH' ? 'ETH' : params.asset,
                     params.chain,
                     params.leverage,
                     params.positionSizeInNative,
@@ -181,7 +164,7 @@ export async function initializeTradingTool() {
                     txHash: txHash,
                     explorerUrl: explorerUrl,
                     position: {
-                        asset: params.asset,
+                        asset: params.asset != 'ETH' ? 'ETH' : params.asset,
                         leverage: `${params.leverage}x`,
                         direction: params.isLong ? "LONG" : "SHORT",
                     }
