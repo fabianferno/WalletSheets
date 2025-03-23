@@ -15,8 +15,6 @@ export async function initializePriceTool() {
                 dayChange: "-1.82",
                 volume: "1053445.75",
             }),
-            finalResponse:
-                "The current price of BTC is $65,432.75 USD. In the last 24 hours, it has changed by -1.82% with a trading volume of $1,053,445.75 USD.",
         },
         {
             userQuery: "How much is ETH worth right now?",
@@ -27,8 +25,6 @@ export async function initializePriceTool() {
                 dayChange: "2.35",
                 volume: "875321.42",
             }),
-            finalResponse:
-                "ETH is currently trading at $3,245.18 USD. It's up 2.35% in the last 24 hours with a trading volume of $875,321.42 USD.",
         },
     ];
 

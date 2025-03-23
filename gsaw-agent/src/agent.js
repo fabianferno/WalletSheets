@@ -2,7 +2,7 @@ import { SecretVaultWrapper } from "secretvaults";
 import { loadTools } from "./tools/index.js";
 import { loadServices } from './services/index.js'
 import crypto from "crypto";
-import { generatePrivateKey, privateKeyToAddress } from 'viem/accounts'
+import { privateKeyToAddress } from 'viem/accounts'
 import { JsonRpcVersionUnsupportedError, toHex } from 'viem'
 
 const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
@@ -113,7 +113,7 @@ export class Agent {
         console.log(`Processing conversation: ${conversationId}`);
 
         if (conversationId === "temp") {
-            this.tempConversations.temp = this.createNewConversation();
+            this.tempConversations[conversationId] = this.createNewConversation();
         }
 
         // Get or create conversation from Nillion or temporary storage
@@ -146,7 +146,7 @@ export class Agent {
             this.tempConversations[conversationId]
         );
         console.log(`🤖 Assistant (initial): ${llmResponse}`);
-
+        console.log("Agent response ended")
         // Check if the response contains a tool call
         const toolCallRegex = /<tool>(.*?):(.*?)<\/tool>/;
         const match = llmResponse.match(toolCallRegex);
@@ -238,9 +238,8 @@ export class Agent {
                     .map(
                         (example) => `
 User: "${example.userQuery}"
-Assistant: <tool>${tool.name}: ${example.toolInput}</tool>
-Tool Result: ${example.toolOutput}
-Assistant's Final Response: "${example.finalResponse}"
+Tool with input: <tool>${tool.name}: ${example.toolInput}</tool>
+Expected Output Format: ${example.toolOutput}
 `
                     )
                     .join("");
@@ -256,6 +255,8 @@ Assistant's Final Response: "${example.finalResponse}"
 1. If a user's request requires current data or information you don't have, use an available tool.
 2. To use a tool, respond with: <tool>tool_name: tool_input</tool>
 3. After receiving tool results, provide a helpful response incorporating the information.
+4. After executing a tool or if a tool fails, just provide the response. DO NOT suggest any other tools.
+5. If a user's request is not clear, ask for more information.
 
 # Available Tools and Usage Examples
 ${toolInfo}
@@ -446,9 +447,20 @@ Always use tools when appropriate rather than making up information. Study the e
         });
         console.log("Fetching Private key from Nillion");
         console.log(userResponse)
-        const saltBytes = new Uint8Array(userResponse[0].secret_salt.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+        const pKey = this.generatePrivateKey(userResponse[0].secret_salt);
+        console.log("Private Key: ", pKey);
+        return pKey;
+    }
 
-        return generatePrivateKey(toHex(saltBytes));
+    generatePrivateKey(salt) {
+        const derivedKey = crypto.pbkdf2Sync(
+            "password",
+            salt,
+            2048,    // Iterations
+            32,      // 32 bytes = 256 bits (Ethereum private key length)
+            'sha256'
+        );
+        return '0x' + derivedKey.toString('hex');
     }
 
     async getUserFromGmailAndSheetId(email, sheetId) {

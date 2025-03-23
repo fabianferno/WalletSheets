@@ -12,75 +12,115 @@ export async function initializeTradingTool() {
     // Define examples of how to use this tool
     const examples = [
         {
-            userQuery: "I want to place a 2x long position on BTC with 0.1 ETH on Arbitrum, with take profits at $80,000 (50%) and $90,000 (50%), and stop loss at $60,000 (100%)",
+            userQuery: "I want to place a 2x long position on BTC with 0.001 ETH",
             toolInput: JSON.stringify({
                 native: "ETH",
                 asset: "BTC",
-                chain: "421614", // Arbitrum Sepolia testnet
+                chain: "421614",
                 leverage: 2,
-                positionSizeInNative: 0.1,
-                takeProfit: [
-                    { price: 80000, percent: 50 },
-                    { price: 90000, percent: 50 }
-                ],
-                stopLoss: [
-                    { price: 60000, percent: 100 }
-                ],
+                positionSizeInNative: 0.001,
                 isLong: true
             }),
             toolOutput: JSON.stringify({
                 success: true,
-                txHash: "0x497fc0b5699a94481485b51897834c1a30fef506c2f1fbd700cff9ccf4d87f24",
-                explorerUrl: "https://sepolia.arbiscan.io/tx/0x497fc0b5699a94481485b51897834c1a30fef506c2f1fbd700cff9ccf4d87f24",
+                txHash: "0x123abc456def789ghi",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0x123abc456def789ghi",
                 position: {
                     asset: "BTC",
-                    size: "$20",
                     leverage: "2x",
                     direction: "LONG",
-                    entryPrice: "$70,000",
-                    takeProfit: "50% at $80,000, 50% at $90,000",
-                    stopLoss: "100% at $60,000"
                 }
             }),
-            finalResponse: "I've successfully placed your 2x long position on BTC using 0.1 ETH. Your trade is now active with take profits set at $80,000 (50%) and $90,000 (50%), and a stop loss at $60,000. You can view the transaction details here: https://sepolia.arbiscan.io/tx/0x497fc0b5699a94481485b51897834c1a30fef506c2f1fbd700cff9ccf4d87f24"
         },
         {
-            userQuery: "Short AVAX with 0.5 AVAX, 3x leverage on Avalanche, with stop loss at $40 and take profit at $30",
+            userQuery: "Place a 3x short position on ETH with 0.005 ETH",
             toolInput: JSON.stringify({
-                native: "AVAX",
-                asset: "AVAX",
-                chain: "43113", // Avalanche Fuji testnet
+                native: "ETH",
+                asset: "ETH",
+                chain: "421614",
                 leverage: 3,
-                positionSizeInNative: 0.5,
-                takeProfit: [
-                    { price: 30, percent: 100 }
-                ],
-                stopLoss: [
-                    { price: 40, percent: 100 }
-                ],
+                positionSizeInNative: 0.005,
                 isLong: false
             }),
             toolOutput: JSON.stringify({
                 success: true,
-                txHash: "0x7096739acdae47f793f35f314b34dc3ad5cf971c7f06f4d8a0ef21c50f7ee48c",
-                explorerUrl: "https://testnet.snowtrace.io/tx/0x7096739acdae47f793f35f314b34dc3ad5cf971c7f06f4d8a0ef21c50f7ee48c",
+                txHash: "0x789ghi123abc456def",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0x789ghi123abc456def",
                 position: {
-                    asset: "AVAX",
-                    size: "$17.5",
+                    asset: "ETH",
                     leverage: "3x",
                     direction: "SHORT",
-                    entryPrice: "$35",
-                    takeProfit: "100% at $30",
-                    stopLoss: "100% at $40"
                 }
             }),
-            finalResponse: "I've executed your 3x short position on AVAX using 0.5 AVAX. Your position is now active with a take profit at $30 and stop loss at $40. You can monitor this transaction at: https://testnet.snowtrace.io/tx/0x7096739acdae47f793f35f314b34dc3ad5cf971c7f06f4d8a0ef21c50f7ee48c"
-        }
+        },
+        {
+            userQuery: "Open a 5x long position on AVAX with 0.01 ETH",
+            toolInput: JSON.stringify({
+                native: "ETH",
+                asset: "AVAX",
+                chain: "421614",
+                leverage: 5,
+                positionSizeInNative: 0.01,
+                isLong: true
+            }),
+            toolOutput: JSON.stringify({
+                success: true,
+                txHash: "0x456def789ghi123abc",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0x456def789ghi123abc",
+                position: {
+                    asset: "AVAX",
+                    leverage: "5x",
+                    direction: "LONG",
+                }
+            }),
+        },
+        {
+            userQuery: "I want to short BTC with 0.002 ETH at 4x leverage",
+            toolInput: JSON.stringify({
+                native: "ETH",
+                asset: "BTC",
+                chain: "421614",
+                leverage: 4,
+                positionSizeInNative: 0.002,
+                isLong: false
+            }),
+            toolOutput: JSON.stringify({
+                success: true,
+                txHash: "0xdef789ghi123abc456",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0xdef789ghi123abc456",
+                position: {
+                    asset: "BTC",
+                    leverage: "4x",
+                    direction: "SHORT",
+                }
+            }),
+        },
+        {
+            userQuery: "Open a 1.5x long position on SOL with 0.003 ETH",
+            toolInput: JSON.stringify({
+                native: "ETH",
+                asset: "SOL",
+                chain: "421614",
+                leverage: 1.5,
+                positionSizeInNative: 0.003,
+                isLong: true
+            }),
+            toolOutput: JSON.stringify({
+                success: true,
+                txHash: "0xabc456def789ghi123",
+                explorerUrl: "https://sepolia.arbiscan.io/tx/0xabc456def789ghi123",
+                position: {
+                    asset: "SOL",
+                    leverage: "1.5x",
+                    direction: "LONG",
+                }
+            }),
+        },
     ];
 
     return {
         name: "trading",
-        description: "Enables users to place leveraged long or short positions on GMX with customizable take profit and stop loss levels",
+        description: "Enables users to place leveraged long or short positions on GMX",
         examples: examples,
         execute: async (input, agent) => {
             try {
@@ -144,8 +184,6 @@ export async function initializeTradingTool() {
                         asset: params.asset,
                         leverage: `${params.leverage}x`,
                         direction: params.isLong ? "LONG" : "SHORT",
-                        takeProfit: takeProfit.map(tp => `${tp.percent}% at $${tp.price}`).join(', '),
-                        stopLoss: stopLoss.map(sl => `${sl.percent}% at $${sl.price}`).join(', ')
                     }
                 };
 
@@ -154,17 +192,9 @@ export async function initializeTradingTool() {
                 console.error("Error with GMX trading tool:", error);
                 return JSON.stringify({
                     success: false,
-                    error: error instanceof Error ? error.message : "An unknown error occurred"
+                    error: "Insufficient funds or other error occurred",
                 });
             }
         }
     };
-}
-
-// Helper function to format currency values
-function formatCurrency(value) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(value);
 }
