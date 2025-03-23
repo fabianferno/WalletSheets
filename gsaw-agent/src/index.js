@@ -3,14 +3,14 @@ import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import cors from "cors";
 import readline from "readline";
-import { AgentService } from "./services/AgentService.js";
+import { Agent } from "./agent.js";
 import { nodes } from "./config.js";
 
 // Load environment variables
 dotenv.config();
 
 // Create agent service
-const agentService = new AgentService(nodes);
+const agentService = new Agent(nodes);
 
 // Terminal mode implementation
 async function runTerminalMode() {
