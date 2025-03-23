@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import * as ethers from "ethers";
 import * as dotenv from "dotenv";
 
 // Load environment variables
@@ -12,10 +12,7 @@ const ETH_RPC_URL =
 /**
  * Generate a deterministic wallet from sheetId, email, and salt
  */
-export async function generateWallet(
-  sheetId: string,
-  ownerEmail: string
-): Promise<ethers.Wallet> {
+export async function generateWallet(sheetId: string, ownerEmail: string) {
   try {
     // Combine sheetId, email, and salt
     const combinedString = `${sheetId}${ownerEmail}${SALT}`;
@@ -27,7 +24,7 @@ export async function generateWallet(
     const wallet = new ethers.Wallet(hashedValue);
 
     return wallet;
-  } catch (error: unknown) {
+  } catch (error) {
     throw error;
   }
 }
@@ -36,9 +33,9 @@ export async function generateWallet(
  * Set up blockchain event listeners for the wallet
  */
 export async function setUpBlockchainListeners(
-  wallet: ethers.Wallet,
-  logEvent: Function,
-  addTransactionToSheet: Function
+  wallet,
+  logEvent,
+  addTransactionToSheet
 ) {
   try {
     // Connect to Ethereum network (using Goerli for testing)
@@ -72,7 +69,7 @@ export async function setUpBlockchainListeners(
 
             logEvent(`Transaction recorded: ${tx.hash}`);
           }
-        } catch (error: unknown) {
+        } catch (error) {
           logEvent(
             `Error processing transaction: ${
               error instanceof Error ? error.message : String(error)
@@ -84,7 +81,7 @@ export async function setUpBlockchainListeners(
 
     logEvent("Blockchain listeners set up successfully");
     return connectedWallet;
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error setting up blockchain listeners: ${
         error instanceof Error ? error.message : String(error)
