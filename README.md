@@ -88,7 +88,7 @@ No manual entry of email addresses is required - the system detects everything a
 
 ### Autonome
 
-Custom Agent Template Deployed on Autonome - 
+Custom Agent Template Deployed on Autonome - https://apps.autono.meme/autonome/new?template=d3b6f86b-6738-47fa-afc3-836f64c371cf
 
 Custom Agent Deployment on creation of a new sheet - https://github.com/fabianferno/WalletSheets/blob/main/deploy-agent-service/src/index.ts#L158
 
