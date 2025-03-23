@@ -118,6 +118,100 @@ async function getAccessibleSheets() {
 }
 
 /**
+ * Deploy an agent to Autonome
+ */
+async function deployAgent(
+  name: string,
+  config: string = "{}",
+  metadata: Record<string, any> = {},
+  envList: Record<string, string> = {}
+): Promise<{
+  success: boolean;
+  appId?: string;
+  appUrl?: string;
+  error?: string;
+  details?: any;
+}> {
+  try {
+    // Get authentication and endpoint info from environment variables
+    const autonomeJwt = process.env.AUTONOME_JWT_TOKEN;
+    const autonomeRpc = process.env.AUTONOME_RPC_ENDPOINT;
+
+    if (!autonomeJwt || !autonomeRpc) {
+      console.error("Missing Autonome configuration in server environment");
+      return {
+        success: false,
+        error: "Missing Autonome configuration in server environment",
+      };
+    }
+
+    // Prepare request body
+    const requestBody = {
+      name,
+      config,
+      creationMethod: 2,
+      envList,
+      templateId: "Eliza",
+      ...metadata,
+    };
+
+    console.log("Deploying agent with configuration:", {
+      name: requestBody.name,
+      templateId: requestBody.templateId,
+      // Don't log sensitive information
+      hasConfig: !!requestBody.config,
+      hasEnvList: Object.keys(requestBody.envList).length > 0,
+    });
+
+    // Make request to Autonome service
+    const response = await axios.post<AutonomeResponse>(
+      autonomeRpc,
+      requestBody,
+      {
+        headers: {
+          Authorization: `Bearer ${autonomeJwt}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    // Handle the response
+    if (response.data?.app?.id) {
+      const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
+      console.log(`Agent "${name}" successfully deployed at: ${appUrl}`);
+
+      return {
+        success: true,
+        appId: response.data.app.id,
+        appUrl,
+      };
+    } else {
+      // Unexpected response format
+      console.error(
+        "Unexpected response format from Autonome service:",
+        response.data
+      );
+
+      return {
+        success: false,
+        error: "Unexpected response from Autonome service",
+      };
+    }
+  } catch (error: any) {
+    console.error("Error deploying agent:", error.message);
+
+    // Extract the error message from the Autonome service if available
+    const autonomeError = error.response?.data?.error || error.message;
+
+    return {
+      success: false,
+      error: "Failed to deploy agent",
+      details: autonomeError,
+    };
+  }
+}
+
+/**
  * Main function to run all wallet agents
  */
 export async function runAllWalletAgents() {
@@ -149,17 +243,27 @@ export async function runAllWalletAgents() {
         let newInitializedCount = 0;
         for (const sheet of newSheets) {
           // If the owner email is not in the settings, get it from the Drive API
-          const emailownerEmailFromDrive = await getSheetOwnerEmailFromDrive(
-            sheet.id
-          );
+          const ownerEmail = await getSheetOwnerEmailFromDrive(sheet.id);
 
-          // TODO: Call agent deploy
-          const initialized = true;
-          // deployAgent(sheet.id, emailownerEmailFromDrive);
+          // Deploy agent with sheet information
+          const agentName = `Wallet-${sheet.name || sheet.id}`;
+          const sheetConfig = JSON.stringify({
+            sheetId: sheet.id,
+            ownerEmail: ownerEmail || "unknown",
+          });
 
-          if (initialized) {
+          const result = await deployAgent(agentName, sheetConfig);
+
+          if (result.success) {
             initializedSheets.add(sheet.id);
             newInitializedCount++;
+            console.log(
+              `Deployed wallet agent for sheet: ${sheet.name} (${sheet.id})`
+            );
+          } else {
+            console.error(
+              `Failed to deploy agent for sheet: ${sheet.name} (${sheet.id}): ${result.error}`
+            );
           }
         }
 
@@ -215,81 +319,27 @@ app.post("/deploy-agent", async (req: Request, res: Response) => {
       });
     }
 
-    // Get authentication and endpoint info from environment variables
-    const autonomeJwt = process.env.AUTONOME_JWT_TOKEN;
-    const autonomeRpc = process.env.AUTONOME_RPC_ENDPOINT;
+    const result = await deployAgent(name, config, metadata, envList);
 
-    if (!autonomeJwt || !autonomeRpc) {
-      return res.status(500).json({
-        success: false,
-        error: "Missing Autonome configuration in server environment",
-      });
-    }
-
-    // Prepare request body
-    const requestBody = {
-      name,
-      config,
-      creationMethod: 2,
-      envList,
-      templateId: "Eliza",
-      ...metadata,
-    };
-
-    console.log("Deploying agent with configuration:", {
-      name: requestBody.name,
-      templateId: requestBody.templateId,
-      // Don't log sensitive information
-      hasConfig: !!requestBody.config,
-      hasEnvList: Object.keys(requestBody.envList).length > 0,
-    });
-
-    // Make request to Autonome service
-    const response = await axios.post<AutonomeResponse>(
-      autonomeRpc,
-      requestBody,
-      {
-        headers: {
-          Authorization: `Bearer ${autonomeJwt}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    // Handle the response
-    if (response.data?.app?.id) {
-      const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
-      console.log(`Agent "${name}" successfully deployed at: ${appUrl}`);
-
+    if (result.success) {
       return res.status(200).json({
         success: true,
         name,
-        appId: response.data.app.id,
-        appUrl,
+        appId: result.appId,
+        appUrl: result.appUrl,
       });
     } else {
-      // Unexpected response format
-      console.error(
-        "Unexpected response format from Autonome service:",
-        response.data
-      );
-
       return res.status(500).json({
         success: false,
-        error: "Unexpected response from Autonome service",
-        details: response.data,
+        error: result.error,
+        details: result.details,
       });
     }
   } catch (error: any) {
-    console.error("Error deploying agent:", error.message);
-
-    // Extract the error message from the Autonome service if available
-    const autonomeError = error.response?.data?.error || error.message;
-
+    console.error("Error in deploy-agent endpoint:", error.message);
     return res.status(500).json({
       success: false,
-      error: "Failed to deploy agent",
-      details: autonomeError,
+      error: "Server error processing request",
     });
   }
 });
