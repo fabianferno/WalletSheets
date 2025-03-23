@@ -17,9 +17,6 @@ const agent = new Agent(nodes);
 async function runTerminalMode() {
   await agent.initialize();
 
-  const tradingService = new TradingService(agent);
-  tradingService.start();
-
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -87,11 +84,6 @@ function runServerMode() {
     .initialize()
     .then(() => {
       console.log("✅ Agent initialized and ready");
-      console.log("🚀 Starting trading service...");
-      const tradingService = new TradingService(agent);
-      tradingService.start().then(() => {
-        console.log("✅ Trading service started, will run every 10 minutes");
-      })
 
     })
     .catch((error) => {
