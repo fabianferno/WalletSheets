@@ -1,8 +1,9 @@
 import express, { Request, Response } from "express";
-import dotenv from "dotenv";
+import dotenv, { config } from "dotenv";
 import axios from "axios";
 import cors from "cors";
 import { google } from "googleapis";
+import { base64EncodeEnv } from "./utils";
 
 // Load environment variables
 dotenv.config();
@@ -13,6 +14,7 @@ const drive = google.drive("v3");
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
+const templateId = "Eliza";
 
 // Middleware
 app.use(express.json());
@@ -20,10 +22,8 @@ app.use(cors());
 
 // Interface for the request body
 interface DeployAgentRequest {
-  name: string;
-  config?: string;
-  metadata?: Record<string, any>;
-  envList?: Record<string, string>;
+  sheetId: string;
+  ownerEmail: string;
 }
 
 // Interface for the response from Autonome
@@ -120,12 +120,13 @@ async function getAccessibleSheets() {
 /**
  * Deploy an agent to Autonome
  */
-async function deployAgent(
-  name: string,
-  config: string = "{}",
-  metadata: Record<string, any> = {},
-  envList: Record<string, string> = {}
-): Promise<{
+async function deployAgent(requestBody: {
+  name: string;
+  config: string;
+  creationMethod: number;
+  envList: Record<string, string>;
+  templateId: string;
+}): Promise<{
   success: boolean;
   appId?: string;
   appUrl?: string;
@@ -144,24 +145,6 @@ async function deployAgent(
         error: "Missing Autonome configuration in server environment",
       };
     }
-
-    // Prepare request body
-    const requestBody = {
-      name,
-      config,
-      creationMethod: 2,
-      envList,
-      templateId: "Eliza",
-      ...metadata,
-    };
-
-    console.log("Deploying agent with configuration:", {
-      name: requestBody.name,
-      templateId: requestBody.templateId,
-      // Don't log sensitive information
-      hasConfig: !!requestBody.config,
-      hasEnvList: Object.keys(requestBody.envList).length > 0,
-    });
 
     // Make request to Autonome service
     const response = await axios.post<AutonomeResponse>(
@@ -245,16 +228,13 @@ export async function runAllWalletAgents() {
         let newInitializedCount = 0;
         for (const sheet of newSheets) {
           // If the owner email is not in the settings, get it from the Drive API
-          const ownerEmail = await getSheetOwnerEmailFromDrive(sheet.id);
+          const ownerEmail =
+            (await getSheetOwnerEmailFromDrive(sheet.id)) ||
+            "fabianferno@gmail.com";
 
-          // Deploy agent with sheet information
-          const agentName = `Wallet-${sheet.name || sheet.id}`;
-          const sheetConfig = JSON.stringify({
-            sheetId: sheet.id,
-            ownerEmail: ownerEmail || "unknown",
-          });
+          const agentConfig = getAgentConfig(sheet.id, ownerEmail);
 
-          const result = await deployAgent(agentName, sheetConfig);
+          const result = await deployAgent(agentConfig);
 
           if (result.success) {
             initializedSheets.add(sheet.id);
@@ -301,27 +281,49 @@ export async function runAllWalletAgents() {
   }
 }
 
+function getAgentConfig(sheetId: string, ownerEmail: string) {
+  const name = `${ownerEmail.slice(0, 10)}-${sheetId.slice(0, 10)}`;
+
+  const envList: Record<string, string> = {
+    SHEET_ID: sheetId,
+    GMAIL: ownerEmail,
+    NAME: name,
+    NILAI_API_URL: process.env.NILAI_API_URL || "",
+    NILAI_API_KEY: process.env.NILAI_API_KEY || "",
+    TAVILY_API_KEY: process.env.TAVILY_API_KEY || "",
+    NILLION_ORG_DID: process.env.NILLION_ORG_DID || "",
+    NILLION_ORG_SECRET_KEY: process.env.NILLION_ORG_SECRET_KEY || "",
+    PROJECT_ID: process.env.PROJECT_ID || "",
+    ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY || "",
+    CRYPTO_PANIC_API_KEY: process.env.CRYPTO_PANIC_API_KEY || "",
+    SUPAVEC_API_KEY: process.env.SUPAVEC_API_KEY || "",
+    NILLION_CHAT_SCHEMA_ID: process.env.NILLION_CHAT_SCHEMA_ID || "",
+    NILLION_USER_SCHEMA_ID: process.env.NILLION_USER_SCHEMA_ID || "",
+    NILLION_TRADES_SCHEMA_ID: process.env.NILLION_TRADES_SCHEMA_ID || "",
+    LANGCHAIN_TRACING: "true",
+  };
+
+  const data = {
+    name,
+    config: "",
+    creationMethod: 2,
+    envList: base64EncodeEnv(envList),
+    templateId,
+  };
+
+  return data;
+}
+
 /**
  * Deploy an agent to Autonome
  */
 app.post("/deploy-agent", async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      config = "{}",
-      metadata = {},
-      envList = {},
-    } = req.body as DeployAgentRequest;
+    const { sheetId, ownerEmail } = req.body as DeployAgentRequest;
 
-    // Validate required fields
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        error: "Agent name is required",
-      });
-    }
+    const agentConfig = getAgentConfig(sheetId, ownerEmail);
 
-    const result = await deployAgent(name, config, metadata, envList);
+    const result = await deployAgent(agentConfig);
 
     if (result.success) {
       return res.status(200).json({
