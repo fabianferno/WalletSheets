@@ -579,9 +579,9 @@ export async function processRequest(
         try {
           const tx = await connectedWallet.sendTransaction({
             to: txParams.to,
-            value: txParams.value ? ethers.toBigInt(txParams.value) : BigInt(0),
+            value: txParams.value ? BigInt(txParams.value) : BigInt(0),
             data: txParams.data || "0x",
-            gasLimit: txParams.gas ? ethers.toBigInt(txParams.gas) : undefined,
+            gasLimit: txParams.gas ? BigInt(txParams.gas) : undefined,
           });
 
           result = tx.hash;
