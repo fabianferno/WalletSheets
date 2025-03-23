@@ -1,7 +1,10 @@
-import { SheetClient } from "./sheets.api";
+import { SheetClient } from "./sheets.api.js";
 import * as dotenv from "dotenv";
 import { google } from "googleapis";
-import { generateWallet, setUpBlockchainListeners } from "./utils/walletUtils";
+import {
+  generateWallet,
+  setUpBlockchainListeners,
+} from "./utils/walletUtils.js";
 import {
   initializeSheets,
   storeWalletAddress,
@@ -14,15 +17,15 @@ import {
   monitorChatSheet,
   initializeWalletExplorer,
   WALLET_EXPLORER_SHEET,
-} from "./utils/sheetUtils";
-import { initializeWalletConnect } from "./utils/walletConnectUtils";
-import { monitorDAppConnections } from "./utils/sessionUtils";
+} from "./utils/sheetUtils.js";
+import { initializeWalletConnect } from "./utils/walletConnectUtils.js";
+import { monitorDAppConnections } from "./utils/sessionUtils.js";
 import { ethers } from "ethers";
 import {
   initializePortfolioSheet,
   updatePortfolioData,
   schedulePortfolioUpdates,
-} from "./utils/portfolioUtils";
+} from "./utils/portfolioUtils.js";
 
 // Load environment variables
 dotenv.config();
@@ -70,11 +73,11 @@ async function getAccessibleSheets() {
     }
 
     return response.data.files.map((file) => ({
-      id: file.id!,
-      name: file.name!,
+      id: file.id,
+      name: file.name,
       owner: file.owners?.[0]?.emailAddress || "unknown",
     }));
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("❌ Error in getAccessibleSheets:", error);
     if (error instanceof Error) {
       console.error("Error details:", {
@@ -90,7 +93,7 @@ async function getAccessibleSheets() {
 /**
  * Get the owner email for a specific sheet
  */
-async function getSheetOwnerEmailFromDrive(sheetId: string) {
+async function getSheetOwnerEmailFromDrive(sheetId) {
   try {
     // Authenticate with the service account
     const auth = new google.auth.GoogleAuth({
@@ -108,18 +111,14 @@ async function getSheetOwnerEmailFromDrive(sheetId: string) {
     });
 
     // Use type assertion to fix the data property error
-    const responseData = response as unknown as {
-      data: {
-        owners?: Array<{ emailAddress: string }>;
-      };
-    };
+    const responseData = response;
 
     if (responseData.data.owners && responseData.data.owners.length > 0) {
       return responseData.data.owners[0].emailAddress;
     }
 
     return null;
-  } catch (error: unknown) {
+  } catch (error) {
     console.error(`Error getting owner for sheet ${sheetId}:`, error);
     return null;
   }
@@ -128,12 +127,12 @@ async function getSheetOwnerEmailFromDrive(sheetId: string) {
 /**
  * Initialize a wallet agent for a specific sheet
  */
-async function initializeWalletAgent(sheetId: string) {
+async function initializeWalletAgent(sheetId) {
   try {
     console.log(`🔄 Initializing wallet agent for sheet ${sheetId}...`);
 
     // Create a logger function for this specific sheet that only logs to console
-    const logEvent = (message: string) => {
+    const logEvent = (message) => {
       console.log(`[Sheet ${sheetId}] ${message}`);
     };
 
@@ -145,12 +144,12 @@ async function initializeWalletAgent(sheetId: string) {
 
     // Create a wrapped addTransactionToSheet function that uses the sheet client
     const addTransactionToSheet = (
-      txHash: string,
-      from: string,
-      to: string,
-      amount: string,
-      timestamp: string,
-      status: string
+      txHash,
+      from,
+      to,
+      amount,
+      timestamp,
+      status
     ) => addTxToSheet(sheetClient, txHash, from, to, amount, timestamp, status);
 
     // Initialize sheets
@@ -251,7 +250,7 @@ async function initializeWalletAgent(sheetId: string) {
     console.log(`Wallet Address for ${sheetId}: ${wallet.address}`);
 
     return true;
-  } catch (error: unknown) {
+  } catch (error) {
     console.error(
       `Error initializing wallet agent for sheet ${sheetId}:`,
       error
@@ -263,11 +262,7 @@ async function initializeWalletAgent(sheetId: string) {
 /**
  * Set up a periodic check for stuck transactions
  */
-function setupStuckTransactionChecker(
-  sheetClient: SheetClient,
-  wallet: ethers.Wallet,
-  logEvent: Function
-) {
+function setupStuckTransactionChecker(sheetClient, wallet, logEvent) {
   // Create a provider
   const provider = new ethers.JsonRpcProvider(
     "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
@@ -318,7 +313,7 @@ export async function runAllWalletAgents() {
     console.log("Starting Google Sheets Wallet Manager");
 
     // Keep track of sheets we've already initialized
-    const initializedSheets = new Set<string>();
+    const initializedSheets = new Set();
 
     // Function to check for and initialize new sheets
     const checkForNewSheets = async () => {
@@ -375,7 +370,7 @@ export async function runAllWalletAgents() {
         checkInterval / 60000
       } minutes.`
     );
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("Error running wallet agents:", error);
   }
 }
@@ -384,12 +379,12 @@ export async function runAllWalletAgents() {
  * Manually force update pending transactions for a specific sheet
  * This can be called to fix sheets where checkboxes aren't showing up
  */
-export async function fixPendingTransactions(sheetId: string) {
+export async function fixPendingTransactions(sheetId) {
   try {
     console.log(`🛠️ Fixing pending transactions for sheet ${sheetId}...`);
 
     // Create a logger function for this specific sheet that only logs to console
-    const logEvent = (message: string) => {
+    const logEvent = (message) => {
       console.log(`[Sheet ${sheetId}] ${message}`);
     };
 
@@ -401,7 +396,7 @@ export async function fixPendingTransactions(sheetId: string) {
 
     console.log(`✅ Fixed pending transactions for sheet ${sheetId}`);
     return true;
-  } catch (error: unknown) {
+  } catch (error) {
     console.error(
       `❌ Error fixing pending transactions for sheet ${sheetId}:`,
       error
@@ -413,12 +408,12 @@ export async function fixPendingTransactions(sheetId: string) {
 /**
  * Manually update portfolio for a specific sheet
  */
-export async function updatePortfolio(sheetId: string) {
+export async function updatePortfolio(sheetId) {
   try {
     console.log(`📊 Updating portfolio for sheet ${sheetId}...`);
 
     // Create a logger function for this specific sheet
-    const logEvent = (message: string) => {
+    const logEvent = (message) => {
       console.log(`[Sheet ${sheetId}] ${message}`);
     };
 
@@ -443,20 +438,8 @@ export async function updatePortfolio(sheetId: string) {
 
     console.log(`✅ Updated portfolio for sheet ${sheetId}`);
     return true;
-  } catch (error: unknown) {
+  } catch (error) {
     console.error(`❌ Error updating portfolio for sheet ${sheetId}:`, error);
     return false;
   }
-}
-
-// If run directly
-if (require.main === module) {
-  runAllWalletAgents()
-    .then(() => {
-      console.log("Wallet Manager started successfully");
-    })
-    .catch((error: unknown) => {
-      console.error("Failed to start Wallet Manager:", error);
-      process.exit(1);
-    });
 }

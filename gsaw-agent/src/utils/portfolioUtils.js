@@ -1462,7 +1462,7 @@ export async function updatePortfolioData(sheetClient, wallet, logEvent) {
     const provider =
       wallet.provider ||
       new ethers.JsonRpcProvider(
-        process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+        "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
       );
     const ethBalance = await provider.getBalance(wallet.address);
     const ethBalanceFormatted = Number(ethers.formatEther(ethBalance));

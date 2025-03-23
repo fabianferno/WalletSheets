@@ -1,19 +1,15 @@
 import { ethers } from "ethers";
-import { SheetClient } from "../sheets.api";
 import axios from "axios";
-import { PORTFOLIO_SHEET, SHEET_STYLES } from "./sheetUtils";
+import { PORTFOLIO_SHEET, SHEET_STYLES } from "./sheetUtils.js";
 
 // Constants
 // Set this to true to use mock data, false to fetch real wallet balances
-export const USE_MOCK_DATA = true;
+export const USE_MOCK_DATA = false;
 
 /**
  * Initialize portfolio sheet with enhanced UI
  */
-export async function initializePortfolioSheet(
-  sheetClient: SheetClient,
-  logEvent: Function
-) {
+export async function initializePortfolioSheet(sheetClient, logEvent) {
   try {
     logEvent("Initializing enhanced portfolio dashboard...");
 
@@ -31,7 +27,7 @@ export async function initializePortfolioSheet(
     await formatEnhancedPortfolioSheet(sheetClient, logEvent);
 
     logEvent("Enhanced portfolio dashboard initialized successfully");
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error initializing portfolio dashboard: ${
         error instanceof Error ? error.message : String(error)
@@ -44,10 +40,7 @@ export async function initializePortfolioSheet(
 /**
  * Format the portfolio sheet with an enhanced UI
  */
-async function formatEnhancedPortfolioSheet(
-  sheetClient: SheetClient,
-  logEvent: Function
-) {
+async function formatEnhancedPortfolioSheet(sheetClient, logEvent) {
   try {
     // Get sheetId first
     const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
@@ -597,7 +590,7 @@ async function formatEnhancedPortfolioSheet(
     logEvent(
       "Enhanced portfolio sheet formatted successfully with optimized API calls"
     );
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error formatting enhanced portfolio sheet: ${
         error instanceof Error ? error.message : String(error)
@@ -610,11 +603,7 @@ async function formatEnhancedPortfolioSheet(
 /**
  * Update portfolio data with enhanced UI elements
  */
-export async function updatePortfolioData(
-  sheetClient: SheetClient,
-  wallet: ethers.Wallet,
-  logEvent: Function
-) {
+export async function updatePortfolioData(sheetClient, wallet, logEvent) {
   try {
     logEvent("Updating enhanced portfolio data...");
 
@@ -634,7 +623,7 @@ export async function updatePortfolioData(
 
     // Calculate total portfolio value (ETH + all tokens)
     const tokenValuesUsd = tokenData.items.reduce(
-      (total: number, token: any) => total + (token.quote || 0),
+      (total, token) => total + (token.quote || 0),
       0
     );
     const totalValueUsd = tokenValuesUsd;
@@ -711,17 +700,13 @@ export async function updatePortfolioData(
     if (tokenData.items.length > 0) {
       try {
         logEvent("Attempting direct chart creation with data");
-
-        // Clear existing charts first to avoid duplicates
-        await clearExistingCharts(sheetClient, logEvent);
-
         const CHART_WIDTH = 400;
         const CHART_HEIGHT = 350;
 
         // Get sheet ID for chart creation
         const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
 
-        // Create batch update request for charts with horizontal layout
+        // Create batch update request for charts
         const chartRequests = {
           requests: [
             // Asset Distribution (Pie Chart)
@@ -803,140 +788,20 @@ export async function updatePortfolioData(
                       ],
                       series: [
                         {
-                          series: {
+                          data: {
                             sourceRange: {
                               sources: [
                                 {
                                   sheetId: sheetId,
                                   startRowIndex: 27,
                                   endRowIndex: 35,
-                                  startColumnIndex: 5,
-                                  endColumnIndex: 6,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 3,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Weekly Performance (Line Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Weekly Performance",
-                    basicChart: {
-                      chartType: "LINE",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1,
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 6,
-                                  endColumnIndex: 7,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 6,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Token Balances (Bar Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Token Balances",
-                    basicChart: {
-                      chartType: "BAR",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1, // Symbol column
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 3, // USD Value column
+                                  startColumnIndex: 3,
                                   endColumnIndex: 4,
                                 },
                               ],
                             },
                           },
-                          targetAxis: "BOTTOM_AXIS",
+                          targetAxis: "LEFT_AXIS",
                         },
                       ],
                     },
@@ -945,10 +810,10 @@ export async function updatePortfolioData(
                     overlayPosition: {
                       anchorCell: {
                         sheetId: sheetId,
-                        rowIndex: 66,
-                        columnIndex: 0,
+                        rowIndex: 46,
+                        columnIndex: 4,
                       },
-                      widthPixels: CHART_WIDTH + 100, // Slightly wider for bar chart
+                      widthPixels: CHART_WIDTH,
                       heightPixels: CHART_HEIGHT,
                     },
                   },
@@ -971,7 +836,7 @@ export async function updatePortfolioData(
     logEvent(
       "Enhanced portfolio data updated successfully with optimized API calls"
     );
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error updating enhanced portfolio data: ${
         error instanceof Error ? error.message : String(error)
@@ -985,11 +850,11 @@ export async function updatePortfolioData(
  * Update asset allocation with percentage calculation
  */
 async function updateEnhancedAssetAllocation(
-  sheetClient: SheetClient,
-  ethValueUsd: number,
-  totalValueUsd: number,
-  tokenData: any,
-  logEvent: Function
+  sheetClient,
+  ethValueUsd,
+  totalValueUsd,
+  tokenData,
+  logEvent
 ) {
   try {
     // Calculate ETH percentage
@@ -997,61 +862,22 @@ async function updateEnhancedAssetAllocation(
       totalValueUsd > 0 ? (ethValueUsd / totalValueUsd) * 100 : 0;
 
     // Prepare asset allocation data
-    let assetAllocation = [
+    const assetAllocation = [
       ["ETH", `$${ethValueUsd.toFixed(2)}`, `${ethPercentage.toFixed(2)}%`],
     ];
 
-    // Add token data with percentages, but merge Ethereum with ETH
+    // Add token data with percentages
     if (tokenData && tokenData.items) {
-      // First pass: Identify if we have Ethereum in the tokens to avoid duplicates
-      let hasEthereumToken = false;
-      let ethereumToken: any = null;
-
-      tokenData.items.forEach((token: any) => {
-        if (
-          token.contract_ticker_symbol === "ETH" ||
-          token.contract_name === "Ethereum" ||
-          token.contract_name === "ERC-20: ETH"
-        ) {
-          hasEthereumToken = true;
-          ethereumToken = token;
-        }
-      });
-
-      // If we have Ethereum in tokens, update the first ETH entry instead of adding a second one
-      if (hasEthereumToken && ethereumToken) {
-        // We already have ETH as first entry, so update it to combine both values
-        const combinedValue = ethValueUsd;
-        const combinedPercentage =
-          totalValueUsd > 0 ? (combinedValue / totalValueUsd) * 100 : 0;
-        assetAllocation[0] = [
-          "ETH (Combined)",
-          `$${combinedValue.toFixed(2)}`,
-          `${combinedPercentage.toFixed(2)}%`,
-        ];
-
-        // Remove Ethereum from the items to avoid adding it again
-        tokenData.items = tokenData.items.filter(
-          (token: any) =>
-            !(
-              token.contract_ticker_symbol === "ETH" ||
-              token.contract_name === "Ethereum" ||
-              token.contract_name === "ERC-20: ETH"
-            )
-        );
-      }
-
-      // Second pass: Add all remaining tokens
       tokenData.items
-        .filter((token: any) => (token?.quote || 0) > 1) // Only include tokens with value > $1
-        .sort((a: any, b: any) => (b?.quote || 0) - (a?.quote || 0)) // Sort by value (highest first)
+        .filter((token) => token.quote > 1) // Only include tokens with value > $1
+        .sort((a, b) => (b.quote || 0) - (a.quote || 0)) // Sort by value (highest first)
         .slice(0, 11) // Limit to top 11 assets (ETH + 11 = 12 total rows)
-        .forEach((token: any) => {
+        .forEach((token) => {
           const tokenPercentage =
-            totalValueUsd > 0 ? ((token?.quote || 0) / totalValueUsd) * 100 : 0;
+            totalValueUsd > 0 ? (token.quote / totalValueUsd) * 100 : 0;
           assetAllocation.push([
             token.contract_name || token.contract_ticker_symbol,
-            `$${(token?.quote || 0).toFixed(2)}`,
+            `$${token.quote.toFixed(2)}`,
             `${tokenPercentage.toFixed(2)}%`,
           ]);
         });
@@ -1074,7 +900,7 @@ async function updateEnhancedAssetAllocation(
     logEvent(
       `Enhanced asset allocation data updated (${assetAllocation.length} assets)`
     );
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error updating enhanced asset allocation: ${
         error instanceof Error ? error.message : String(error)
@@ -1087,13 +913,12 @@ async function updateEnhancedAssetAllocation(
 /**
  * Get ETH price from CoinGecko API with better error handling and rate limiting
  */
-async function getEthPrice(logEvent: Function): Promise<number> {
+async function getEthPrice(logEvent) {
   try {
     logEvent("Fetching ETH price from CoinGecko...");
 
     // Function to wait with exponential backoff
-    const delay = (ms: number) =>
-      new Promise((resolve) => setTimeout(resolve, ms));
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
     // Try making the API request with exponential backoff
     let attempt = 0;
@@ -1131,7 +956,7 @@ async function getEthPrice(logEvent: Function): Promise<number> {
           );
           return 3500; // Default value if API response format is unexpected
         }
-      } catch (error: any) {
+      } catch (error) {
         attempt++;
 
         // Check if the error is a rate limit (429)
@@ -1166,11 +991,11 @@ async function getEthPrice(logEvent: Function): Promise<number> {
  * Function to fetch real token balance for a specific address and token
  */
 async function getTokenBalance(
-  walletAddress: string,
-  tokenAddress: string,
-  provider: ethers.JsonRpcProvider,
-  logEvent: Function
-): Promise<string> {
+  walletAddress,
+  tokenAddress,
+  provider,
+  logEvent
+) {
   try {
     // For native ETH
     if (tokenAddress === "Native") {
@@ -1198,11 +1023,7 @@ async function getTokenBalance(
 /**
  * Get token data from CoinGecko API with better error handling and rate limit management
  */
-async function getTokenData(
-  walletAddress: string,
-  chainId: string,
-  logEvent: Function
-) {
+async function getTokenData(walletAddress, chainId, logEvent) {
   try {
     // If mock data is enabled, return mock data immediately
     if (USE_MOCK_DATA) {
@@ -1266,8 +1087,7 @@ async function getTokenData(
     );
 
     // Function to wait with increasing backoff
-    const delay = (ms: number) =>
-      new Promise((resolve) => setTimeout(resolve, ms));
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
     // Try making the API request with exponential backoff
     let attempt = 0;
@@ -1376,7 +1196,7 @@ async function getTokenData(
           `Successfully processed ${items.length} tokens from CoinGecko`
         );
         return { items };
-      } catch (apiError: any) {
+      } catch (apiError) {
         attempt++;
 
         // Check if the error is a rate limit (429)
@@ -1403,7 +1223,7 @@ async function getTokenData(
       `Failed to get data from CoinGecko after ${maxAttempts} attempts. Using mock data.`
     );
     return getMockTokenData();
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error in token data function: ${
         error instanceof Error ? error.message : String(error)
@@ -1416,13 +1236,13 @@ async function getTokenData(
 /**
  * Get network name from chain ID
  */
-function getNetworkName(chainId: bigint): string {
-  const chainIdMap: { [key: string]: string } = {
-    "1": "Ethereum Mainnet",
-    "42161": "Arbitrum One",
-    "421614": "Arbitrum Sepolia",
-    "11155111": "Sepolia",
-    "5": "Goerli",
+function getNetworkName(chainId) {
+  const chainIdMap = {
+    1: "Ethereum Mainnet",
+    42161: "Arbitrum One",
+    421614: "Arbitrum Sepolia",
+    11155111: "Sepolia",
+    5: "Goerli",
   };
 
   return chainIdMap[chainId.toString()] || `Chain ID: ${chainId.toString()}`;
@@ -1517,10 +1337,10 @@ function getMockTokenData() {
  * Update token holdings with enhanced formatting
  */
 async function updateEnhancedTokenHoldings(
-  sheetClient: SheetClient,
-  tokenData: any,
-  logEvent: Function,
-  wallet?: ethers.Wallet
+  sheetClient,
+  tokenData,
+  logEvent,
+  wallet
 ) {
   try {
     // Prepare token data rows to update in a single API call
@@ -1541,7 +1361,7 @@ async function updateEnhancedTokenHoldings(
         .slice(0, 15);
 
       // Process all tokens at once
-      tokenRows = sortedTokens.map((token: any) => {
+      tokenRows = sortedTokens.map((token) => {
         // Use the actual 24h change if available from CoinGecko, otherwise generate random
         const change24h =
           token.price_change_24h !== undefined
@@ -1613,7 +1433,7 @@ async function updateEnhancedTokenHoldings(
     logEvent(
       `Updated token holdings in a single operation (${tokenCount} tokens)`
     );
-  } catch (error: unknown) {
+  } catch (error) {
     logEvent(
       `Error updating enhanced token holdings: ${
         error instanceof Error ? error.message : String(error)
@@ -1627,10 +1447,10 @@ async function updateEnhancedTokenHoldings(
  * Schedule regular portfolio updates and handle refresh button
  */
 export function schedulePortfolioUpdates(
-  sheetClient: SheetClient,
-  wallet: ethers.Wallet,
-  logEvent: Function,
-  intervalMinutes: number = 60
+  sheetClient,
+  wallet,
+  logEvent,
+  intervalMinutes = 60
 ) {
   let lastRefreshTime = new Date().getTime();
   let chartsCreated = false;
@@ -1944,71 +1764,17 @@ export function schedulePortfolioUpdates(
 }
 
 /**
- * Clear existing charts from the portfolio sheet
- */
-async function clearExistingCharts(
-  sheetClient: SheetClient,
-  logEvent: Function
-): Promise<boolean> {
-  try {
-    logEvent("Clearing existing charts before creating new ones");
-
-    // Get the sheet ID
-    const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
-
-    // Get all charts in the sheet
-    const spreadsheet = await sheetClient.getSpreadsheet();
-
-    if (!spreadsheet.sheets) {
-      logEvent("No sheets found in spreadsheet");
-      return false;
-    }
-
-    // Find the sheet that matches our sheet ID
-    const sheet = spreadsheet.sheets.find(
-      (s) => s.properties?.sheetId === sheetId
-    );
-
-    if (!sheet || !sheet.charts || sheet.charts.length === 0) {
-      logEvent("No charts found to clear");
-      return true; // No charts to clear is still a success
-    }
-
-    // Create delete requests for all charts
-    const deleteRequests = sheet.charts.map((chart) => ({
-      deleteEmbeddedObject: {
-        objectId: chart.chartId,
-      },
-    }));
-
-    if (deleteRequests.length > 0) {
-      // Execute batch delete
-      await sheetClient.batchUpdate({ requests: deleteRequests });
-      logEvent(`Cleared ${deleteRequests.length} existing charts`);
-    }
-
-    return true;
-  } catch (error) {
-    logEvent(`Error clearing existing charts: ${error}`);
-    return false; // Failed to clear charts
-  }
-}
-
-/**
  * Create or update charts in the portfolio sheet
  */
-export function createOrUpdateCharts(
-  sheetClient: SheetClient,
-  logEvent: Function
-): void {
+export function createOrUpdateCharts(sheetClient, logEvent) {
   try {
     logEvent("Attempting to create portfolio charts");
     const CHART_WIDTH = 400;
     const CHART_HEIGHT = 350;
 
-    // First clear existing charts, then create new ones
-    clearExistingCharts(sheetClient, logEvent)
-      .then(() => sheetClient.getSheetIdByName(PORTFOLIO_SHEET))
+    // First get the sheet ID
+    sheetClient
+      .getSheetIdByName(PORTFOLIO_SHEET)
       .then((sheetId) => {
         // Create batch update request for charts
         const chartRequests = {
@@ -2092,140 +1858,20 @@ export function createOrUpdateCharts(
                       ],
                       series: [
                         {
-                          series: {
+                          data: {
                             sourceRange: {
                               sources: [
                                 {
                                   sheetId: sheetId,
                                   startRowIndex: 27,
                                   endRowIndex: 35,
-                                  startColumnIndex: 5,
-                                  endColumnIndex: 6,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 3,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Weekly Performance (Line Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Weekly Performance",
-                    basicChart: {
-                      chartType: "LINE",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1,
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 6,
-                                  endColumnIndex: 7,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 6,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Token Balances (Bar Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Token Balances",
-                    basicChart: {
-                      chartType: "BAR",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1, // Symbol column
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 3, // USD Value column
+                                  startColumnIndex: 3,
                                   endColumnIndex: 4,
                                 },
                               ],
                             },
                           },
-                          targetAxis: "BOTTOM_AXIS",
+                          targetAxis: "LEFT_AXIS",
                         },
                       ],
                     },
@@ -2234,10 +1880,10 @@ export function createOrUpdateCharts(
                     overlayPosition: {
                       anchorCell: {
                         sheetId: sheetId,
-                        rowIndex: 66,
-                        columnIndex: 0,
+                        rowIndex: 46,
+                        columnIndex: 4,
                       },
-                      widthPixels: CHART_WIDTH + 100, // Slightly wider for bar chart
+                      widthPixels: CHART_WIDTH,
                       heightPixels: CHART_HEIGHT,
                     },
                   },
@@ -2279,15 +1925,9 @@ export function createOrUpdateCharts(
  * Create simplified charts as a fallback method
  * This function uses a more direct approach with explicit dimensions
  */
-async function createSimplifiedCharts(
-  sheetClient: SheetClient,
-  logEvent: Function
-) {
+async function createSimplifiedCharts(sheetClient, logEvent) {
   try {
     logEvent("Creating simplified charts as fallback");
-
-    // Clear existing charts first
-    await clearExistingCharts(sheetClient, logEvent);
 
     // Get the sheet ID
     const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
@@ -2339,8 +1979,8 @@ async function createSimplifiedCharts(
                     rowIndex: 46,
                     columnIndex: 0,
                   },
-                  widthPixels: 400,
-                  heightPixels: 350,
+                  widthPixels: 500,
+                  heightPixels: 400,
                 },
               },
             },
@@ -2374,7 +2014,7 @@ async function createSimplifiedCharts(
                   ],
                   series: [
                     {
-                      series: {
+                      data: {
                         sourceRange: {
                           sources: [
                             {
@@ -2397,131 +2037,10 @@ async function createSimplifiedCharts(
                   anchorCell: {
                     sheetId: sheetId,
                     rowIndex: 46,
-                    columnIndex: 3,
-                  },
-                  widthPixels: 400,
-                  heightPixels: 350,
-                },
-              },
-            },
-          },
-        },
-        // Weekly Performance Line Chart (New)
-        {
-          addChart: {
-            chart: {
-              spec: {
-                title: "Weekly Performance",
-                basicChart: {
-                  chartType: "LINE",
-                  legendPosition: "BOTTOM_LEGEND",
-                  domains: [
-                    {
-                      domain: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 1, // Symbol column
-                              endColumnIndex: 2,
-                            },
-                          ],
-                        },
-                      },
-                    },
-                  ],
-                  series: [
-                    {
-                      series: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 6, // 7d change column
-                              endColumnIndex: 7,
-                            },
-                          ],
-                        },
-                      },
-                      targetAxis: "LEFT_AXIS",
-                    },
-                  ],
-                  lineSmoothing: true,
-                },
-              },
-              position: {
-                overlayPosition: {
-                  anchorCell: {
-                    sheetId: sheetId,
-                    rowIndex: 46,
-                    columnIndex: 6,
-                  },
-                  widthPixels: 400,
-                  heightPixels: 350,
-                },
-              },
-            },
-          },
-        },
-        // Token Balances Bar Chart as a simplified version
-        {
-          addChart: {
-            chart: {
-              spec: {
-                title: "Token Balances",
-                basicChart: {
-                  chartType: "BAR",
-                  legendPosition: "BOTTOM_LEGEND",
-                  domains: [
-                    {
-                      domain: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 1, // Symbol column
-                              endColumnIndex: 2,
-                            },
-                          ],
-                        },
-                      },
-                    },
-                  ],
-                  series: [
-                    {
-                      series: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 3, // USD Value column
-                              endColumnIndex: 4,
-                            },
-                          ],
-                        },
-                      },
-                      targetAxis: "BOTTOM_AXIS",
-                    },
-                  ],
-                },
-              },
-              position: {
-                overlayPosition: {
-                  anchorCell: {
-                    sheetId: sheetId,
-                    rowIndex: 66,
-                    columnIndex: 0,
+                    columnIndex: 4,
                   },
                   widthPixels: 500,
-                  heightPixels: 350,
+                  heightPixels: 400,
                 },
               },
             },
