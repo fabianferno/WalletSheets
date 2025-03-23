@@ -177,10 +177,11 @@ export async function createSettingsSheet(
       const sheetId = await sheetClient.createSheet(SETTINGS_SHEET);
 
       // Set up headers
-      await sheetClient.setRangeValues(`${SETTINGS_SHEET}!A1:B3`, [
+      await sheetClient.setRangeValues(`${SETTINGS_SHEET}!A1:B4`, [
         ["Setting", "Value"],
         ["Wallet Address", ""],
         ["Sheet Owner Email", ""],
+        ["Risk Factor", "5"], // Default value of 5 (middle of 0-10 range)
       ]);
 
       // Set column widths
@@ -191,11 +192,25 @@ export async function createSettingsSheet(
               range: {
                 sheetId: sheetId,
                 dimension: "COLUMNS",
-                startIndex: 0,
+                startIndex: 0, // Column A (Setting)
+                endIndex: 1,
+              },
+              properties: {
+                pixelSize: 150, // Width for Setting column
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 1, // Column B (Value)
                 endIndex: 2,
               },
               properties: {
-                pixelSize: 200, // Set width for all columns
+                pixelSize: 300, // Increased width for Value column
               },
               fields: "pixelSize",
             },
@@ -207,7 +222,7 @@ export async function createSettingsSheet(
       await sheetClient.formatRange(
         sheetId,
         0, // startRowIndex
-        3, // endRowIndex (exclusive)
+        4, // endRowIndex (exclusive, increased to include new row)
         0, // startColumnIndex
         2, // endColumnIndex (exclusive)
         SHEET_STYLES.BASE_TEXT
@@ -227,7 +242,7 @@ export async function createSettingsSheet(
       await sheetClient.formatRange(
         sheetId,
         1, // startRowIndex (row 2)
-        3, // endRowIndex (exclusive)
+        4, // endRowIndex (exclusive, increased to include new row)
         0, // startColumnIndex
         1, // endColumnIndex (exclusive)
         {
@@ -236,6 +251,32 @@ export async function createSettingsSheet(
           },
         }
       );
+
+      // Add data validation for Risk Factor (0-10)
+      const requests = [
+        {
+          setDataValidation: {
+            range: {
+              sheetId: sheetId,
+              startRowIndex: 3, // Risk Factor row (4th row, 0-based)
+              endRowIndex: 4,
+              startColumnIndex: 1, // Column B
+              endColumnIndex: 2,
+            },
+            rule: {
+              condition: {
+                type: "NUMBER_BETWEEN",
+                values: [{ userEnteredValue: "0" }, { userEnteredValue: "10" }],
+              },
+              inputMessage: "Enter a value between 0 and 10",
+              strict: true,
+              showCustomUi: true,
+            },
+          },
+        },
+      ];
+
+      await sheetClient.batchUpdate({ requests });
 
       logEvent(`${SETTINGS_SHEET} sheet created with styling`);
     }
@@ -1561,5 +1602,56 @@ export async function monitorChatSheet(
         error instanceof Error ? error.message : String(error)
       }`
     );
+  }
+}
+
+/**
+ * Get risk factor from settings
+ * Returns a number between 0-10 indicating risk tolerance, defaults to 5 if not set
+ */
+export async function getRiskFactor(
+  sheetClient: SheetClient,
+  logEvent: Function
+): Promise<number> {
+  try {
+    console.log(
+      `🔍 Attempting to get risk factor from "${SETTINGS_SHEET}" sheet...`
+    );
+    const values = await sheetClient.getSheetValues(SETTINGS_SHEET);
+
+    // Find the risk factor in the settings
+    for (const row of values) {
+      if (row[0] === "Risk Factor") {
+        const riskValue = parseFloat(row[1]);
+        // Validate that the value is within range
+        if (!isNaN(riskValue) && riskValue >= 0 && riskValue <= 10) {
+          console.log(`✅ Found risk factor: ${riskValue}`);
+          return riskValue;
+        } else {
+          console.log(`⚠️ Invalid risk factor value: ${row[1]}, using default`);
+          return 5; // Default to middle value if invalid
+        }
+      }
+    }
+
+    console.log(
+      `⚠️ Risk factor not found in settings, using default value of 5`
+    );
+    return 5; // Default to middle value if not found
+  } catch (error: unknown) {
+    console.error(`❌ Error getting risk factor:`, error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
+    logEvent(
+      `Error getting risk factor: ${
+        error instanceof Error ? error.message : String(error)
+      }. Using default value of 5.`
+    );
+    return 5; // Default to middle value if error
   }
 }
