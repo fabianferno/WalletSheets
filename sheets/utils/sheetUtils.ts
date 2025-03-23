@@ -9,6 +9,35 @@ export const ACTIVE_SESSIONS_SHEET = "ActiveSessions";
 export const PENDING_TRANSACTIONS_SHEET = "Pending Transactions";
 export const CHAT_SHEET = "Chat";
 
+// Common styling constants for sheets
+export const SHEET_STYLES = {
+  // Header row styling (mild green)
+  HEADER: {
+    backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Mild green
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+  },
+  // Helper notes styling (mild grey)
+  HELPER_NOTES: {
+    textFormat: {
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey
+      italic: true,
+    },
+  },
+  // Base text styling
+  BASE_TEXT: {
+    wrapStrategy: "WRAP",
+    textFormat: {
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+  },
+};
+
 /**
  * Initialize or get existing sheets
  */
@@ -144,7 +173,7 @@ export async function createSettingsSheet(
       return;
     } catch {
       // Create the sheet
-      await sheetClient.createSheet(SETTINGS_SHEET);
+      const sheetId = await sheetClient.createSheet(SETTINGS_SHEET);
 
       // Set up headers
       await sheetClient.setRangeValues(`${SETTINGS_SHEET}!A1:B3`, [
@@ -153,7 +182,61 @@ export async function createSettingsSheet(
         ["Sheet Owner Email", ""],
       ]);
 
-      logEvent(`${SETTINGS_SHEET} sheet created`);
+      // Set column widths
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 0,
+                endIndex: 2,
+              },
+              properties: {
+                pixelSize: 200, // Set width for all columns
+              },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      });
+
+      // Apply text wrapping and Roboto font to all cells
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex
+        3, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        2, // endColumnIndex (exclusive)
+        SHEET_STYLES.BASE_TEXT
+      );
+
+      // Format the header row with mild green
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex (0-based, so row 1)
+        1, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        2, // endColumnIndex (exclusive)
+        SHEET_STYLES.HEADER
+      );
+
+      // Bold the setting names in column A
+      await sheetClient.formatRange(
+        sheetId,
+        1, // startRowIndex (row 2)
+        3, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        1, // endColumnIndex (exclusive)
+        {
+          textFormat: {
+            bold: true,
+          },
+        }
+      );
+
+      logEvent(`${SETTINGS_SHEET} sheet created with styling`);
     }
   } catch (error: unknown) {
     logEvent(
@@ -179,14 +262,82 @@ export async function createWalletExplorerSheet(
       return;
     } catch {
       // Create the sheet
-      await sheetClient.createSheet(WALLET_EXPLORER_SHEET);
+      const sheetId = await sheetClient.createSheet(WALLET_EXPLORER_SHEET);
 
       // Set up headers
       await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A1:F1`, [
         ["Transaction Hash", "From", "To", "Amount", "Timestamp", "Status"],
       ]);
 
-      logEvent(`${WALLET_EXPLORER_SHEET} sheet created`);
+      // Set column widths
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 0, // Transaction Hash column
+                endIndex: 1,
+              },
+              properties: {
+                pixelSize: 250, // Wider for hash
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 1, // From column
+                endIndex: 3, // To column
+              },
+              properties: {
+                pixelSize: 220, // Width for address columns
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 3, // Amount column
+                endIndex: 6, // Status column
+              },
+              properties: {
+                pixelSize: 150, // Width for other columns
+              },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      });
+
+      // Apply text wrapping and Roboto font to all cells
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex
+        2, // endRowIndex (enough for header and first data row)
+        0, // startColumnIndex
+        6, // endColumnIndex (exclusive)
+        SHEET_STYLES.BASE_TEXT
+      );
+
+      // Format the header row with mild green
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex (0-based, so row 1)
+        1, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        6, // endColumnIndex (exclusive)
+        SHEET_STYLES.HEADER
+      );
+
+      logEvent(`${WALLET_EXPLORER_SHEET} sheet created with styling`);
     }
   } catch (error: unknown) {
     logEvent(
@@ -246,49 +397,88 @@ export async function createActiveSessionsSheet(
         ],
       ]);
 
-      // Format the instructions row
-      try {
-        // First get the sheet ID
-        const sheetId = await sheetClient.getSheetIdByName(
-          ACTIVE_SESSIONS_SHEET
-        );
+      // First get the sheet ID
+      const sheetId = await sheetClient.getSheetIdByName(ACTIVE_SESSIONS_SHEET);
 
-        // Format the instructions row (row 2, which is index 1)
-        await sheetClient.formatRange(
-          sheetId,
-          1, // startRowIndex (0-based, so row 2)
-          2, // endRowIndex (exclusive)
-          0, // startColumnIndex
-          5, // endColumnIndex (exclusive, so columns A-E)
+      // Set column widths
+      await sheetClient.batchUpdate({
+        requests: [
           {
-            backgroundColor: { red: 0.9, green: 0.97, blue: 1.0 }, // Light blue (#e6f7ff)
-            textFormat: {
-              bold: true,
-              italic: true,
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 0,
+                endIndex: 5,
+              },
+              properties: {
+                pixelSize: 220, // Set width for all columns
+              },
+              fields: "pixelSize",
             },
-          }
-        );
+          },
+        ],
+      });
 
-        // Format the troubleshooting row
-        await sheetClient.formatRange(
-          sheetId,
-          3, // startRowIndex (row 4)
-          4, // endRowIndex (exclusive)
-          0, // startColumnIndex
-          5, // endColumnIndex (exclusive)
-          {
-            backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red
-            textFormat: {
-              bold: true,
-            },
-          }
-        );
-      } catch (formatError) {
-        logEvent(`Unable to format instructions row: ${formatError}`);
-      }
+      // Apply text wrapping to all cells
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex
+        4, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        5, // endColumnIndex (exclusive)
+        SHEET_STYLES.BASE_TEXT
+      );
+
+      // Format the header row (row 1)
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex (0-based, so row 1)
+        1, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        5, // endColumnIndex (exclusive, so columns A-E)
+        SHEET_STYLES.HEADER
+      );
+
+      // Format the instructions row (row 2)
+      await sheetClient.formatRange(
+        sheetId,
+        1, // startRowIndex (0-based, so row 2)
+        2, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        5, // endColumnIndex (exclusive, so columns A-E)
+        {
+          backgroundColor: { red: 0.9, green: 0.97, blue: 1.0 }, // Light blue (#e6f7ff)
+          textFormat: {
+            bold: true,
+            italic: true,
+            fontFamily: "Roboto",
+            foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey for helper notes
+          },
+          wrapStrategy: "WRAP",
+        }
+      );
+
+      // Format the troubleshooting row
+      await sheetClient.formatRange(
+        sheetId,
+        3, // startRowIndex (row 4)
+        4, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        5, // endColumnIndex (exclusive)
+        {
+          backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red
+          textFormat: {
+            bold: true,
+            fontFamily: "Roboto",
+            foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey for helper notes
+          },
+          wrapStrategy: "WRAP",
+        }
+      );
 
       logEvent(
-        `${ACTIVE_SESSIONS_SHEET} sheet created with detailed instructions`
+        `${ACTIVE_SESSIONS_SHEET} sheet created with detailed instructions and styling`
       );
     }
   } catch (error: unknown) {
@@ -318,7 +508,7 @@ export async function createPendingTransactionsSheet(
       const sheetId = await sheetClient.createSheet(PENDING_TRANSACTIONS_SHEET);
 
       // Set up headers
-      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A1:H1`, [
+      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A1:H2`, [
         [
           "Request ID",
           "Connection ID",
@@ -329,12 +519,8 @@ export async function createPendingTransactionsSheet(
           "Approve",
           "Reject",
         ],
-      ]);
-
-      // Add instructions for approval/rejection
-      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A2:H2`, [
         [
-          "INSTRUCTIONS",
+          "",
           "",
           "",
           "",
@@ -345,21 +531,115 @@ export async function createPendingTransactionsSheet(
         ],
       ]);
 
-      // Add a note at the top of the sheet explaining how to use the checkboxes
-      await sheetClient.setRangeValues(`${PENDING_TRANSACTIONS_SHEET}!A3:H3`, [
-        [
-          "NOTE",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "Checkboxes appear when transactions are added",
-          "Click to approve or reject",
+      // Set column widths
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 0, // Request ID column
+                endIndex: 2, // Type column
+              },
+              properties: {
+                pixelSize: 180, // Width for ID columns
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 2, // Type column
+                endIndex: 3, // Details column
+              },
+              properties: {
+                pixelSize: 150, // Width for Type column
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 3, // Details column
+                endIndex: 4, // Status column
+              },
+              properties: {
+                pixelSize: 250, // Wider for Details
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 4, // Status column
+                endIndex: 6, // Approve column
+              },
+              properties: {
+                pixelSize: 150, // Width for status and timestamp
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 6, // Approve column
+                endIndex: 8, // End of Reject column
+              },
+              properties: {
+                pixelSize: 130, // Width for checkbox columns
+              },
+              fields: "pixelSize",
+            },
+          },
         ],
-      ]);
+      });
 
-      logEvent(`${PENDING_TRANSACTIONS_SHEET} sheet created`);
+      // Apply text wrapping and Roboto font to all cells
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex
+        3, // endRowIndex (enough for header, instructions, and first data row)
+        0, // startColumnIndex
+        8, // endColumnIndex (exclusive)
+        SHEET_STYLES.BASE_TEXT
+      );
+
+      // Format the header row with mild green
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex (0-based, so row 1)
+        1, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        8, // endColumnIndex (exclusive)
+        SHEET_STYLES.HEADER
+      );
+
+      // Format the helper text row with grey text
+      await sheetClient.formatRange(
+        sheetId,
+        1, // startRowIndex (row 2)
+        2, // endRowIndex (exclusive)
+        6, // startColumnIndex (Approve column)
+        8, // endColumnIndex (exclusive)
+        SHEET_STYLES.HELPER_NOTES
+      );
+
+      // Removed checkbox creation - will only create checkboxes when transactions are added
+
+      logEvent(`${PENDING_TRANSACTIONS_SHEET} sheet created with styling`);
     }
   } catch (error: unknown) {
     logEvent(
