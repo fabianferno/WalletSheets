@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./components/ui/dialog";
 
 const COLOR = "#0F9D58";
 const HIT_COLOR = "#333333";
@@ -123,6 +130,55 @@ const PIXEL_MAP = {
     [1, 0, 0, 0, 1],
     [1, 0, 0, 0, 1],
   ],
+  B: [
+    [1, 1, 1, 0],
+    [1, 0, 0, 1],
+    [1, 1, 1, 0],
+    [1, 0, 0, 1],
+    [1, 1, 1, 0],
+  ],
+  K: [
+    [1, 0, 0, 1],
+    [1, 0, 1, 0],
+    [1, 1, 0, 0],
+    [1, 0, 1, 0],
+    [1, 0, 0, 1],
+  ],
+  X: [
+    [1, 0, 0, 0, 1],
+    [0, 1, 0, 1, 0],
+    [0, 0, 1, 0, 0],
+    [0, 1, 0, 1, 0],
+    [1, 0, 0, 0, 1],
+  ],
+  W: [
+    [1, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1],
+    [1, 0, 1, 0, 1],
+    [1, 1, 0, 1, 1],
+    [1, 0, 0, 0, 1],
+  ],
+  F: [
+    [1, 1, 1, 1],
+    [1, 0, 0, 0],
+    [1, 1, 1, 0],
+    [1, 0, 0, 0],
+    [1, 0, 0, 0],
+  ],
+  J: [
+    [0, 0, 1, 1],
+    [0, 0, 0, 1],
+    [0, 0, 0, 1],
+    [1, 0, 0, 1],
+    [0, 1, 1, 0],
+  ],
+  Q: [
+    [0, 1, 1, 0],
+    [1, 0, 0, 1],
+    [1, 0, 0, 1],
+    [1, 0, 1, 1],
+    [0, 1, 1, 1],
+  ],
 };
 
 interface Pixel {
@@ -155,6 +211,7 @@ export function SheetsIsAllYouNeed() {
   const ballRef = useRef<Ball>({ x: 0, y: 0, dx: 0, dy: 0, radius: 0 });
   const paddlesRef = useRef<Paddle[]>([]);
   const scaleRef = useRef(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const buttonRef = useRef({
     x: 0,
     y: 0,
@@ -183,8 +240,7 @@ export function SheetsIsAllYouNeed() {
         mouseY <= button.y + button.height
       ) {
         console.log("Get Started button clicked!");
-        // Add your button action here
-        // window.location.href = "/start";
+        setIsModalOpen(true);
       }
     };
 
@@ -213,7 +269,7 @@ export function SheetsIsAllYouNeed() {
 
     const initializeGame = () => {
       const scale = scaleRef.current;
-      const LARGE_PIXEL_SIZE = 8 * scale;
+      const LARGE_PIXEL_SIZE = 6 * scale;
       const SMALL_PIXEL_SIZE = 4 * scale;
       const BALL_SPEED = 2 * scale;
 
@@ -249,15 +305,15 @@ export function SheetsIsAllYouNeed() {
 
       const largeTextHeight = 5 * adjustedLargePixelSize;
       const smallTextHeight = 5 * adjustedSmallPixelSize;
-      const spaceBetweenLines = 5 * adjustedLargePixelSize;
+      const spaceBetweenLines = 3 * adjustedLargePixelSize;
       const totalTextHeight =
         largeTextHeight + spaceBetweenLines + smallTextHeight;
 
       let startY = (canvas.height - totalTextHeight) / 2;
 
       // Set up the button dimensions and position
-      const buttonWidth = 200 * scale;
-      const buttonHeight = 60 * scale;
+      const buttonWidth = 250 * scale;
+      const buttonHeight = 80 * scale;
       const buttonY =
         (canvas.height - totalTextHeight) / 2 + totalTextHeight + 80 * scale;
 
@@ -483,48 +539,66 @@ export function SheetsIsAllYouNeed() {
       const button = buttonRef.current;
       ctx.fillStyle = buttonRef.current.isHovered ? "#0c8b4e" : "#0F9D58";
 
-      // Draw rounded rectangle
-      const radius = 10 * scaleRef.current;
-      ctx.beginPath();
-      ctx.moveTo(button.x + radius, button.y);
-      ctx.lineTo(button.x + button.width - radius, button.y);
-      ctx.arcTo(
-        button.x + button.width,
-        button.y,
-        button.x + button.width,
-        button.y + radius,
-        radius
-      );
-      ctx.lineTo(button.x + button.width, button.y + button.height - radius);
-      ctx.arcTo(
-        button.x + button.width,
-        button.y + button.height,
-        button.x + button.width - radius,
-        button.y + button.height,
-        radius
-      );
-      ctx.lineTo(button.x + radius, button.y + button.height);
-      ctx.arcTo(
-        button.x,
-        button.y + button.height,
-        button.x,
-        button.y + button.height - radius,
-        radius
-      );
-      ctx.lineTo(button.x, button.y + radius);
-      ctx.arcTo(button.x, button.y, button.x + radius, button.y, radius);
-      ctx.closePath();
-      ctx.fill();
+      // Draw rectangle with no radius
+      ctx.fillRect(button.x, button.y, button.width, button.height);
 
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = `bold ${24 * scaleRef.current}px Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(
-        "Get Started",
-        button.x + button.width / 2,
-        button.y + button.height / 2
-      );
+      // Draw "GET STARTED" in pixel font
+      const buttonText = [
+        "G",
+        "E",
+        "T",
+        " ",
+        "S",
+        "T",
+        "A",
+        "R",
+        "T",
+        "E",
+        "D",
+      ];
+      const pixelSize = 3.5 * scaleRef.current; // Slightly smaller pixel size to ensure fit
+      const letterSpacing = LETTER_SPACING * pixelSize;
+      const wordSpacing = WORD_SPACING * pixelSize;
+
+      // Calculate total width of text in pixels to center it
+      let totalTextWidth = buttonText.reduce((width, letter, index) => {
+        if (letter === " ") {
+          return width + wordSpacing;
+        }
+        const letterWidth =
+          PIXEL_MAP[letter as keyof typeof PIXEL_MAP]?.[0]?.length ?? 0;
+        return (
+          width +
+          letterWidth * pixelSize +
+          (index < buttonText.length - 1 ? letterSpacing : 0)
+        );
+      }, 0);
+
+      // Start drawing from centered position
+      let startX = button.x + (button.width - totalTextWidth) / 2;
+      const startY = button.y + (button.height - 5 * pixelSize) / 2; // 5 rows per character
+
+      buttonText.forEach((letter) => {
+        if (letter === " ") {
+          startX += wordSpacing;
+          return;
+        }
+
+        const pixelMap = PIXEL_MAP[letter as keyof typeof PIXEL_MAP];
+        if (!pixelMap) return;
+
+        for (let i = 0; i < pixelMap.length; i++) {
+          for (let j = 0; j < pixelMap[i].length; j++) {
+            if (pixelMap[i][j]) {
+              const x = startX + j * pixelSize;
+              const y = startY + i * pixelSize;
+              ctx.fillStyle = "#FFFFFF"; // White color for pixels
+              ctx.fillRect(x, y, pixelSize, pixelSize);
+            }
+          }
+        }
+        startX += (pixelMap[0].length + LETTER_SPACING) * pixelSize;
+      });
     };
 
     const gameLoop = () => {
@@ -545,11 +619,63 @@ export function SheetsIsAllYouNeed() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full"
-      aria-label="Sheets Is All You Need: Fullscreen Pong game with pixel text"
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className="fixed top-0 left-0 w-full h-full"
+        aria-label="Sheets Is All You Need: Fullscreen Pong game with pixel text"
+      />
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[90vw] min-h-[90vh] max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="text-3xl font-bold text-green-600">
+              Get Started with Sheets
+            </DialogTitle>
+            <DialogDescription className="text-lg">
+              Welcome to the world of Sheets - here's how to get started.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-6 py-6 px-2">
+            <div className="space-y-6">
+              <h3 className="text-2xl font-medium">What is Sheets?</h3>
+              <p className="text-lg">
+                Sheets is a revolutionary platform that allows you to interact
+                with blockchain technology directly through Google Sheets. No
+                coding required, just spreadsheets!
+              </p>
+
+              <h3 className="text-2xl font-medium mt-8">Key Features</h3>
+              <ul className="list-disc pl-8 space-y-3 text-lg">
+                <li>Send transactions directly from your spreadsheet</li>
+                <li>Monitor wallet activity in real-time</li>
+                <li>Track transaction history</li>
+                <li>Manage multiple wallets in one place</li>
+                <li>Approve or reject transactions with a simple checkbox</li>
+              </ul>
+
+              <h3 className="text-2xl font-medium mt-8">How to Begin</h3>
+              <ol className="list-decimal pl-8 space-y-3 text-lg">
+                <li>Create a new Google Sheet</li>
+                <li>Connect it to the Sheets extension</li>
+                <li>Follow the setup wizard to connect your wallet</li>
+                <li>
+                  Start using the power of blockchain in your spreadsheets!
+                </li>
+              </ol>
+
+              <div className="bg-green-50 p-6 rounded-md mt-8">
+                <p className="text-green-800 text-xl">
+                  Ready to transform how you interact with blockchain? Start
+                  using Sheets today!
+                </p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
