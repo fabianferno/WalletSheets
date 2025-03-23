@@ -1207,22 +1207,14 @@ export async function createChatSheet(
 
       // Format the header
       try {
-        // Format the title row
+        // Format the title row with mild green to match other sheets
         await sheetClient.formatRange(
           sheetId,
           0, // startRowIndex
           1, // endRowIndex
           0, // startColumnIndex
           6, // endColumnIndex
-          {
-            backgroundColor: { red: 0.2, green: 0.3, blue: 0.8 }, // Blue background
-            textFormat: {
-              bold: true,
-              fontSize: 14,
-              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
-            },
-            horizontalAlignment: "CENTER",
-          }
+          SHEET_STYLES.HEADER
         );
 
         // Format the user input label
@@ -1233,10 +1225,11 @@ export async function createChatSheet(
           0, // startColumnIndex
           1, // endColumnIndex
           {
-            backgroundColor: { red: 0.2, green: 0.2, blue: 0.6 }, // Dark blue background
+            backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Match header style
             textFormat: {
               bold: true,
-              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+              fontFamily: "Roboto",
+              foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
             },
             horizontalAlignment: "CENTER",
           }
@@ -1251,6 +1244,10 @@ export async function createChatSheet(
           2, // endColumnIndex
           {
             backgroundColor: { red: 0.95, green: 0.95, blue: 1.0 }, // Very light blue
+            textFormat: {
+              fontFamily: "Roboto",
+              foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+            },
             borders: {
               top: { style: "SOLID" },
               bottom: { style: "SOLID" },
@@ -1260,19 +1257,14 @@ export async function createChatSheet(
           }
         );
 
-        // Format the instructions
+        // Format the instructions with helper notes style
         await sheetClient.formatRange(
           sheetId,
           1, // startRowIndex
           2, // endRowIndex
           2, // startColumnIndex
           6, // endColumnIndex
-          {
-            textFormat: {
-              italic: true,
-              foregroundColor: { red: 0.4, green: 0.4, blue: 0.4 }, // Gray text
-            },
-          }
+          SHEET_STYLES.HELPER_NOTES
         );
 
         // Format the chat history header
@@ -1283,11 +1275,11 @@ export async function createChatSheet(
           0, // startColumnIndex
           6, // endColumnIndex
           {
-            backgroundColor: { red: 0.3, green: 0.3, blue: 0.3 }, // Dark gray background
+            backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Match header style
             textFormat: {
               bold: true,
-              fontSize: 12,
-              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+              fontFamily: "Roboto",
+              foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
             },
             horizontalAlignment: "CENTER",
           }
@@ -1345,7 +1337,7 @@ export async function createChatSheet(
         logEvent(`Unable to format Chat sheet: ${formatError}`);
       }
 
-      logEvent(`${CHAT_SHEET} sheet created`);
+      logEvent(`${CHAT_SHEET} sheet created with standard styling`);
     }
   } catch (error: unknown) {
     logEvent(
@@ -1405,7 +1397,7 @@ export async function monitorChatSheet(
             ["You", userMessage],
           ]);
 
-          // Format the "You" label
+          // Format the "You" label with light blue
           await sheetClient.formatRange(
             sheetId,
             4, // startRowIndex (row 5, zero-based)
@@ -1413,10 +1405,11 @@ export async function monitorChatSheet(
             0, // startColumnIndex
             1, // endColumnIndex
             {
-              backgroundColor: { red: 0.2, green: 0.2, blue: 0.6 }, // Dark blue background
+              backgroundColor: { red: 0.9, green: 0.95, blue: 1.0 }, // Light blue
               textFormat: {
                 bold: true,
-                foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+                fontFamily: "Roboto",
+                foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
               },
               horizontalAlignment: "CENTER",
             }
@@ -1430,7 +1423,11 @@ export async function monitorChatSheet(
             1, // startColumnIndex
             6, // endColumnIndex
             {
-              backgroundColor: { red: 0.95, green: 0.95, blue: 1.0 }, // Very light blue
+              backgroundColor: { red: 0.95, green: 0.97, blue: 1.0 }, // Very light blue
+              textFormat: {
+                fontFamily: "Roboto",
+                foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+              },
               wrapStrategy: "WRAP",
             }
           );
@@ -1442,7 +1439,7 @@ export async function monitorChatSheet(
               ["Agent", "Thinking..."],
             ]);
 
-            // Format the agent label
+            // Format the agent label with light red
             await sheetClient.formatRange(
               sheetId,
               5, // startRowIndex
@@ -1450,10 +1447,11 @@ export async function monitorChatSheet(
               0, // startColumnIndex
               1, // endColumnIndex
               {
-                backgroundColor: { red: 0.2, green: 0.6, blue: 0.2 }, // Green background
+                backgroundColor: { red: 1.0, green: 0.9, blue: 0.9 }, // Light red
                 textFormat: {
                   bold: true,
-                  foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 }, // White text
+                  fontFamily: "Roboto",
+                  foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
                 },
                 horizontalAlignment: "CENTER",
               }
@@ -1501,9 +1499,10 @@ export async function monitorChatSheet(
                 1, // startColumnIndex
                 6, // endColumnIndex
                 {
-                  backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 }, // Light gray background
+                  backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red background to match agent label
                   textFormat: {
-                    fontSize: 11,
+                    fontFamily: "Roboto",
+                    foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
                   },
                   wrapStrategy: "WRAP",
                 }
