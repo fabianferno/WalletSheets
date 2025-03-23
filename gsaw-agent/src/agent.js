@@ -1,250 +1,256 @@
 import { SecretVaultWrapper } from "secretvaults";
 import { loadTools } from "./tools/index.js";
-import { loadServices } from './services/index.js'
+import { loadServices } from "./services/index.js";
 import crypto from "crypto";
-import { privateKeyToAddress } from 'viem/accounts'
-import { JsonRpcVersionUnsupportedError, toHex } from 'viem'
+import { privateKeyToAddress } from "viem/accounts";
+import { JsonRpcVersionUnsupportedError, toHex } from "viem";
 import { ethers } from "ethers";
-
+import { initializeWalletAgent } from "./walletManager.js";
 const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
 export class Agent {
-    constructor(nodes) {
-        this.tools = [];
-        this.tempConversations = {};
-        this.initialized = false;
-        this.nillionChatCollection = null;
-        this.nodes = nodes;
+  constructor(nodes) {
+    this.tools = [];
+    this.tempConversations = {};
+    this.initialized = false;
+    this.nillionChatCollection = null;
+    this.nodes = nodes;
+  }
+
+  /**
+   * Initialize the agent service
+   */
+  async initialize() {
+    if (this.initialized) {
+      return;
     }
 
-    /**
-     * Initialize the agent service
-     */
-    async initialize() {
-        if (this.initialized) {
-            return;
-        }
+    console.log("Initializing agent service...");
 
-        console.log("Initializing agent service...");
+    // Initialize tools
+    this.tools = await loadTools();
+    this.services = await loadServices(this);
+    // Initialize Nillion collection
+    this.nillionChatCollection = new SecretVaultWrapper(
+      this.nodes,
+      {
+        secretKey: process.env.NILLION_ORG_SECRET_KEY,
+        orgDid: process.env.NILLION_ORG_DID,
+      },
+      process.env.NILLION_CHAT_SCHEMA_ID
+    );
+    await this.nillionChatCollection.init();
 
-        // Initialize tools
-        this.tools = await loadTools();
-        this.services = await loadServices(this);
-        // Initialize Nillion collection
-        this.nillionChatCollection = new SecretVaultWrapper(
-            this.nodes,
-            {
-                secretKey: process.env.NILLION_ORG_SECRET_KEY,
-                orgDid: process.env.NILLION_ORG_DID,
+    this.nillionUserCollection = new SecretVaultWrapper(
+      this.nodes,
+      {
+        secretKey: process.env.NILLION_ORG_SECRET_KEY,
+        orgDid: process.env.NILLION_ORG_DID,
+      },
+      process.env.NILLION_USER_SCHEMA_ID
+    );
+    await this.nillionUserCollection.init();
+
+    this.nillionTradesCollection = new SecretVaultWrapper(
+      this.nodes,
+      {
+        secretKey: process.env.NILLION_ORG_SECRET_KEY,
+        orgDid: process.env.NILLION_ORG_DID,
+      },
+      process.env.NILLION_TRADES_SCHEMA_ID
+    );
+
+    await this.nillionTradesCollection.init();
+
+    const email = process.env.GMAIL;
+    const sheetId = process.env.SHEET_ID;
+    const name = process.env.NAME;
+
+    const currentTime = new Date().toISOString();
+
+    const existingUser = await this.getUserFromGmailAndSheetId(email, sheetId);
+    if (existingUser) {
+      console.log("User wallet with this sheet Id already exists in Nillion");
+      this.user_id = existingUser._id;
+    } else {
+      console.log("User does not exist in Nillion, creating new user");
+      const secretSalt = crypto
+        .getRandomValues(new Uint8Array(16))
+        .reduce((salt, byte) => salt + byte.toString(16).padStart(2, "0"), "");
+
+      const dataWritten = await this.nillionUserCollection.writeToNodes([
+        {
+          created_at: currentTime,
+          sheet_id: {
+            "%allot": sheetId,
+          },
+          secret_salt: {
+            "%allot": secretSalt,
+          },
+          email: {
+            "%allot": email,
+          },
+          agent: {
+            url: {
+              "%allot": "placeholder",
             },
-            process.env.NILLION_CHAT_SCHEMA_ID
-        );
-        await this.nillionChatCollection.init();
+            api_key: { "%allot": "placeholder" },
+          },
+          name,
+          last_login: currentTime,
+        },
+      ]);
+      const newIds = [
+        ...new Set(dataWritten.map((item) => item.data.created).flat()),
+      ];
+      console.log(
+        `Created User with new ID: ${newIds[0]} and encrypted in Nillion`
+      );
+      this.user_id = newIds[0];
+    }
+    console.log(privateKeyToAddress(await this.getPrivateKey()));
+    await initializeWalletAgent(
+      sheetId,
+      await this.getPrivateKey(),
+      "leofranklin1509@gmail.com"
+    );
+    this.initialized = true;
+    console.log("Agent service initialized with Nillion encryption!");
+  }
 
-        this.nillionUserCollection = new SecretVaultWrapper(
-            this.nodes,
-            {
-                secretKey: process.env.NILLION_ORG_SECRET_KEY,
-                orgDid: process.env.NILLION_ORG_DID,
-            },
-            process.env.NILLION_USER_SCHEMA_ID
-        );
-        await this.nillionUserCollection.init();
-
-        this.nillionTradesCollection = new SecretVaultWrapper(
-            this.nodes,
-            {
-                secretKey: process.env.NILLION_ORG_SECRET_KEY,
-                orgDid: process.env.NILLION_ORG_DID,
-            },
-            process.env.NILLION_TRADES_SCHEMA_ID
-        );
-
-        await this.nillionTradesCollection.init();
-
-        const email = process.env.GMAIL;
-        const sheetId = process.env.SHEET_ID;
-        const name = process.env.NAME;
-
-        const currentTime = new Date().toISOString();
-
-        const existingUser = await this.getUserFromGmailAndSheetId(email, sheetId);
-        if (existingUser) {
-            console.log("User wallet with this sheet Id already exists in Nillion");
-            this.user_id = existingUser._id;
-        } else {
-            console.log("User does not exist in Nillion, creating new user");
-            const secretSalt = crypto.getRandomValues(new Uint8Array(16))
-                .reduce((salt, byte) => salt + byte.toString(16).padStart(2, '0'), '')
-
-            const dataWritten = await this.nillionUserCollection.writeToNodes([{
-                created_at: currentTime,
-                sheet_id: {
-                    '%allot': sheetId
-                },
-                secret_salt: {
-                    '%allot': secretSalt
-                },
-                email: {
-                    '%allot': email
-                },
-                agent: {
-                    url: {
-                        '%allot': "placeholder"
-                    },
-                    api_key:
-                        { '%allot': "placeholder" }
-                },
-                name,
-                last_login: currentTime,
-            }])
-            const newIds = [
-                ...new Set(dataWritten.map((item) => item.data.created).flat()),
-            ];
-            console.log(
-                `Created User with new ID: ${newIds[0]} and encrypted in Nillion`
-            );
-            this.user_id = newIds[0];
-        }
-        console.log(privateKeyToAddress(await this.getPrivateKey()))
-
-        this.initialized = true;
-        console.log("Agent service initialized with Nillion encryption!");
+  /**
+   * Process a user message and return the agent's response
+   */
+  async processMessage(message, conversationId) {
+    // Ensure the agent is initialized
+    if (!this.initialized) {
+      await this.initialize();
     }
 
-    /**
-     * Process a user message and return the agent's response
-     */
-    async processMessage(message, conversationId) {
-        // Ensure the agent is initialized
-        if (!this.initialized) {
-            await this.initialize();
-        }
+    console.log(`Processing conversation: ${conversationId}`);
 
-        console.log(`Processing conversation: ${conversationId}`);
+    if (conversationId === "temp") {
+      this.tempConversations[conversationId] = this.createNewConversation();
+    }
 
-        if (conversationId === "temp") {
-            this.tempConversations[conversationId] = this.createNewConversation();
-        }
+    // Get or create conversation from Nillion or temporary storage
+    if (!this.tempConversations[conversationId]) {
+      // Try to load from Nillion first
+      const existingConversations =
+        await this.nillionChatCollection.readFromNodes({
+          _id: conversationId,
+        });
+      console.log(JSON.stringify(existingConversations, null, 2));
+      if (existingConversations && existingConversations.length > 0) {
+        // Convert Nillion format to local format for processing
+        this.tempConversations[conversationId] =
+          existingConversations[0].messages;
+      } else {
+        // Create a new conversation with system message
+        throw new Error("Something went wrong");
+        // this.tempConversations[conversationId] = this.createNewConversation();
+      }
+    }
 
-        // Get or create conversation from Nillion or temporary storage
-        if (!this.tempConversations[conversationId]) {
-            // Try to load from Nillion first
-            const existingConversations =
-                await this.nillionChatCollection.readFromNodes({
-                    _id: conversationId,
-                });
-            console.log(JSON.stringify(existingConversations, null, 2));
-            if (existingConversations && existingConversations.length > 0) {
-                // Convert Nillion format to local format for processing
-                this.tempConversations[conversationId] =
-                    existingConversations[0].messages;
-            } else {
-                // Create a new conversation with system message
-                throw new Error("Something went wrong");
-                // this.tempConversations[conversationId] = this.createNewConversation();
-            }
-        }
+    // Add user message
+    this.tempConversations[conversationId].push({
+      role: "user",
+      content: message,
+    });
 
-        // Add user message
+    // Get initial response from LLM
+    const llmResponse = await this.callNilaiAPI(
+      this.tempConversations[conversationId]
+    );
+    console.log(`🤖 Assistant (initial): ${llmResponse}`);
+    console.log("Agent response ended");
+    // Check if the response contains a tool call
+    const toolCallRegex = /<tool>(.*?):(.*?)<\/tool>/;
+    const match = llmResponse.match(toolCallRegex);
+
+    let finalResponse = llmResponse;
+
+    if (match) {
+      // Extract tool name and input
+      const toolName = match[1].trim();
+      const toolInput = match[2].trim();
+
+      console.log(`🔧 Using tool: ${toolName} with input: ${toolInput}`);
+
+      // Find the tool
+      const tool = this.tools.find((t) => t.name === toolName);
+
+      if (tool) {
+        // Execute the tool
+        const toolResult = await tool.execute(toolInput, this);
+        console.log(`🔧 Tool result received (${toolResult.length} chars)`);
+
+        // Add assistant message with tool call
         this.tempConversations[conversationId].push({
-            role: "user",
-            content: message,
+          role: "assistant",
+          content: llmResponse,
         });
 
-        // Get initial response from LLM
-        const llmResponse = await this.callNilaiAPI(
-            this.tempConversations[conversationId]
+        // Add tool result as a system message
+        this.tempConversations[conversationId].push({
+          role: "system",
+          content: `Tool result: ${toolResult}`,
+        });
+
+        // Get final response from LLM
+        finalResponse = await this.callNilaiAPI(
+          this.tempConversations[conversationId]
         );
-        console.log(`🤖 Assistant (initial): ${llmResponse}`);
-        console.log("Agent response ended")
-        // Check if the response contains a tool call
-        const toolCallRegex = /<tool>(.*?):(.*?)<\/tool>/;
-        const match = llmResponse.match(toolCallRegex);
-
-        let finalResponse = llmResponse;
-
-        if (match) {
-            // Extract tool name and input
-            const toolName = match[1].trim();
-            const toolInput = match[2].trim();
-
-            console.log(`🔧 Using tool: ${toolName} with input: ${toolInput}`);
-
-            // Find the tool
-            const tool = this.tools.find((t) => t.name === toolName);
-
-            if (tool) {
-                // Execute the tool
-                const toolResult = await tool.execute(toolInput, this);
-                console.log(`🔧 Tool result received (${toolResult.length} chars)`);
-
-                // Add assistant message with tool call
-                this.tempConversations[conversationId].push({
-                    role: "assistant",
-                    content: llmResponse,
-                });
-
-                // Add tool result as a system message
-                this.tempConversations[conversationId].push({
-                    role: "system",
-                    content: `Tool result: ${toolResult}`,
-                });
-
-                // Get final response from LLM
-                finalResponse = await this.callNilaiAPI(
-                    this.tempConversations[conversationId]
-                );
-                console.log(
-                    `🤖 Assistant (final): ${finalResponse.substring(0, 100)}...`
-                );
-
-                // Add final response to conversation
-                this.tempConversations[conversationId].push({
-                    role: "assistant",
-                    content: finalResponse,
-                });
-            } else {
-                console.log(`❌ Tool "${toolName}" not found`);
-
-                // Add response to conversation
-                this.tempConversations[conversationId].push({
-                    role: "assistant",
-                    content: finalResponse,
-                });
-            }
-        } else {
-            // Add response to conversation
-            this.tempConversations[conversationId].push({
-                role: "assistant",
-                content: finalResponse,
-            });
-        }
-
-        // Save conversation to Nillion
-        const updatedConversationId = await this.saveConversationToNillion(
-            conversationId
+        console.log(
+          `🤖 Assistant (final): ${finalResponse.substring(0, 100)}...`
         );
 
-        return {
-            conversationId: updatedConversationId,
-            response: finalResponse,
-        };
+        // Add final response to conversation
+        this.tempConversations[conversationId].push({
+          role: "assistant",
+          content: finalResponse,
+        });
+      } else {
+        console.log(`❌ Tool "${toolName}" not found`);
+
+        // Add response to conversation
+        this.tempConversations[conversationId].push({
+          role: "assistant",
+          content: finalResponse,
+        });
+      }
+    } else {
+      // Add response to conversation
+      this.tempConversations[conversationId].push({
+        role: "assistant",
+        content: finalResponse,
+      });
     }
 
-    async processAnalysis(collectedData, embeddings) {
-        if (!this.initialized) {
-            await this.initialize();
-        }
+    // Save conversation to Nillion
+    const updatedConversationId = await this.saveConversationToNillion(
+      conversationId
+    );
 
-        // Get existing trade positions
-        const positions = await this.getActiveTrades();
+    return {
+      conversationId: updatedConversationId,
+      response: finalResponse,
+    };
+  }
 
-        // Extract market data and social sentiment from input
-        const { marketData, socialSentiment } = collectedData;
+  async processAnalysis(collectedData, embeddings) {
+    if (!this.initialized) {
+      await this.initialize();
+    }
 
-        // Construct the prompt with all available data
-        const prompt = `
+    // Get existing trade positions
+    const positions = await this.getActiveTrades();
+
+    // Extract market data and social sentiment from input
+    const { marketData, socialSentiment } = collectedData;
+
+    // Construct the prompt with all available data
+    const prompt = `
     You are an AI trading assistant. Analyze the following data and recommend a trading action.
     
     MARKET DATA:
@@ -294,172 +300,189 @@ export class Agent {
     }`: ""}
     `;
 
-        // Call the LLM API with the constructed prompt
-        const llmResponse = await this.callNilaiAPI([
-            { role: "system", content: "You are an advanced trading assistant that analyzes market data and makes trading decisions." },
-            { role: "user", content: prompt }
-        ]);
+    // Call the LLM API with the constructed prompt
+    const llmResponse = await this.callNilaiAPI([
+      {
+        role: "system",
+        content:
+          "You are an advanced trading assistant that analyzes market data and makes trading decisions.",
+      },
+      { role: "user", content: prompt },
+    ]);
 
-        console.log(`🤖 Assistant (initial): ${llmResponse}`);
+    console.log(`🤖 Assistant (initial): ${llmResponse}`);
 
-        // Parse the response to extract the JSON
-        try {
-            // Extract JSON from the response (handling cases where there might be additional text)
-            const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-            const jsonString = jsonMatch ? jsonMatch[0] : llmResponse;
+    // Parse the response to extract the JSON
+    try {
+      // Extract JSON from the response (handling cases where there might be additional text)
+      const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+      const jsonString = jsonMatch ? jsonMatch[0] : llmResponse;
 
-            // Parse the JSON
-            const decision = JSON.parse(jsonString);
+      // Parse the JSON
+      const decision = JSON.parse(jsonString);
 
-            // Validate the response format
-            if (!['stay_idle', 'buy_more', 'close_position'].includes(decision.action)) {
-                throw new Error('Invalid action in response');
-            }
+      // Validate the response format
+      if (
+        !["stay_idle", "buy_more", "close_position"].includes(decision.action)
+      ) {
+        throw new Error("Invalid action in response");
+      }
 
-            // Validate data based on action
-            if (decision.action === 'close_position' && !decision.data.trade_id) {
-                throw new Error('Missing trade_id for close_position action');
-            }
+      // Validate data based on action
+      if (decision.action === "close_position" && !decision.data.trade_id) {
+        throw new Error("Missing trade_id for close_position action");
+      }
 
-            if (decision.action === 'buy_more' &&
-                (!decision.data.asset || !decision.data.amount || !decision.data.leverage ||
-                    (decision.data.isLong === undefined && decision.data.isShort === undefined))) {
-                throw new Error('Missing required fields for buy_more action');
-            }
+      if (
+        decision.action === "buy_more" &&
+        (!decision.data.asset ||
+          !decision.data.amount ||
+          !decision.data.leverage ||
+          (decision.data.isLong === undefined &&
+            decision.data.isShort === undefined))
+      ) {
+        throw new Error("Missing required fields for buy_more action");
+      }
 
-            return decision;
-        } catch (error) {
-            console.error('Error parsing LLM response:', error);
-            // Fallback to a safe default
-            return {
-                action: "stay_idle",
-                reason: "Failed to parse LLM response properly: " + error.message,
-                data: {}
-            };
-        }
+      return decision;
+    } catch (error) {
+      console.error("Error parsing LLM response:", error);
+      // Fallback to a safe default
+      return {
+        action: "stay_idle",
+        reason: "Failed to parse LLM response properly: " + error.message,
+        data: {},
+      };
+    }
+  }
+
+  /**
+   * Call the Nilai API
+   */
+  async callNilaiAPI(messages) {
+    // Using this to satisfy class-methods-use-this rule
+    if (!this.initialized) {
+      console.log("Warning: API call before full initialization");
     }
 
-    /**
-     * Call the Nilai API
-     */
-    async callNilaiAPI(messages) {
-        // Using this to satisfy class-methods-use-this rule
-        if (!this.initialized) {
-            console.log("Warning: API call before full initialization");
-        }
+    const apiUrl = process.env.NILAI_API_URL;
+    const apiKey = process.env.NILAI_API_KEY;
 
-        const apiUrl = process.env.NILAI_API_URL;
-        const apiKey = process.env.NILAI_API_KEY;
-
-        if (!apiUrl || !apiKey) {
-            throw new Error(
-                "Missing NILAI_API_URL or NILAI_API_KEY environment variables"
-            );
-        }
-
-        try {
-            console.log("Calling Nilai API...");
-            const response = await fetch(`${apiUrl}/v1/chat/completions`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                    model: "meta-llama/Llama-3.1-8B-Instruct",
-                    messages,
-                    temperature: 0.2,
-                }),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`API error (${response.status}): ${errorText}`);
-            }
-
-            const data = await response.json();
-            return data.choices[0].message.content;
-        } catch (error) {
-            console.error("Error calling Nilai API:", error);
-            throw error;
-        }
+    if (!apiUrl || !apiKey) {
+      throw new Error(
+        "Missing NILAI_API_URL or NILAI_API_KEY environment variables"
+      );
     }
 
-    async addTradingData(tradeData) {
-        const currentTime = new Date().toISOString();
-        const dataWritten = await this.nillionTradesCollection.writeToNodes([{
-            ...tradeData,
-            created_at: currentTime,
-            user_id: {
-                '%allot': this.user_id
-            },
-        }])
-        const newIds = [
-            ...new Set(dataWritten.map((item) => item.data.created).flat()),
-        ];
-        console.log(
-            `Trade data encrypted in Nillion and saved with new ID: ${newIds[0]} `
-        );
-        return newIds[0];
+    try {
+      console.log("Calling Nilai API...");
+      const response = await fetch(`${apiUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "meta-llama/Llama-3.1-8B-Instruct",
+          messages,
+          temperature: 0.2,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error("Error calling Nilai API:", error);
+      throw error;
     }
+  }
 
-    async getAllTradeActions() {
-        const trades = await this.nillionTradesCollection.readFromNodes({
-            user_id: this.user_id,
-        });
-        return trades;
+  async addTradingData(tradeData) {
+    const currentTime = new Date().toISOString();
+    const dataWritten = await this.nillionTradesCollection.writeToNodes([{
+      ...tradeData,
+      created_at: currentTime,
+      user_id: {
+        '%allot': this.user_id
+      },
+    }])
+    const newIds = [
+      ...new Set(dataWritten.map((item) => item.data.created).flat()),
+    ];
+    console.log(
+      `Trade data encrypted in Nillion and saved with new ID: ${newIds[0]} `
+    );
+    return newIds[0];
+  }
+
+  async getAllTradeActions() {
+    const trades = await this.nillionTradesCollection.readFromNodes({
+      user_id: this.user_id,
+    });
+    return trades;
+  }
+
+  async getActiveTrades() {
+    const trades = await this.nillionTradesCollection.readFromNodes({
+      user_id: this.user_id,
+    });
+    const buyTrades = trades.filter((trade) => trade.action === "buy_more");
+    const closeTrades = trades.filter(
+      (trade) => trade.action === "close_position"
+    );
+    const closedTradeIds = closeTrades.map(
+      (trade) => trade.trade_data.reference_trade_id
+    );
+    return buyTrades.filter(
+      (trade) => !closedTradeIds.includes(trade.trade_data.reference_trade_id)
+    );
+  }
+
+  async getTradeById(tradeId) {
+    const trades = await this.nillionTradesCollection.readFromNodes({
+      _id: tradeId,
+    });
+    if (trades.length === 0) {
+      throw new Error(`Trade with ID ${tradeId} not found`);
     }
+    return trades[0];
+  }
+  /**
+   * Create a new conversation with system message
+   */
+  createNewConversation() {
+    // Create tool information with descriptions and examples
+    let toolInfo = "";
 
-    async getActiveTrades() {
-        const trades = await this.nillionTradesCollection.readFromNodes({
-            user_id: this.user_id,
-        });
-        const buyTrades = trades.filter((trade) => trade.action === 'buy_more');
-        const closeTrades = trades.filter((trade) => trade.action === 'close_position');
-        const closedTradeIds = closeTrades.map((trade) => trade.trade_data.reference_trade_id);
-        return buyTrades.filter((trade) => !closedTradeIds.includes(trade.trade_data.reference_trade_id));
-    }
+    // Use map and join instead of for...of
+    toolInfo = this.tools
+      .map((tool) => {
+        const toolDescription = `## ${tool.name}\n${tool.description}\n\nExamples:\n`;
 
-    async getTradeById(tradeId) {
-        const trades = await this.nillionTradesCollection.readFromNodes({
-            _id: tradeId,
-        });
-        if (trades.length === 0) {
-            throw new Error(`Trade with ID ${tradeId} not found`);
-        }
-        return trades[0];
-    }
-    /**
-     * Create a new conversation with system message
-     */
-    createNewConversation() {
-        // Create tool information with descriptions and examples
-        let toolInfo = "";
-
-        // Use map and join instead of for...of
-        toolInfo = this.tools
-            .map((tool) => {
-                const toolDescription = `## ${tool.name}\n${tool.description}\n\nExamples:\n`;
-
-                // Use map and join for examples too
-                const exampleText = tool.examples
-                    .map(
-                        (example) => `
+        // Use map and join for examples too
+        const exampleText = tool.examples
+          .map(
+            (example) => `
 User: "${example.userQuery}"
 Tool with input: <tool>${tool.name}: ${example.toolInput}</tool>
 Expected Tool Output Response Format: ${example.toolOutput}
 `
-                    )
-                    .join("");
+          )
+          .join("");
 
-                return `${toolDescription + exampleText}\n\n`;
-            })
-            .join("");
+        return `${toolDescription + exampleText}\n\n`;
+      })
+      .join("");
 
-        return [
-            {
-                role: "system",
-                content: `You are a helpful assistant with access to tools. Follow these steps:
+    return [
+      {
+        role: "system",
+        content: `You are a helpful assistant with access to tools. Follow these steps:
 1. If a user's request requires current data or information you don't have, use an available tool.
 2. To use a tool, respond with: <tool>tool_name: tool_input</tool>
 3. After receiving tool results, provide a helpful response incorporating the information.
@@ -470,223 +493,225 @@ Expected Tool Output Response Format: ${example.toolOutput}
 ${toolInfo}
 
 Always use tools when appropriate rather than making up information. Study the examples carefully to understand when and how to use each tool.`,
-            },
-        ];
-    }
+      },
+    ];
+  }
 
-    /**
-     * Convert local format to Nillion format for storage
-     */
-    convertToNillionFormat(conversationId) {
-        const messages = this.tempConversations[conversationId];
-        const currentTime = new Date().toISOString();
+  /**
+   * Convert local format to Nillion format for storage
+   */
+  convertToNillionFormat(conversationId) {
+    const messages = this.tempConversations[conversationId];
+    const currentTime = new Date().toISOString();
 
-        // Convert messages to Nillion format
-        const encryptedMessages = messages.map((message, index) => {
-            // Calculate a reasonable timestamp with 30 second intervals between messages
-            const timestamp = new Date(
-                Date.now() - (messages.length - index) * 30000
-            ).toISOString();
+    // Convert messages to Nillion format
+    const encryptedMessages = messages.map((message, index) => {
+      // Calculate a reasonable timestamp with 30 second intervals between messages
+      const timestamp = new Date(
+        Date.now() - (messages.length - index) * 30000
+      ).toISOString();
 
-            return {
-                role: message.role,
-                content: {
-                    "%allot": message.content,
-                },
-                timestamp,
-            };
-        });
+      return {
+        role: message.role,
+        content: {
+          "%allot": message.content,
+        },
+        timestamp,
+      };
+    });
 
-        return {
-            user_id: this.user_id,
-            created_at: encryptedMessages[0].timestamp,
-            updated_at: currentTime,
-            messages: encryptedMessages,
-        };
-    }
+    return {
+      user_id: this.user_id,
+      created_at: encryptedMessages[0].timestamp,
+      updated_at: currentTime,
+      messages: encryptedMessages,
+    };
+  }
 
-    /**
-     * Save conversation to Nillion
-     */
-    async saveConversationToNillion(conversationId) {
-        try {
-            console.log(`Starting to save conversation with ID: ${conversationId}`);
-            const conversation = this.tempConversations[conversationId];
-            console.log(JSON.stringify(conversation, null, 2));
-            if (!conversation) {
-                console.log(
-                    `Conversation with ID: ${conversationId} not found in temporary storage`
-                );
-                throw new Error("Conversation not found");
-            }
-
-            console.log(
-                `Converting conversation with ID: ${conversationId} to Nillion format`
-            );
-            const encryptedConversation = this.convertToNillionFormat(conversationId);
-
-            if (conversationId === "temp") {
-                console.log("Saving new conversation to Nillion");
-                const dataWritten = await this.nillionChatCollection.writeToNodes([
-                    encryptedConversation,
-                ]);
-                const newIds = [
-                    ...new Set(dataWritten.map((item) => item.data.created).flat()),
-                ];
-                console.log(
-                    `Conversation saved with new ID: ${newIds[0]} and encrypted in Nillion`
-                );
-                return newIds[0];
-            }
-            console.log(
-                `Updating existing conversation with ID: ${conversationId} in Nillion`
-            );
-            await this.nillionChatCollection.updateDataToNodes(
-                encryptedConversation,
-                {
-                    _id: conversationId,
-                }
-            );
-            console.log(
-                `Conversation with ID: ${conversationId} successfully updated in Nillion`
-            );
-            return conversationId;
-        } catch (error) {
-            console.error(
-                `Error saving conversation ${conversationId} to Nillion:`,
-                error
-            );
-            throw error;
-        }
-    }
-
-
-
-    /**
-     * Retrieve conversation history for a user
-     */
-    async getConversations() {
-        try {
-            // Query Nillion for all conversations for this user
-            const conversations = await this.nillionChatCollection.readFromNodes({
-                user_id: this.user_id,
-            });
-
-            // Return metadata only for listing purposes
-            return conversations;
-        } catch (error) {
-            console.error(
-                `Error retrieving conversation history for user ${this.user_id}:`,
-                error
-            );
-            throw error;
-        }
-    }
-
-    /**
-     * Delete a conversation
-     */
-    async deleteConversation(conversationId) {
-        try {
-            // Delete from Nillion
-            await this.nillionChatCollection.deleteDataFromNodes({
-                $and: [{ user_id: this.user_id }, { _id: conversationId }],
-            });
-
-            // Also remove from temporary storage if exists
-            if (this.tempConversations[conversationId]) {
-                delete this.tempConversations[conversationId];
-            }
-
-            console.log(`Conversation ${conversationId} deleted from Nillion`);
-        } catch (error) {
-            console.error(`Error deleting conversation ${conversationId} from Nillion:`, error);
-            throw error;
-        }
-    }
-
-    async getPrivateKey() {
-        const userResponse = await this.nillionUserCollection.readFromNodes({
-            _id: this.user_id,
-        });
-        console.log("Fetching Private key from Nillion");
-        console.log(userResponse)
-        const pKey = this.generatePrivateKey(userResponse[0].secret_salt);
-        console.log("Private Key: ", pKey);
-        return pKey;
-    }
-
-    generatePrivateKey(salt) {
-        const derivedKey = crypto.pbkdf2Sync(
-            "password",
-            salt,
-            2048,    // Iterations
-            32,      // 32 bytes = 256 bits (Ethereum private key length)
-            'sha256'
+  /**
+   * Save conversation to Nillion
+   */
+  async saveConversationToNillion(conversationId) {
+    try {
+      console.log(`Starting to save conversation with ID: ${conversationId}`);
+      const conversation = this.tempConversations[conversationId];
+      console.log(JSON.stringify(conversation, null, 2));
+      if (!conversation) {
+        console.log(
+          `Conversation with ID: ${conversationId} not found in temporary storage`
         );
-        return '0x' + derivedKey.toString('hex');
-    }
+        throw new Error("Conversation not found");
+      }
 
-    async getUserFromGmailAndSheetId(email, sheetId) {
-        console.log("Retreiving User from Nillion");
-        console.log("Email: ", email);
-        console.log("Sheet Id: ", sheetId);
-        const userResponse = await this.nillionUserCollection.readFromNodes({
+      console.log(
+        `Converting conversation with ID: ${conversationId} to Nillion format`
+      );
+      const encryptedConversation = this.convertToNillionFormat(conversationId);
 
-        });
-        const user = userResponse.filter((user) => user.email === email && user.sheet_id === sheetId);
-        if (user.length === 0) {
-            return null;
-        } else {
-            console.log(JSON.stringify(user[0], null, 2));
-            return user[0];
+      if (conversationId === "temp") {
+        console.log("Saving new conversation to Nillion");
+        const dataWritten = await this.nillionChatCollection.writeToNodes([
+          encryptedConversation,
+        ]);
+        const newIds = [
+          ...new Set(dataWritten.map((item) => item.data.created).flat()),
+        ];
+        console.log(
+          `Conversation saved with new ID: ${newIds[0]} and encrypted in Nillion`
+        );
+        return newIds[0];
+      }
+      console.log(
+        `Updating existing conversation with ID: ${conversationId} in Nillion`
+      );
+      await this.nillionChatCollection.updateDataToNodes(
+        encryptedConversation,
+        {
+          _id: conversationId,
         }
+      );
+      console.log(
+        `Conversation with ID: ${conversationId} successfully updated in Nillion`
+      );
+      return conversationId;
+    } catch (error) {
+      console.error(
+        `Error saving conversation ${conversationId} to Nillion:`,
+        error
+      );
+      throw error;
     }
+  }
 
-    async getBalance() {
-        const privateKey = await this.getPrivateKey();
-        const rpcUrl = "https://arb-sepolia.g.alchemy.com/v2/" + process.env.ALCHEMY_API_KEY
+  /**
+   * Retrieve conversation history for a user
+   */
+  async getConversations() {
+    try {
+      // Query Nillion for all conversations for this user
+      const conversations = await this.nillionChatCollection.readFromNodes({
+        user_id: this.user_id,
+      });
 
-        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-        const wallet = new ethers.Wallet(privateKey, provider);
-        console.log("Wallet address:", await wallet.getAddress());
-        return (await wallet.getBalance()).toBigInt()
+      // Return metadata only for listing purposes
+      return conversations;
+    } catch (error) {
+      console.error(
+        `Error retrieving conversation history for user ${this.user_id}:`,
+        error
+      );
+      throw error;
     }
+  }
 
-    async configureAuth(url, apiKey) {
+  /**
+   * Delete a conversation
+   */
+  async deleteConversation(conversationId) {
+    try {
+      // Delete from Nillion
+      await this.nillionChatCollection.deleteDataFromNodes({
+        $and: [{ user_id: this.user_id }, { _id: conversationId }],
+      });
 
-        const userData = await this.nillionUserCollection.readFromNodes({
-            _id: this.user_id,
-        });
+      // Also remove from temporary storage if exists
+      if (this.tempConversations[conversationId]) {
+        delete this.tempConversations[conversationId];
+      }
 
-        const user = userData[0];
-
-        const updatedUser = {
-            email: {
-                '%allot': user.email
-            },
-            secret_salt: {
-                '%allot': user.secret_salt
-            },
-            sheet_id: {
-                '%allot': user.sheet_id
-            },
-            name: user.name,
-            last_login: user.last_login,
-            created_at: user.created_at,
-            agent: {
-                url: {
-                    '%allot': url
-                },
-                api_key: {
-                    '%allot': apiKey
-                }
-            }
-        };
-
-        await this.nillionUserCollection.updateDataToNodes(updatedUser, {
-            _id: this.user_id,
-        });
-
+      console.log(`Conversation ${conversationId} deleted from Nillion`);
+    } catch (error) {
+      console.error(
+        `Error deleting conversation ${conversationId} from Nillion:`,
+        error
+      );
+      throw error;
     }
+  }
+
+  async getPrivateKey() {
+    const userResponse = await this.nillionUserCollection.readFromNodes({
+      _id: this.user_id,
+    });
+    console.log("Fetching Private key from Nillion");
+    console.log(userResponse);
+    const pKey = this.generatePrivateKey(userResponse[0].secret_salt);
+    console.log("Private Key: ", pKey);
+    return pKey;
+  }
+
+  generatePrivateKey(salt) {
+    const derivedKey = crypto.pbkdf2Sync(
+      "password",
+      salt,
+      2048, // Iterations
+      32, // 32 bytes = 256 bits (Ethereum private key length)
+      "sha256"
+    );
+    return "0x" + derivedKey.toString("hex");
+  }
+
+  async getUserFromGmailAndSheetId(email, sheetId) {
+    console.log("Retreiving User from Nillion");
+    console.log("Email: ", email);
+    console.log("Sheet Id: ", sheetId);
+    const userResponse = await this.nillionUserCollection.readFromNodes({});
+    const user = userResponse.filter(
+      (user) => user.email === email && user.sheet_id === sheetId
+    );
+    if (user.length === 0) {
+      return null;
+    } else {
+      console.log(JSON.stringify(user[0], null, 2));
+      return user[0];
+    }
+  }
+
+  async getBalance() {
+    const privateKey = await this.getPrivateKey();
+    const rpcUrl =
+      "https://arb-sepolia.g.alchemy.com/v2/" + process.env.ALCHEMY_API_KEY;
+
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const wallet = new ethers.Wallet(privateKey, provider);
+    console.log("Wallet address:", await wallet.getAddress());
+    return (await wallet.getBalance()).toBigInt()
+  }
+
+  async configureAuth(url, apiKey) {
+
+    const userData = await this.nillionUserCollection.readFromNodes({
+      _id: this.user_id,
+    });
+
+    const user = userData[0];
+
+    const updatedUser = {
+      email: {
+        '%allot': user.email
+      },
+      secret_salt: {
+        '%allot': user.secret_salt
+      },
+      sheet_id: {
+        '%allot': user.sheet_id
+      },
+      name: user.name,
+      last_login: user.last_login,
+      created_at: user.created_at,
+      agent: {
+        url: {
+          '%allot': url
+        },
+        api_key: {
+          '%allot': apiKey
+        }
+      }
+    };
+
+    await this.nillionUserCollection.updateDataToNodes(updatedUser, {
+      _id: this.user_id,
+    });
+
+  }
 }

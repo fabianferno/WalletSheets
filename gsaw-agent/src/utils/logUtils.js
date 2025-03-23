@@ -1,5 +1,3 @@
-import { SheetClient } from "./sheets.api.js";
-
 /**
  * Log event to console only (no longer writes to sheets)
  */

@@ -1,20 +1,14 @@
 import { ethers } from "ethers";
 import axios from "axios";
-import { SheetClient } from "./sheets.api.js";
-import { PORTFOLIO_SHEET } from "./sheetUtils.js";
-import { getRiskFactor } from "./sheetUtils.js";
+import { PORTFOLIO_SHEET, SHEET_STYLES } from "./sheetUtils.js";
 
-// Simplified ERC20 ABI with only the functions we need
-const ERC20_ABI = [
-  "function name() view returns (string)",
-  "function symbol() view returns (string)",
-  "function decimals() view returns (uint8)",
-  "function balanceOf(address) view returns (uint256)",
-];
+// Constants
+// Set this to true to use mock data, false to fetch real wallet balances
+export const USE_MOCK_DATA = false;
 
-// Cache for token data to avoid redundant API calls
-const tokenCache = new Map();
-
+/**
+ * Initialize portfolio sheet with enhanced UI
+ */
 export async function initializePortfolioSheet(sheetClient, logEvent) {
   try {
     logEvent("Initializing enhanced portfolio dashboard...");
@@ -42,505 +36,676 @@ export async function initializePortfolioSheet(sheetClient, logEvent) {
     throw error;
   }
 }
-/**
- * Update portfolio for a given wallet
- */
-export async function updatePortfolio(
-  sheetClient,
-  walletAddress,
-  provider,
-  logEvent
-) {
-  try {
-    logEvent(`Updating portfolio for wallet ${walletAddress}...`);
-
-    // Get ETH balance
-    const ethBalance = await provider.getBalance(walletAddress);
-    const ethBalanceFormatted = ethers.formatEther(ethBalance);
-
-    // Get token balances (in a simplified manner)
-    const tokenBalances = await getTokenBalances(
-      walletAddress,
-      provider,
-      logEvent
-    );
-
-    // Get token prices (simplified)
-    const prices = await getTokenPrices(
-      [{ symbol: "ETH", address: "ethereum" }, ...tokenBalances],
-      logEvent
-    );
-
-    // Format portfolio data
-    const portfolioData = formatPortfolioData(
-      ethBalanceFormatted,
-      tokenBalances,
-      prices,
-      logEvent
-    );
-
-    // Update portfolio sheet
-    await updatePortfolioSheet(sheetClient, portfolioData, logEvent);
-
-    logEvent(`Portfolio updated for wallet ${walletAddress}.`);
-    return true;
-  } catch (error) {
-    logEvent(`Error updating portfolio: ${error.message}`);
-    return false;
-  }
-}
 
 /**
- * Get token balances for a wallet
+ * Format the portfolio sheet with an enhanced UI
  */
-export async function getTokenBalances(walletAddress, provider, logEvent) {
+async function formatEnhancedPortfolioSheet(sheetClient, logEvent) {
   try {
-    logEvent(`Getting token balances for ${walletAddress}...`);
-
-    // For this simplified version, we'll just return a few hardcoded tokens
-    // In a real implementation, this would use an API or scan for token transfers
-    const tokens = [
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-      },
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-      },
-    ];
-
-    const tokenBalances = [];
-
-    for (const token of tokens) {
-      try {
-        // Get balance using ERC20 contract
-        const contract = new ethers.Contract(
-          token.address,
-          ERC20_ABI,
-          provider
-        );
-
-        const decimals = await contract.decimals();
-        const balance = await contract.balanceOf(walletAddress);
-        const formattedBalance = ethers.formatUnits(balance, decimals);
-
-        // Only add token if balance > 0
-        if (parseFloat(formattedBalance) > 0) {
-          tokenBalances.push({
-            name: token.name,
-            symbol: token.symbol,
-            address: token.address,
-            balance: formattedBalance,
-          });
-
-          logEvent(`Found ${formattedBalance} ${token.symbol}`);
-        }
-      } catch (error) {
-        logEvent(`Error getting balance for ${token.symbol}: ${error.message}`);
-      }
-    }
-
-    logEvent(`Found ${tokenBalances.length} tokens with non-zero balance`);
-    return tokenBalances;
-  } catch (error) {
-    logEvent(`Error getting token balances: ${error.message}`);
-    return [];
-  }
-}
-
-/**
- * Get token prices from CoinGecko API
- */
-export async function getTokenPrices(tokens, logEvent) {
-  try {
-    logEvent(`Getting token prices for ${tokens.length} tokens...`);
-
-    const prices = new Map();
-
-    // Add ETH as a default
-    prices.set("ETH", 3000); // Default price if API fails
-
-    try {
-      // We'd normally fetch from CoinGecko or similar API
-      // For this simplified version, we'll use hardcoded values
-      prices.set("USDC", 1.0);
-      prices.set("USDT", 1.0);
-
-      logEvent(`Got prices for ${prices.size} tokens`);
-    } catch (error) {
-      logEvent(`Error fetching prices: ${error.message}`);
-    }
-
-    return prices;
-  } catch (error) {
-    logEvent(`Error getting token prices: ${error.message}`);
-    return new Map([["ETH", 3000]]);
-  }
-}
-
-/**
- * Format portfolio data for the sheet
- */
-export async function formatPortfolioData(
-  ethBalance,
-  tokenBalances,
-  prices,
-  logEvent
-) {
-  try {
-    const portfolioData = [];
-
-    // Add ETH
-    const ethValue = parseFloat(ethBalance) * (prices.get("ETH") || 3000);
-    portfolioData.push({
-      asset: "Ethereum",
-      symbol: "ETH",
-      balance: ethBalance,
-      price: prices.get("ETH") || 3000,
-      value: ethValue,
-      allocation: 0, // Will be calculated after all assets are added
-    });
-
-    // Add tokens
-    let totalValue = ethValue;
-
-    for (const token of tokenBalances) {
-      const price = prices.get(token.symbol) || 0;
-      const value = parseFloat(token.balance) * price;
-      totalValue += value;
-
-      portfolioData.push({
-        asset: token.name,
-        symbol: token.symbol,
-        balance: token.balance,
-        price: price,
-        value: value,
-        allocation: 0, // Will be calculated after all assets are added
-      });
-    }
-
-    // Calculate allocations
-    for (const asset of portfolioData) {
-      asset.allocation = (asset.value / totalValue) * 100;
-    }
-
-    // Sort by value (descending)
-    portfolioData.sort((a, b) => b.value - a.value);
-
-    logEvent(`Formatted portfolio data for ${portfolioData.length} assets`);
-    return portfolioData;
-  } catch (error) {
-    logEvent(`Error formatting portfolio data: ${error.message}`);
-    return [];
-  }
-}
-
-/**
- * Update the Portfolio sheet
- */
-export async function updatePortfolioSheet(
-  sheetClient,
-  portfolioData,
-  logEvent
-) {
-  try {
-    logEvent(`Updating ${PORTFOLIO_SHEET} sheet...`);
-
-    // Check if the sheet exists
-    const sheets = await sheetClient.getSheetMetadata();
-    const portfolioSheet = sheets.find(
-      (sheet) => sheet.title === PORTFOLIO_SHEET
-    );
-
-    // If the sheet doesn't exist, create it
-    if (!portfolioSheet) {
-      await createPortfolioSheet(sheetClient, logEvent);
-    }
-
-    // Clear existing data
-    await sheetClient.clearSheet(PORTFOLIO_SHEET, "A2:F100");
-
-    // Format portfolio data for the sheet
-    const rows = portfolioData.map((asset) => [
-      asset.asset,
-      asset.symbol,
-      asset.balance,
-      asset.price,
-      asset.value,
-      `${asset.allocation.toFixed(2)}%`,
-    ]);
-
-    // Add total row if we have data
-    if (rows.length > 0) {
-      const totalValue = portfolioData.reduce(
-        (sum, asset) => sum + asset.value,
-        0
-      );
-      rows.push(["Total", "", "", "", totalValue, "100%"]);
-    }
-
-    // Add portfolio data
-    if (rows.length > 0) {
-      await sheetClient.setRangeValues(
-        `${PORTFOLIO_SHEET}!A2:F${rows.length + 1}`,
-        rows
-      );
-    }
-
-    // Update timestamp
-    await sheetClient.setCellValue(
-      PORTFOLIO_SHEET,
-      1,
-      "H",
-      new Date().toISOString()
-    );
-
-    // Clear and recreate charts
-    try {
-      // First clear existing charts
-      await clearExistingCharts(sheetClient, logEvent);
-
-      // Then create new charts
-      createOrUpdateCharts(sheetClient, logEvent);
-
-      logEvent("Portfolio charts updated");
-    } catch (chartError) {
-      logEvent(`Warning: Could not update charts: ${chartError}`);
-    }
-
-    logEvent(`Portfolio sheet updated with ${portfolioData.length} assets.`);
-    return true;
-  } catch (error) {
-    logEvent(`Error updating portfolio sheet: ${error.message}`);
-    return false;
-  }
-}
-
-/**
- * Create the Portfolio sheet
- */
-export async function createPortfolioSheet(sheetClient, logEvent) {
-  try {
-    logEvent(`Creating ${PORTFOLIO_SHEET} sheet...`);
-
-    // Create the sheet
-    const sheetId = await sheetClient.createSheet(PORTFOLIO_SHEET);
-
-    // Set up headers
-    const headers = [
-      "Asset",
-      "Symbol",
-      "Balance",
-      "Price (USD)",
-      "Value (USD)",
-      "Allocation",
-      "",
-      "Last Updated",
-    ];
-
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A1:H1`, [headers]);
-
-    // Add timestamp
-    await sheetClient.setCellValue(
-      PORTFOLIO_SHEET,
-      1,
-      "H",
-      new Date().toISOString()
-    );
-
-    // Add some spacing rows for charts
-    const spacingRows = Array(70).fill([""]); // Create 70 empty rows for chart space
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:A80`, spacingRows);
-
-    // Create initial charts
-    setTimeout(() => {
-      try {
-        createOrUpdateCharts(sheetClient, logEvent);
-        logEvent("Initial portfolio charts created");
-      } catch (chartError) {
-        logEvent(`Warning: Could not create initial charts: ${chartError}`);
-      }
-    }, 1000); // Small delay to ensure sheet is ready
-
-    logEvent(`${PORTFOLIO_SHEET} sheet created.`);
-    return sheetId;
-  } catch (error) {
-    logEvent(`Error creating portfolio sheet: ${error.message}`);
-    return null;
-  }
-}
-
-/**
- * Get risk assessment for portfolio
- */
-export async function getRiskAssessment(sheetClient, portfolioData, logEvent) {
-  try {
-    logEvent(`Getting risk assessment for portfolio...`);
-
-    // Get user's risk tolerance from settings
-    const riskFactor = await getRiskFactor(sheetClient, logEvent);
-
-    // Calculate concentration risk
-    const topAssetAllocation =
-      portfolioData.length > 0 ? portfolioData[0].allocation : 0;
-
-    // Calculate stablecoin percentage
-    const stablecoins = ["USDC", "USDT", "DAI", "BUSD"];
-    const stablecoinAllocation = portfolioData
-      .filter((asset) => stablecoins.includes(asset.symbol))
-      .reduce((sum, asset) => sum + asset.allocation, 0);
-
-    // Generate risk assessment
-    let riskAssessment = "Moderate";
-
-    if (topAssetAllocation > 50) {
-      riskAssessment = "High"; // High concentration in one asset
-    } else if (stablecoinAllocation > 70) {
-      riskAssessment = "Low"; // Mostly stablecoins
-    }
-
-    // Adjust based on user's risk tolerance
-    if (riskFactor >= 4) {
-      // More tolerant of risk
-      riskAssessment =
-        riskAssessment === "High" ? "Moderate-High" : riskAssessment;
-    } else if (riskFactor <= 2) {
-      // Less tolerant of risk
-      riskAssessment =
-        riskAssessment === "Moderate" ? "Moderate-Low" : riskAssessment;
-    }
-
-    logEvent(`Risk assessment: ${riskAssessment}`);
-    return riskAssessment;
-  } catch (error) {
-    logEvent(`Error getting risk assessment: ${error.message}`);
-    return "Unknown";
-  }
-}
-
-/**
- * Generate portfolio diversification recommendations
- */
-export async function generateRecommendations(
-  sheetClient,
-  portfolioData,
-  logEvent
-) {
-  try {
-    logEvent(`Generating portfolio recommendations...`);
-
-    // Get risk assessment
-    const riskAssessment = await getRiskAssessment(
-      sheetClient,
-      portfolioData,
-      logEvent
-    );
-
-    // Generate basic recommendations
-    const recommendations = [];
-
-    // Check for concentration risk
-    if (portfolioData.length > 0 && portfolioData[0].allocation > 40) {
-      recommendations.push(
-        `Consider diversifying away from ${
-          portfolioData[0].asset
-        } (${portfolioData[0].allocation.toFixed(2)}% of portfolio).`
-      );
-    }
-
-    // Check for stablecoin allocation
-    const stablecoins = ["USDC", "USDT", "DAI", "BUSD"];
-    const stablecoinAllocation = portfolioData
-      .filter((asset) => stablecoins.includes(asset.symbol))
-      .reduce((sum, asset) => sum + asset.allocation, 0);
-
-    if (stablecoinAllocation < 20) {
-      recommendations.push(
-        `Consider increasing stablecoin allocation (currently ${stablecoinAllocation.toFixed(
-          2
-        )}%) for safety.`
-      );
-    }
-
-    // Recommend portfolio diversification
-    if (portfolioData.length < 3) {
-      recommendations.push(
-        "Consider adding more assets to diversify your portfolio."
-      );
-    }
-
-    logEvent(`Generated ${recommendations.length} recommendations.`);
-    return recommendations;
-  } catch (error) {
-    logEvent(`Error generating recommendations: ${error.message}`);
-    return ["Unable to generate recommendations due to an error."];
-  }
-}
-
-/**
- * Clear existing charts from the portfolio sheet
- */
-export async function clearExistingCharts(sheetClient, logEvent) {
-  try {
-    logEvent("Clearing existing charts before creating new ones");
-
-    // Get the sheet ID
+    // Get sheetId first
     const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
 
-    // Get all charts in the sheet
-    const spreadsheet = await sheetClient.getSpreadsheet();
+    // Set column widths using batchUpdate
+    try {
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId,
+                dimension: "COLUMNS",
+                startIndex: 0, // Column A
+                endIndex: 1,
+              },
+              properties: {
+                pixelSize: 200,
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId,
+                dimension: "COLUMNS",
+                startIndex: 1, // Column B
+                endIndex: 6,
+              },
+              properties: {
+                pixelSize: 150,
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId,
+                dimension: "COLUMNS",
+                startIndex: 6, // Column G
+                endIndex: 7,
+              },
+              properties: {
+                pixelSize: 200,
+              },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      });
 
-    if (!spreadsheet.sheets) {
-      logEvent("No sheets found in spreadsheet");
-      return false;
+      // Charts are now created after data is populated by createOrUpdateCharts
+    } catch (e) {
+      logEvent("Column width setup not supported, skipping...");
     }
 
-    // Find the sheet that matches our sheet ID
-    const sheet = spreadsheet.sheets.find(
-      (s) => s.properties?.sheetId === sheetId
+    // Initialize the full sheet template with all sections at once
+    const portfolioTemplate = [
+      // Row 1 - Main header
+      ["Portfolio", "", "", "", "", "", "", new Date().toISOString()],
+
+      // Row 2 - Empty row for spacing
+      [""],
+
+      // Row 3 - Portfolio summary section header
+      ["Summary", "", "", "", ""],
+
+      // Rows 4-6 - Portfolio summary data
+      ["Wallet Address", ""],
+      ["Network", ""],
+      ["Last Updated", ""],
+
+      // Row 7 - Empty row for spacing
+      [""],
+
+      // Row 8 - Key metrics section header
+      ["Key Metrics", "", "", "", "", "", ""],
+
+      // Row 9 - Key metrics labels
+      [
+        "ETH Balance",
+        "Token Count",
+        "Transactions",
+        "Networks",
+        "DeFi Protocols",
+        "",
+        "",
+      ],
+
+      // Row 10 - Key metrics values (empty)
+      ["", "", "", "", "", "", ""],
+
+      // Row 11 - Empty row for spacing
+      [""],
+
+      // Row 12 - Asset allocation section header
+      ["Distribution", "", ""],
+
+      // Row 13 - Asset allocation table header
+      ["Asset", "Value (USD)", "% of Portfolio"],
+    ];
+
+    // Add rows 14-25 for asset allocation data (12 rows)
+    for (let i = 0; i < 12; i++) {
+      portfolioTemplate.push(["", "", ""]);
+    }
+
+    // Row 26 - Empty row for spacing
+    portfolioTemplate.push([""]);
+
+    // Row 27 - Token holdings section header
+    portfolioTemplate.push(["Token Holdings", "", "", "", "", "", "", ""]);
+
+    // Row 28 - Token holdings table header
+    portfolioTemplate.push([
+      "Token",
+      "Symbol",
+      "Balance",
+      "USD Value",
+      "Price (USD)",
+      "24h Change",
+      "7d Change",
+      "Actions",
+    ]);
+
+    // Rows 29-43 - Token holdings data (15 rows)
+    for (let i = 0; i < 15; i++) {
+      portfolioTemplate.push(["", "", "", "", "", "", "", ""]);
+    }
+
+    // Row 44 - Portfolio analytics section header
+    portfolioTemplate.push(["Analytics", "", "", "", "", "", "", ""]);
+
+    // Row 45 - Refresh button and instructions
+    portfolioTemplate.push([
+      "⚠️ TYPE ANYTHING HERE TO REFRESH",
+      "← Just edit this cell and press Enter to load data",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+
+    // Rows 46-60 - Space for charts (15 rows)
+    for (let i = 0; i < 15; i++) {
+      portfolioTemplate.push(["", "", "", "", "", "", "", ""]);
+    }
+
+    // Set the entire template at once (much more efficient than individual calls)
+    await sheetClient.setRangeValues(
+      `${PORTFOLIO_SHEET}!A1:H${portfolioTemplate.length}`,
+      portfolioTemplate
     );
 
-    if (!sheet || !sheet.charts || sheet.charts.length === 0) {
-      logEvent("No charts found to clear");
-      return true; // No charts to clear is still a success
+    // Set supplementary data in specific cells not covered by the main template
+    // These are the cells that have different column counts
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!D4:E6`, [
+      ["Total Balance (USD)", ""],
+      ["24h Change", ""],
+      ["30d Change", ""],
+    ]);
+
+    // Apply conditional formatting for token changes
+    try {
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            addConditionalFormatRule: {
+              rule: {
+                ranges: [
+                  {
+                    sheetId: sheetId,
+                    startRowIndex: 28,
+                    endRowIndex: 43,
+                    startColumnIndex: 5,
+                    endColumnIndex: 7,
+                  },
+                ],
+                booleanRule: {
+                  condition: {
+                    type: "TEXT_CONTAINS",
+                    values: [{ userEnteredValue: "-" }],
+                  },
+                  format: {
+                    backgroundColor: { red: 1.0, green: 0.9, blue: 0.9 },
+                    textFormat: { foregroundColor: { red: 0.8 } },
+                  },
+                },
+              },
+            },
+          },
+          {
+            addConditionalFormatRule: {
+              rule: {
+                ranges: [
+                  {
+                    sheetId: sheetId,
+                    startRowIndex: 28,
+                    endRowIndex: 43,
+                    startColumnIndex: 5,
+                    endColumnIndex: 7,
+                  },
+                ],
+                booleanRule: {
+                  condition: {
+                    type: "TEXT_NOT_CONTAINS",
+                    values: [{ userEnteredValue: "-" }],
+                  },
+                  format: {
+                    backgroundColor: { red: 0.9, green: 1.0, blue: 0.9 },
+                    textFormat: { foregroundColor: { green: 0.6 } },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      });
+    } catch (e) {
+      logEvent("Conditional formatting not supported, skipping...");
     }
 
-    // Create delete requests for all charts
-    const deleteRequests = sheet.charts.map((chart) => ({
-      deleteEmbeddedObject: {
-        objectId: chart.chartId,
-      },
-    }));
+    // Apply enhanced cell formatting for headers and data in a single batch update
+    await sheetClient.batchUpdate({
+      requests: [
+        // Main header formatting
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: 7,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
+                textFormat: {
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
+                  fontSize: 16,
+                  bold: true,
+                },
+                horizontalAlignment: "LEFT",
+                verticalAlignment: "MIDDLE",
+              },
+            },
+            fields:
+              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+          },
+        },
+        // Section headers formatting (Portfolio Summary, Key Metrics, etc.)
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 2,
+              endRowIndex: 44,
+              startColumnIndex: 0,
+              endColumnIndex: 8,
+            },
+            cell: {
+              userEnteredFormat: {
+                borders: {
+                  bottom: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                },
+              },
+            },
+            fields: "userEnteredFormat(borders)",
+          },
+        },
+        // Portfolio Summary header
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 2,
+              endRowIndex: 3,
+              startColumnIndex: 0,
+              endColumnIndex: 8,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
+                textFormat: {
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
+                  fontSize: 12,
+                  bold: true,
+                },
+                horizontalAlignment: "LEFT",
+                verticalAlignment: "MIDDLE",
+              },
+            },
+            fields:
+              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+          },
+        },
+        // Key Metrics header
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 7,
+              endRowIndex: 8,
+              startColumnIndex: 0,
+              endColumnIndex: 8,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
+                textFormat: {
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
+                  fontSize: 12,
+                  bold: true,
+                },
+                horizontalAlignment: "LEFT",
+                verticalAlignment: "MIDDLE",
+              },
+            },
+            fields:
+              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)",
+          },
+        },
+        // Asset Allocation header
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 11,
+              endRowIndex: 12,
+              startColumnIndex: 0,
+              endColumnIndex: 8,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
+                textFormat: {
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
+                  fontSize: 12,
+                  bold: true,
+                },
+              },
+            },
+            fields: "userEnteredFormat(backgroundColor,textFormat)",
+          },
+        },
+        // Token Holdings header
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 26,
+              endRowIndex: 27,
+              startColumnIndex: 0,
+              endColumnIndex: 8,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
+                textFormat: {
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
+                  fontSize: 12,
+                  bold: true,
+                },
+              },
+            },
+            fields: "userEnteredFormat(backgroundColor,textFormat)",
+          },
+        },
+        // Portfolio Analytics header
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 43,
+              endRowIndex: 44,
+              startColumnIndex: 0,
+              endColumnIndex: 8,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
+                textFormat: {
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
+                  fontSize: 12,
+                  bold: true,
+                },
+              },
+            },
+            fields: "userEnteredFormat(backgroundColor,textFormat)",
+          },
+        },
+        // Sub-headers
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 12,
+              endRowIndex: 13,
+              startColumnIndex: 0,
+              endColumnIndex: 3,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
+                textFormat: {
+                  bold: true,
+                },
+                borders: {
+                  bottom: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  top: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  left: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  right: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                },
+              },
+            },
+            fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
+          },
+        },
+        // Token headers formatting
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 27,
+              endRowIndex: 28,
+              startColumnIndex: 0,
+              endColumnIndex: 8,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
+                textFormat: {
+                  bold: true,
+                },
+                borders: {
+                  bottom: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  top: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  left: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  right: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                },
+              },
+            },
+            fields: "userEnteredFormat(backgroundColor,textFormat,borders)",
+          },
+        },
+        // Refresh button styling
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 44,
+              endRowIndex: 45,
+              startColumnIndex: 0,
+              endColumnIndex: 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: SHEET_STYLES.COLORS.USER_BLUE,
+                textFormat: {
+                  bold: true,
+                  foregroundColor: { red: 0.1, green: 0.4, blue: 0.7 },
+                },
+                horizontalAlignment: "CENTER",
+                borders: {
+                  bottom: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  top: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  left: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                  right: {
+                    style: "SOLID",
+                    color: SHEET_STYLES.COLORS.GRAY,
+                  },
+                },
+              },
+            },
+            fields:
+              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,borders)",
+          },
+        },
+        // Instruction text styling
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 44,
+              endRowIndex: 45,
+              startColumnIndex: 1,
+              endColumnIndex: 2,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: { red: 1.0, green: 0.95, blue: 0.8 }, // Light yellow
+                textFormat: {
+                  italic: true,
+                  foregroundColor: { red: 0.6, green: 0.3, blue: 0.0 }, // Brown text
+                },
+                horizontalAlignment: "LEFT",
+              },
+            },
+            fields:
+              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
+          },
+        },
+      ],
+    });
 
-    if (deleteRequests.length > 0) {
-      // Execute batch delete
-      await sheetClient.batchUpdate({ requests: deleteRequests });
-      logEvent(`Cleared ${deleteRequests.length} existing charts`);
-    }
-
-    return true;
+    logEvent(
+      "Enhanced portfolio sheet formatted successfully with optimized API calls"
+    );
   } catch (error) {
-    logEvent(`Error clearing existing charts: ${error}`);
-    return false; // Failed to clear charts
+    logEvent(
+      `Error formatting enhanced portfolio sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    throw error;
   }
 }
 
 /**
- * Create or update charts in the portfolio sheet
+ * Update portfolio data with enhanced UI elements
  */
-export function createOrUpdateCharts(sheetClient, logEvent) {
+export async function updatePortfolioData(sheetClient, wallet, logEvent) {
   try {
-    logEvent("Attempting to create portfolio charts");
-    const CHART_WIDTH = 400;
-    const CHART_HEIGHT = 350;
+    logEvent("Updating enhanced portfolio data...");
 
-    // First clear existing charts, then create new ones
-    clearExistingCharts(sheetClient, logEvent)
-      .then(() => sheetClient.getSheetIdByName(PORTFOLIO_SHEET))
-      .then((sheetId) => {
+    // 1. Get ETH price and the wallet's ETH balance
+    const ethPrice = await getEthPrice(logEvent);
+    const provider =
+      wallet.provider ||
+      new ethers.JsonRpcProvider(
+        "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
+      );
+    const ethBalance = await provider.getBalance(wallet.address);
+    const ethBalanceFormatted = Number(ethers.formatEther(ethBalance));
+    const ethValueUsd = ethBalanceFormatted * ethPrice;
+
+    // 2. Get token data using the enhanced function
+    let tokenData = await getTokenData(wallet.address, "", logEvent);
+
+    // Calculate total portfolio value (ETH + all tokens)
+    const tokenValuesUsd = tokenData.items.reduce(
+      (total, token) => total + (token.quote || 0),
+      0
+    );
+    const totalValueUsd = tokenValuesUsd;
+
+    // Update portfolio summary section
+    // Prepare all portfolio data updates to be done in a batch
+    const network = await provider.getNetwork();
+    const networkName = getNetworkName(network.chainId);
+
+    // Calculate portfolio changes (simple example)
+    const portfolioChange24h = 0; // Could calculate from tokenData
+    const portfolioChange30d = 0; // Could calculate from tokenData
+
+    // Portfolio summary data
+    const portfolioSummary = [
+      [
+        "Wallet Address",
+        wallet.address,
+        "",
+        "Total Balance (USD)",
+        `$${totalValueUsd.toFixed(2)}`,
+      ],
+      [
+        "Network",
+        networkName,
+        "",
+        "24h Change",
+        `${portfolioChange24h.toFixed(2)}%`,
+      ],
+      [
+        "Last Updated",
+        new Date().toISOString(),
+        "",
+        "30d Change",
+        `${portfolioChange30d.toFixed(2)}%`,
+      ],
+    ];
+
+    // Batch update all the summary data
+    await sheetClient.setRangeValues(
+      `${PORTFOLIO_SHEET}!A4:E6`,
+      portfolioSummary
+    );
+
+    // Calculate some basic metrics for the key metrics section
+    const metricsData = [
+      [
+        ethers.formatEther(ethBalance).substring(0, 8),
+        tokenData.items.length.toString(),
+        "N/A", // Transactions
+        "Arbitrum Sepolia", // Networks
+        "N/A", // DeFi Protocols
+        "",
+        "",
+      ],
+    ];
+
+    // Update key metrics section in a single call
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:G10`, metricsData);
+
+    // 3. Update asset allocation section in a single call
+    await updateEnhancedAssetAllocation(
+      sheetClient,
+      ethValueUsd,
+      totalValueUsd,
+      tokenData,
+      logEvent
+    );
+
+    // 4. Update token holdings section in a single call
+    await updateEnhancedTokenHoldings(sheetClient, tokenData, logEvent, wallet);
+
+    // 5. If we have tokens, try to create charts directly
+    if (tokenData.items.length > 0) {
+      try {
+        logEvent("Attempting direct chart creation with data");
+        const CHART_WIDTH = 400;
+        const CHART_HEIGHT = 350;
+
+        // Get sheet ID for chart creation
+        const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+
         // Create batch update request for charts
         const chartRequests = {
           requests: [
@@ -623,140 +788,20 @@ export function createOrUpdateCharts(sheetClient, logEvent) {
                       ],
                       series: [
                         {
-                          series: {
+                          data: {
                             sourceRange: {
                               sources: [
                                 {
                                   sheetId: sheetId,
                                   startRowIndex: 27,
                                   endRowIndex: 35,
-                                  startColumnIndex: 5,
-                                  endColumnIndex: 6,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 3,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Weekly Performance (Line Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Weekly Performance",
-                    basicChart: {
-                      chartType: "LINE",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1,
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 6,
-                                  endColumnIndex: 7,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 6,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Token Balances (Bar Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Token Balances",
-                    basicChart: {
-                      chartType: "BAR",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1, // Symbol column
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 3, // USD Value column
+                                  startColumnIndex: 3,
                                   endColumnIndex: 4,
                                 },
                               ],
                             },
                           },
-                          targetAxis: "BOTTOM_AXIS",
+                          targetAxis: "LEFT_AXIS",
                         },
                       ],
                     },
@@ -765,10 +810,10 @@ export function createOrUpdateCharts(sheetClient, logEvent) {
                     overlayPosition: {
                       anchorCell: {
                         sheetId: sheetId,
-                        rowIndex: 66,
-                        columnIndex: 0,
+                        rowIndex: 46,
+                        columnIndex: 4,
                       },
-                      widthPixels: CHART_WIDTH + 100, // Slightly wider for bar chart
+                      widthPixels: CHART_WIDTH,
                       heightPixels: CHART_HEIGHT,
                     },
                   },
@@ -778,358 +823,626 @@ export function createOrUpdateCharts(sheetClient, logEvent) {
           ],
         };
 
-        // Execute the batch update to create charts
-        sheetClient
-          .batchUpdate(chartRequests)
-          .then(() => {
-            logEvent("Portfolio charts created successfully");
-          })
-          .catch((error) => {
-            logEvent(`Error in chart batch update: ${error}`);
+        await sheetClient.batchUpdate(chartRequests);
+        logEvent("Portfolio charts created directly during data update");
+      } catch (chartError) {
+        logEvent(`Direct chart creation failed: ${chartError}`);
+        logEvent("Will rely on the scheduled chart creation instead");
+        // Fall back to the normal chart creation function
+        createOrUpdateCharts(sheetClient, logEvent);
+      }
+    }
 
-            // Try simplified charts if the regular ones fail
-            logEvent("Attempting to create simplified charts as fallback");
-            createSimplifiedCharts(sheetClient, logEvent).then((success) => {
-              if (success) {
-                logEvent("Created simplified charts successfully as fallback");
-              } else {
-                logEvent("Failed to create any charts");
-              }
-            });
-          });
-      })
-      .catch((error) => {
-        logEvent(`Error getting sheet ID: ${error}`);
-      });
+    logEvent(
+      "Enhanced portfolio data updated successfully with optimized API calls"
+    );
   } catch (error) {
-    logEvent(`Error creating charts: ${error}`);
+    logEvent(
+      `Error updating enhanced portfolio data: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    throw error;
   }
 }
 
 /**
- * Create simplified charts as a fallback method
- * This function uses a more direct approach with explicit dimensions
+ * Update asset allocation with percentage calculation
  */
-export async function createSimplifiedCharts(sheetClient, logEvent) {
+async function updateEnhancedAssetAllocation(
+  sheetClient,
+  ethValueUsd,
+  totalValueUsd,
+  tokenData,
+  logEvent
+) {
   try {
-    logEvent("Creating simplified charts as fallback");
+    // Calculate ETH percentage
+    const ethPercentage =
+      totalValueUsd > 0 ? (ethValueUsd / totalValueUsd) * 100 : 0;
 
-    // Clear existing charts first
-    await clearExistingCharts(sheetClient, logEvent);
+    // Prepare asset allocation data
+    const assetAllocation = [
+      ["ETH", `$${ethValueUsd.toFixed(2)}`, `${ethPercentage.toFixed(2)}%`],
+    ];
 
-    // Get the sheet ID
-    const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
-
-    // Create a simpler version of the chart requests
-    const simplifiedChartRequests = {
-      requests: [
-        // Simplified asset distribution pie chart
-        {
-          addChart: {
-            chart: {
-              spec: {
-                title: "Asset Distribution",
-                pieChart: {
-                  legendPosition: "RIGHT_LEGEND",
-                  domain: {
-                    sourceRange: {
-                      sources: [
-                        {
-                          sheetId: sheetId,
-                          startRowIndex: 13, // First data row
-                          endRowIndex: 20, // Limit rows for reliability
-                          startColumnIndex: 0, // Asset column
-                          endColumnIndex: 1,
-                        },
-                      ],
-                    },
-                  },
-                  series: {
-                    sourceRange: {
-                      sources: [
-                        {
-                          sheetId: sheetId,
-                          startRowIndex: 13, // First data row
-                          endRowIndex: 20, // Limit rows for reliability
-                          startColumnIndex: 1, // Value column
-                          endColumnIndex: 2,
-                        },
-                      ],
-                    },
-                  },
-                  pieHole: 0.4, // Donut style
-                },
-              },
-              position: {
-                overlayPosition: {
-                  anchorCell: {
-                    sheetId: sheetId,
-                    rowIndex: 46,
-                    columnIndex: 0,
-                  },
-                  widthPixels: 400,
-                  heightPixels: 350,
-                },
-              },
-            },
-          },
-        },
-        // Simplified performance column chart
-        {
-          addChart: {
-            chart: {
-              spec: {
-                title: "24h Performance",
-                basicChart: {
-                  chartType: "COLUMN",
-                  legendPosition: "BOTTOM_LEGEND",
-                  domains: [
-                    {
-                      domain: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 0, // Token column
-                              endColumnIndex: 1,
-                            },
-                          ],
-                        },
-                      },
-                    },
-                  ],
-                  series: [
-                    {
-                      series: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 5, // 24h change column
-                              endColumnIndex: 6,
-                            },
-                          ],
-                        },
-                      },
-                      targetAxis: "LEFT_AXIS",
-                    },
-                  ],
-                },
-              },
-              position: {
-                overlayPosition: {
-                  anchorCell: {
-                    sheetId: sheetId,
-                    rowIndex: 46,
-                    columnIndex: 3,
-                  },
-                  widthPixels: 400,
-                  heightPixels: 350,
-                },
-              },
-            },
-          },
-        },
-        // Weekly Performance Line Chart (New)
-        {
-          addChart: {
-            chart: {
-              spec: {
-                title: "Weekly Performance",
-                basicChart: {
-                  chartType: "LINE",
-                  legendPosition: "BOTTOM_LEGEND",
-                  domains: [
-                    {
-                      domain: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 1, // Symbol column
-                              endColumnIndex: 2,
-                            },
-                          ],
-                        },
-                      },
-                    },
-                  ],
-                  series: [
-                    {
-                      series: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 6, // 7d change column
-                              endColumnIndex: 7,
-                            },
-                          ],
-                        },
-                      },
-                      targetAxis: "LEFT_AXIS",
-                    },
-                  ],
-                  lineSmoothing: true,
-                },
-              },
-              position: {
-                overlayPosition: {
-                  anchorCell: {
-                    sheetId: sheetId,
-                    rowIndex: 46,
-                    columnIndex: 6,
-                  },
-                  widthPixels: 400,
-                  heightPixels: 350,
-                },
-              },
-            },
-          },
-        },
-        // Token Balances Bar Chart as a simplified version
-        {
-          addChart: {
-            chart: {
-              spec: {
-                title: "Token Balances",
-                basicChart: {
-                  chartType: "BAR",
-                  legendPosition: "BOTTOM_LEGEND",
-                  domains: [
-                    {
-                      domain: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 1, // Symbol column
-                              endColumnIndex: 2,
-                            },
-                          ],
-                        },
-                      },
-                    },
-                  ],
-                  series: [
-                    {
-                      series: {
-                        sourceRange: {
-                          sources: [
-                            {
-                              sheetId: sheetId,
-                              startRowIndex: 28, // Token rows
-                              endRowIndex: 33, // Limit rows for reliability
-                              startColumnIndex: 3, // USD Value column
-                              endColumnIndex: 4,
-                            },
-                          ],
-                        },
-                      },
-                      targetAxis: "BOTTOM_AXIS",
-                    },
-                  ],
-                },
-              },
-              position: {
-                overlayPosition: {
-                  anchorCell: {
-                    sheetId: sheetId,
-                    rowIndex: 66,
-                    columnIndex: 0,
-                  },
-                  widthPixels: 500,
-                  heightPixels: 350,
-                },
-              },
-            },
-          },
-        },
-      ],
-    };
-
-    await sheetClient.batchUpdate(simplifiedChartRequests);
-    logEvent("Simplified charts created successfully");
-    return true;
-  } catch (error) {
-    logEvent(`Error creating simplified charts: ${error}`);
-
-    // Try creating a single, basic chart as last resort
-    try {
-      const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
-      const basicChartRequest = {
-        requests: [
-          {
-            addChart: {
-              chart: {
-                spec: {
-                  title: "Portfolio Overview",
-                  pieChart: {
-                    legendPosition: "RIGHT_LEGEND",
-                    domain: {
-                      sourceRange: {
-                        sources: [
-                          {
-                            sheetId: sheetId,
-                            startRowIndex: 13,
-                            endRowIndex: 17, // Use very few rows to ensure data exists
-                            startColumnIndex: 0,
-                            endColumnIndex: 1,
-                          },
-                        ],
-                      },
-                    },
-                    series: {
-                      sourceRange: {
-                        sources: [
-                          {
-                            sheetId: sheetId,
-                            startRowIndex: 13,
-                            endRowIndex: 17, // Use very few rows to ensure data exists
-                            startColumnIndex: 1,
-                            endColumnIndex: 2,
-                          },
-                        ],
-                      },
-                    },
-                  },
-                },
-                position: {
-                  overlayPosition: {
-                    anchorCell: {
-                      sheetId: sheetId,
-                      rowIndex: 50,
-                      columnIndex: 2,
-                    },
-                    widthPixels: 600,
-                    heightPixels: 400,
-                  },
-                },
-              },
-            },
-          },
-        ],
-      };
-
-      await sheetClient.batchUpdate(basicChartRequest);
-      logEvent("Basic fallback chart created successfully");
-      return true;
-    } catch (basicError) {
-      logEvent(`Failed to create even basic chart: ${basicError}`);
-      return false;
+    // Add token data with percentages
+    if (tokenData && tokenData.items) {
+      tokenData.items
+        .filter((token) => token.quote > 1) // Only include tokens with value > $1
+        .sort((a, b) => (b.quote || 0) - (a.quote || 0)) // Sort by value (highest first)
+        .slice(0, 11) // Limit to top 11 assets (ETH + 11 = 12 total rows)
+        .forEach((token) => {
+          const tokenPercentage =
+            totalValueUsd > 0 ? (token.quote / totalValueUsd) * 100 : 0;
+          assetAllocation.push([
+            token.contract_name || token.contract_ticker_symbol,
+            `$${token.quote.toFixed(2)}`,
+            `${tokenPercentage.toFixed(2)}%`,
+          ]);
+        });
     }
+
+    // Clear and update asset allocation in a single call by filling with empty rows if needed
+    const paddedAllocation = [...assetAllocation];
+
+    // Pad with empty rows to always fill rows 14-25 (12 rows total)
+    while (paddedAllocation.length < 12) {
+      paddedAllocation.push(["", "", ""]);
+    }
+
+    // Set all allocation data at once
+    await sheetClient.setRangeValues(
+      `${PORTFOLIO_SHEET}!A14:C25`,
+      paddedAllocation
+    );
+
+    logEvent(
+      `Enhanced asset allocation data updated (${assetAllocation.length} assets)`
+    );
+  } catch (error) {
+    logEvent(
+      `Error updating enhanced asset allocation: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    throw error;
   }
 }
+
+/**
+ * Get ETH price from CoinGecko API with better error handling and rate limiting
+ */
+async function getEthPrice(logEvent) {
+  try {
+    logEvent("Fetching ETH price from CoinGecko...");
+
+    // Function to wait with exponential backoff
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    // Try making the API request with exponential backoff
+    let attempt = 0;
+    const maxAttempts = 3;
+
+    while (attempt < maxAttempts) {
+      try {
+        // Add a cache buster to avoid cached 429 responses
+        const cacheBuster = new Date().getTime();
+
+        // Use the same endpoint as in getTokenData for consistency
+        const response = await axios.get(
+          `https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&_=${cacheBuster}`,
+          {
+            headers: {
+              // Add a user agent to avoid being blocked
+              "User-Agent": "Google-Sheets-Crypto-Dashboard/1.0",
+            },
+            // Increase timeout for potentially slow responses
+            timeout: 10000,
+          }
+        );
+
+        if (
+          response.data &&
+          response.data.ethereum &&
+          response.data.ethereum.usd
+        ) {
+          const price = response.data.ethereum.usd;
+          logEvent(`Current ETH price: $${price}`);
+          return price;
+        } else {
+          logEvent(
+            "Invalid response from CoinGecko API. Using default ETH price."
+          );
+          return 3500; // Default value if API response format is unexpected
+        }
+      } catch (error) {
+        attempt++;
+
+        // Check if the error is a rate limit (429)
+        if (error.response && error.response.status === 429) {
+          const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+          logEvent(
+            `CoinGecko rate limit hit for ETH price. Waiting ${
+              waitTime / 1000
+            }s before retry...`
+          );
+          await delay(waitTime);
+        } else {
+          // For other errors, don't retry
+          logEvent(`Error fetching ETH price: ${error}. Using default value.`);
+          return 3500; // Default fallback value
+        }
+      }
+    }
+
+    // If we've exhausted all attempts, use default value
+    logEvent(
+      `Failed to get ETH price after ${maxAttempts} attempts. Using default value.`
+    );
+    return 3500; // Default fallback value after all retries failed
+  } catch (error) {
+    logEvent(`Unexpected error in getEthPrice: ${error}. Using default value.`);
+    return 3500; // Default fallback value
+  }
+}
+
+/**
+ * Function to fetch real token balance for a specific address and token
+ */
+async function getTokenBalance(
+  walletAddress,
+  tokenAddress,
+  provider,
+  logEvent
+) {
+  try {
+    // For native ETH
+    if (tokenAddress === "Native") {
+      const balance = await provider.getBalance(walletAddress);
+      return balance.toString();
+    }
+
+    // For ERC20 tokens, use the standard ERC20 interface
+    const erc20Abi = [
+      "function balanceOf(address owner) view returns (uint256)",
+      "function decimals() view returns (uint8)",
+      "function symbol() view returns (string)",
+      "function name() view returns (string)",
+    ];
+
+    const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, provider);
+    const balance = await tokenContract.balanceOf(walletAddress);
+    return balance.toString();
+  } catch (error) {
+    logEvent(`Error fetching balance for token ${tokenAddress}: ${error}`);
+    return "0";
+  }
+}
+
+/**
+ * Get token data from CoinGecko API with better error handling and rate limit management
+ */
+async function getTokenData(walletAddress, chainId, logEvent) {
+  try {
+    // If mock data is enabled, return mock data immediately
+    if (USE_MOCK_DATA) {
+      logEvent("Using mock token data (USE_MOCK_DATA is enabled)");
+      return getMockTokenData();
+    }
+
+    logEvent(
+      `Fetching real token data from CoinGecko for wallet: ${walletAddress}`
+    );
+
+    // Map of popular tokens to use with CoinGecko
+    const popularTokens = [
+      {
+        id: "ethereum",
+        symbol: "ETH",
+        name: "Ethereum",
+        address: "Native", // Native token
+        explorerUrl: "https://sepolia.arbiscan.io/address/",
+      },
+      {
+        id: "usd-coin",
+        symbol: "USDC",
+        name: "USD Coin",
+        address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia USDC
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "tether",
+        symbol: "USDT",
+        name: "Tether",
+        address: "0xd70835403B83E1358350a44bf64FA9Fc4f7F2b7B", // Arbitrum Sepolia USDT
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "dai",
+        symbol: "DAI",
+        name: "Dai Stablecoin",
+        address: "0xc5fa5669e326da8b2c35540257cd48811f40a36b", // Arbitrum Sepolia DAI
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "uniswap",
+        symbol: "UNI",
+        name: "Uniswap",
+        address: "0x9c64461d0025982d19622ffe72cadcf7c21d7ea5", // Arbitrum Sepolia UNI
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "chainlink",
+        symbol: "LINK",
+        name: "Chainlink",
+        address: "0x08B4B16E1422D4270f64340c199C1A8a8724b69C", // Arbitrum Sepolia LINK
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+    ];
+
+    // Initialize provider
+    const provider = new ethers.JsonRpcProvider(
+      "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
+    );
+
+    // Function to wait with increasing backoff
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    // Try making the API request with exponential backoff
+    let attempt = 0;
+    const maxAttempts = 3;
+
+    while (attempt < maxAttempts) {
+      try {
+        // Get price data for all tokens at once from CoinGecko
+        const ids = popularTokens.map((token) => token.id).join(",");
+        logEvent(
+          `Requesting prices for: ${ids} (attempt ${
+            attempt + 1
+          }/${maxAttempts})`
+        );
+
+        // Add a cache-busting parameter to avoid cached 429 responses
+        const cacheBuster = new Date().getTime();
+
+        const priceResponse = await axios.get(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24h_change=true&_=${cacheBuster}`,
+          {
+            headers: {
+              // Add a user agent to avoid being blocked
+              "User-Agent": "Google-Sheets-Crypto-Dashboard/1.0",
+            },
+            // Increase timeout for potentially slow responses
+            timeout: 10000,
+          }
+        );
+
+        if (
+          !priceResponse.data ||
+          Object.keys(priceResponse.data).length === 0
+        ) {
+          logEvent("Empty response from CoinGecko API. Using mock data.");
+          return getMockTokenData();
+        }
+
+        // Check if we got at least some token data
+        const tokensReceived = Object.keys(priceResponse.data).length;
+        logEvent(`Received data for ${tokensReceived} tokens from CoinGecko`);
+
+        if (tokensReceived === 0) {
+          logEvent("No token data received from CoinGecko. Using mock data.");
+          return getMockTokenData();
+        }
+
+        // Transform CoinGecko data to match the format expected by our app
+        const items = [];
+
+        // Process each token and fetch real balances
+        for (const token of popularTokens) {
+          // Check if we have price data for this token
+          if (priceResponse.data[token.id]) {
+            const price = priceResponse.data[token.id].usd || 0;
+            const change24h = priceResponse.data[token.id].usd_24h_change || 0;
+
+            // Fetch actual token balance from the blockchain
+            logEvent(`Fetching balance for ${token.name} (${token.symbol})`);
+            const balance = await getTokenBalance(
+              walletAddress,
+              token.address,
+              provider,
+              logEvent
+            );
+
+            // Format balance according to token decimals
+            const formattedBalance =
+              token.symbol === "USDC" || token.symbol === "USDT"
+                ? BigInt(balance) // 6 decimals for USDC/USDT
+                : BigInt(balance); // 18 decimals for other tokens
+
+            // Calculate token value
+            const tokenValueInUsd =
+              token.symbol === "USDC" || token.symbol === "USDT"
+                ? (Number(balance) / 10 ** 6) * price
+                : Number(ethers.formatEther(balance)) * price;
+
+            items.push({
+              contract_name: token.name,
+              contract_ticker_symbol: token.symbol,
+              contract_address: token.address,
+              contract_decimals:
+                token.symbol === "USDC" || token.symbol === "USDT" ? 6 : 18,
+              balance: formattedBalance,
+              quote_rate: price,
+              quote: tokenValueInUsd,
+              price_change_24h: change24h,
+              explorerUrl: token.explorerUrl,
+            });
+
+            logEvent(
+              `Added ${
+                token.symbol
+              } with balance: ${balance} (worth $${tokenValueInUsd.toFixed(2)})`
+            );
+          }
+        }
+
+        if (items.length === 0) {
+          logEvent("Failed to process token data. Using mock data.");
+          return getMockTokenData();
+        }
+
+        logEvent(
+          `Successfully processed ${items.length} tokens from CoinGecko`
+        );
+        return { items };
+      } catch (apiError) {
+        attempt++;
+
+        // Check if the error is a rate limit (429)
+        if (apiError.response && apiError.response.status === 429) {
+          const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+          logEvent(
+            `CoinGecko rate limit hit. Waiting ${
+              waitTime / 1000
+            }s before retry...`
+          );
+          await delay(waitTime);
+        } else {
+          // For other errors, don't retry
+          logEvent(
+            `Error fetching data from CoinGecko: ${apiError}. Using mock data.`
+          );
+          return getMockTokenData();
+        }
+      }
+    }
+
+    // If we've exhausted all attempts, use mock data
+    logEvent(
+      `Failed to get data from CoinGecko after ${maxAttempts} attempts. Using mock data.`
+    );
+    return getMockTokenData();
+  } catch (error) {
+    logEvent(
+      `Error in token data function: ${
+        error instanceof Error ? error.message : String(error)
+      }. Using mock data.`
+    );
+    return getMockTokenData();
+  }
+}
+
+/**
+ * Get network name from chain ID
+ */
+function getNetworkName(chainId) {
+  const chainIdMap = {
+    1: "Ethereum Mainnet",
+    42161: "Arbitrum One",
+    421614: "Arbitrum Sepolia",
+    11155111: "Sepolia",
+    5: "Goerli",
+  };
+
+  return chainIdMap[chainId.toString()] || `Chain ID: ${chainId.toString()}`;
+}
+
+/**
+ * Mock data for token balances with more realistic values for Arbitrum Sepolia
+ */
+function getMockTokenData() {
+  return {
+    items: [
+      {
+        contract_name: "Ethereum",
+        contract_ticker_symbol: "ETH",
+        contract_address: "0x980b62da83eff3d4576c647993b0c1d7faf17c73",
+        contract_decimals: 18,
+        balance: "3000000000000000000", // 3 ETH
+        quote_rate: 3500,
+        quote: 10500,
+        price_change_24h: 3.5,
+        explorerUrl: "https://sepolia.arbiscan.io/address/",
+      },
+      {
+        contract_name: "ERC-20: BTC",
+        contract_ticker_symbol: "BTC",
+        contract_address: "0xF79cE1Cf38A09D572b021B4C5548b75A14082F12",
+        contract_decimals: 8,
+        balance: "15000000", // 0.15 BTC
+        quote_rate: 67000,
+        quote: 10050,
+      },
+      {
+        contract_name: "USD Coin",
+        contract_ticker_symbol: "USDC",
+        contract_address: "0x3321Fd36aEaB0d5CdfD26f4A3A93E2D2aAcCB99f",
+        contract_decimals: 6,
+        balance: 5000000000, // 5000 USDC
+        quote_rate: 1,
+        quote: 5000,
+        price_change_24h: 0.01, // Stable coin, minimal change
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        contract_name: "Tether",
+        contract_ticker_symbol: "USDT",
+        contract_address: "0xd70835403B83E1358350a44bf64FA9Fc4f7F2b7B",
+        contract_decimals: 6,
+        balance: 3000000000, // 3000 USDT
+        quote_rate: 1,
+        quote: 3000,
+        price_change_24h: -0.05,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        contract_name: "Dai Stablecoin",
+        contract_ticker_symbol: "DAI",
+        contract_address: "0xc5fa5669e326da8b2c35540257cd48811f40a36b",
+        contract_decimals: 18,
+        balance: "2500000000000000000000", // 2500 DAI
+        quote_rate: 1,
+        quote: 2500,
+        price_change_24h: 0.03,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        contract_name: "Uniswap",
+        contract_ticker_symbol: "UNI",
+        contract_address: "0x9c64461d0025982d19622ffe72cadcf7c21d7ea5",
+        contract_decimals: 18,
+        balance: "150000000000000000000", // 150 UNI
+        quote_rate: 7.8,
+        quote: 1170,
+        price_change_24h: -2.3,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        contract_name: "Chainlink",
+        contract_ticker_symbol: "LINK",
+        contract_address: "0x08B4B16E1422D4270f64340c199C1A8a8724b69C",
+        contract_decimals: 18,
+        balance: "100000000000000000000",
+        quote_rate: 14.5,
+        quote: 1450,
+        price_change_24h: 6.8,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+    ],
+  };
+}
+
+/**
+ * Update token holdings with enhanced formatting
+ */
+async function updateEnhancedTokenHoldings(
+  sheetClient,
+  tokenData,
+  logEvent,
+  wallet
+) {
+  try {
+    // Prepare token data rows to update in a single API call
+    let tokenRows = [];
+
+    if (!tokenData || !tokenData.items || tokenData.items.length === 0) {
+      // If no tokens, add a placeholder row
+      tokenRows.push(["No tokens found", "-", "-", "-", "-", "-", "-", "-"]);
+
+      // Pad with empty rows to fill the entire token area (15 rows total)
+      for (let i = 1; i < 15; i++) {
+        tokenRows.push(["", "", "", "", "", "", "", ""]);
+      }
+    } else {
+      // Prepare token data (limit to top 15 by value)
+      const sortedTokens = [...tokenData.items]
+        .sort((a, b) => (b.quote || 0) - (a.quote || 0))
+        .slice(0, 15);
+
+      // Process all tokens at once
+      tokenRows = sortedTokens.map((token) => {
+        // Use the actual 24h change if available from CoinGecko, otherwise generate random
+        const change24h =
+          token.price_change_24h !== undefined
+            ? token.price_change_24h.toFixed(2)
+            : (Math.random() * 20 - 10).toFixed(2);
+
+        // Generate random change for 7d (for demo purposes)
+        const change7d = (Math.random() * 30 - 15).toFixed(2);
+
+        // Format the values for better readability
+        // Handle both string and number balance formats, and properly convert BigInt
+        const balance =
+          typeof token.balance === "string"
+            ? Number(ethers.formatEther(token.balance))
+            : typeof token.balance === "bigint"
+            ? token.contract_ticker_symbol === "USDC" ||
+              token.contract_ticker_symbol === "USDT"
+              ? Number(token.balance) / 10 ** 6
+              : Number(token.balance) / 10 ** 18
+            : token.contract_ticker_symbol === "USDC" ||
+              token.contract_ticker_symbol === "USDT"
+            ? (token.balance / 10 ** 6).toFixed(2)
+            : (token.balance / 10 ** 18).toFixed(6);
+
+        // Format as string if not already a string
+        const formattedBalance =
+          typeof balance === "string" ? balance : balance.toFixed(6);
+
+        const formattedUsdValue = `$${
+          token.quote ? token.quote.toFixed(2) : "0.00"
+        }`;
+        const formattedPrice = `$${
+          token.quote_rate ? token.quote_rate.toFixed(4) : "0.0000"
+        }`;
+
+        // Generate a link to Etherscan or another explorer
+        const explorerBaseUrl =
+          token.explorerUrl || "https://sepolia.arbiscan.io/token/";
+        const explorerUrl =
+          token.contract_address === "Native"
+            ? `https://sepolia.arbiscan.io/address/${wallet?.address}`
+            : `${explorerBaseUrl}${token.contract_address}`;
+
+        const explorerLink = `=HYPERLINK("${explorerUrl}", "View on Explorer")`;
+
+        return [
+          token.contract_name || "Unknown",
+          token.contract_ticker_symbol,
+          formattedBalance,
+          formattedUsdValue,
+          formattedPrice,
+          `${change24h}%`,
+          `${change7d}%`,
+          explorerLink, // Now a hyperlink formula instead of plain text
+        ];
+      });
+
+      // Pad with empty rows if we have fewer than 15 tokens
+      while (tokenRows.length < 15) {
+        tokenRows.push(["", "", "", "", "", "", "", ""]);
+      }
+    }
+
+    // Update all token data in a single call (more efficient)
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A29:H43`, tokenRows);
+
+    const tokenCount =
+      tokenData && tokenData.items ? Math.min(tokenData.items.length, 15) : 0;
+    logEvent(
+      `Updated token holdings in a single operation (${tokenCount} tokens)`
+    );
+  } catch (error) {
+    logEvent(
+      `Error updating enhanced token holdings: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    throw error;
+  }
+}
+
 /**
  * Schedule regular portfolio updates and handle refresh button
  */
@@ -1451,116 +1764,19 @@ export function schedulePortfolioUpdates(
 }
 
 /**
- * Update portfolio data with enhanced UI elements
+ * Create or update charts in the portfolio sheet
  */
-export async function updatePortfolioData(sheetClient, wallet, logEvent) {
+export function createOrUpdateCharts(sheetClient, logEvent) {
   try {
-    logEvent("Updating enhanced portfolio data...");
+    logEvent("Attempting to create portfolio charts");
+    const CHART_WIDTH = 400;
+    const CHART_HEIGHT = 350;
 
-    // 1. Get ETH price and the wallet's ETH balance
-    const ethPrice = await getEthPrice(logEvent);
-    const provider =
-      wallet.provider ||
-      new ethers.JsonRpcProvider(
-        "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
-      );
-    const ethBalance = await provider.getBalance(wallet.address);
-    const ethBalanceFormatted = Number(ethers.formatEther(ethBalance));
-    const ethValueUsd = ethBalanceFormatted * ethPrice;
-
-    // 2. Get token data using the enhanced function
-    let tokenData = await getTokenData(wallet.address, "", logEvent);
-
-    // Calculate total portfolio value (ETH + all tokens)
-    const tokenValuesUsd = tokenData.items.reduce(
-      (total, token) => total + (token.quote || 0),
-      0
-    );
-    const totalValueUsd = tokenValuesUsd;
-
-    // Update portfolio summary section
-    // Prepare all portfolio data updates to be done in a batch
-    const network = await provider.getNetwork();
-    const networkName = getNetworkName(network.chainId);
-
-    // Calculate portfolio changes (simple example)
-    const portfolioChange24h = 0; // Could calculate from tokenData
-    const portfolioChange30d = 0; // Could calculate from tokenData
-
-    // Portfolio summary data
-    const portfolioSummary = [
-      [
-        "Wallet Address",
-        wallet.address,
-        "",
-        "Total Balance (USD)",
-        `$${totalValueUsd.toFixed(2)}`,
-      ],
-      [
-        "Network",
-        networkName,
-        "",
-        "24h Change",
-        `${portfolioChange24h.toFixed(2)}%`,
-      ],
-      [
-        "Last Updated",
-        new Date().toISOString(),
-        "",
-        "30d Change",
-        `${portfolioChange30d.toFixed(2)}%`,
-      ],
-    ];
-
-    // Batch update all the summary data
-    await sheetClient.setRangeValues(
-      `${PORTFOLIO_SHEET}!A4:E6`,
-      portfolioSummary
-    );
-
-    // Calculate some basic metrics for the key metrics section
-    const metricsData = [
-      [
-        ethers.formatEther(ethBalance).substring(0, 8),
-        tokenData.items.length.toString(),
-        "N/A", // Transactions
-        "Arbitrum Sepolia", // Networks
-        "N/A", // DeFi Protocols
-        "",
-        "",
-      ],
-    ];
-
-    // Update key metrics section in a single call
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:G10`, metricsData);
-
-    // 3. Update asset allocation section in a single call
-    await updateEnhancedAssetAllocation(
-      sheetClient,
-      ethValueUsd,
-      totalValueUsd,
-      tokenData,
-      logEvent
-    );
-
-    // 4. Update token holdings section in a single call
-    await updateEnhancedTokenHoldings(sheetClient, tokenData, logEvent, wallet);
-
-    // 5. If we have tokens, try to create charts directly
-    if (tokenData.items.length > 0) {
-      try {
-        logEvent("Attempting direct chart creation with data");
-
-        // Clear existing charts first to avoid duplicates
-        await clearExistingCharts(sheetClient, logEvent);
-
-        const CHART_WIDTH = 400;
-        const CHART_HEIGHT = 350;
-
-        // Get sheet ID for chart creation
-        const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
-
-        // Create batch update request for charts with horizontal layout
+    // First get the sheet ID
+    sheetClient
+      .getSheetIdByName(PORTFOLIO_SHEET)
+      .then((sheetId) => {
+        // Create batch update request for charts
         const chartRequests = {
           requests: [
             // Asset Distribution (Pie Chart)
@@ -1642,140 +1858,20 @@ export async function updatePortfolioData(sheetClient, wallet, logEvent) {
                       ],
                       series: [
                         {
-                          series: {
+                          data: {
                             sourceRange: {
                               sources: [
                                 {
                                   sheetId: sheetId,
                                   startRowIndex: 27,
                                   endRowIndex: 35,
-                                  startColumnIndex: 5,
-                                  endColumnIndex: 6,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 3,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Weekly Performance (Line Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Weekly Performance",
-                    basicChart: {
-                      chartType: "LINE",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1,
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 6,
-                                  endColumnIndex: 7,
-                                },
-                              ],
-                            },
-                          },
-                          targetAxis: "LEFT_AXIS",
-                        },
-                      ],
-                    },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: {
-                        sheetId: sheetId,
-                        rowIndex: 46,
-                        columnIndex: 6,
-                      },
-                      widthPixels: CHART_WIDTH,
-                      heightPixels: CHART_HEIGHT,
-                    },
-                  },
-                },
-              },
-            },
-            // Token Balances (Bar Chart)
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: "Token Balances",
-                    basicChart: {
-                      chartType: "BAR",
-                      legendPosition: "BOTTOM_LEGEND",
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 1, // Symbol column
-                                  endColumnIndex: 2,
-                                },
-                              ],
-                            },
-                          },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [
-                                {
-                                  sheetId: sheetId,
-                                  startRowIndex: 27,
-                                  endRowIndex: 35,
-                                  startColumnIndex: 3, // USD Value column
+                                  startColumnIndex: 3,
                                   endColumnIndex: 4,
                                 },
                               ],
                             },
                           },
-                          targetAxis: "BOTTOM_AXIS",
+                          targetAxis: "LEFT_AXIS",
                         },
                       ],
                     },
@@ -1784,10 +1880,10 @@ export async function updatePortfolioData(sheetClient, wallet, logEvent) {
                     overlayPosition: {
                       anchorCell: {
                         sheetId: sheetId,
-                        rowIndex: 66,
-                        columnIndex: 0,
+                        rowIndex: 46,
+                        columnIndex: 4,
                       },
-                      widthPixels: CHART_WIDTH + 100, // Slightly wider for bar chart
+                      widthPixels: CHART_WIDTH,
                       heightPixels: CHART_HEIGHT,
                     },
                   },
@@ -1797,25 +1893,231 @@ export async function updatePortfolioData(sheetClient, wallet, logEvent) {
           ],
         };
 
-        await sheetClient.batchUpdate(chartRequests);
-        logEvent("Portfolio charts created directly during data update");
-      } catch (chartError) {
-        logEvent(`Direct chart creation failed: ${chartError}`);
-        logEvent("Will rely on the scheduled chart creation instead");
-        // Fall back to the normal chart creation function
-        createOrUpdateCharts(sheetClient, logEvent);
-      }
-    }
+        // Execute the batch update to create charts
+        sheetClient
+          .batchUpdate(chartRequests)
+          .then(() => {
+            logEvent("Portfolio charts created successfully");
+          })
+          .catch((error) => {
+            logEvent(`Error in chart batch update: ${error}`);
 
-    logEvent(
-      "Enhanced portfolio data updated successfully with optimized API calls"
-    );
+            // Try simplified charts if the regular ones fail
+            logEvent("Attempting to create simplified charts as fallback");
+            createSimplifiedCharts(sheetClient, logEvent).then((success) => {
+              if (success) {
+                logEvent("Created simplified charts successfully as fallback");
+              } else {
+                logEvent("Failed to create any charts");
+              }
+            });
+          });
+      })
+      .catch((error) => {
+        logEvent(`Error getting sheet ID: ${error}`);
+      });
   } catch (error) {
-    logEvent(
-      `Error updating enhanced portfolio data: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    throw error;
+    logEvent(`Error creating charts: ${error}`);
+  }
+}
+
+/**
+ * Create simplified charts as a fallback method
+ * This function uses a more direct approach with explicit dimensions
+ */
+async function createSimplifiedCharts(sheetClient, logEvent) {
+  try {
+    logEvent("Creating simplified charts as fallback");
+
+    // Get the sheet ID
+    const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+
+    // Create a simpler version of the chart requests
+    const simplifiedChartRequests = {
+      requests: [
+        // Simplified asset distribution pie chart
+        {
+          addChart: {
+            chart: {
+              spec: {
+                title: "Asset Distribution",
+                pieChart: {
+                  legendPosition: "RIGHT_LEGEND",
+                  domain: {
+                    sourceRange: {
+                      sources: [
+                        {
+                          sheetId: sheetId,
+                          startRowIndex: 13, // First data row
+                          endRowIndex: 20, // Limit rows for reliability
+                          startColumnIndex: 0, // Asset column
+                          endColumnIndex: 1,
+                        },
+                      ],
+                    },
+                  },
+                  series: {
+                    sourceRange: {
+                      sources: [
+                        {
+                          sheetId: sheetId,
+                          startRowIndex: 13, // First data row
+                          endRowIndex: 20, // Limit rows for reliability
+                          startColumnIndex: 1, // Value column
+                          endColumnIndex: 2,
+                        },
+                      ],
+                    },
+                  },
+                  pieHole: 0.4, // Donut style
+                },
+              },
+              position: {
+                overlayPosition: {
+                  anchorCell: {
+                    sheetId: sheetId,
+                    rowIndex: 46,
+                    columnIndex: 0,
+                  },
+                  widthPixels: 500,
+                  heightPixels: 400,
+                },
+              },
+            },
+          },
+        },
+        // Simplified performance column chart
+        {
+          addChart: {
+            chart: {
+              spec: {
+                title: "24h Performance",
+                basicChart: {
+                  chartType: "COLUMN",
+                  legendPosition: "BOTTOM_LEGEND",
+                  domains: [
+                    {
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 0, // Token column
+                              endColumnIndex: 1,
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                  series: [
+                    {
+                      data: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 5, // 24h change column
+                              endColumnIndex: 6,
+                            },
+                          ],
+                        },
+                      },
+                      targetAxis: "LEFT_AXIS",
+                    },
+                  ],
+                },
+              },
+              position: {
+                overlayPosition: {
+                  anchorCell: {
+                    sheetId: sheetId,
+                    rowIndex: 46,
+                    columnIndex: 4,
+                  },
+                  widthPixels: 500,
+                  heightPixels: 400,
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    await sheetClient.batchUpdate(simplifiedChartRequests);
+    logEvent("Simplified charts created successfully");
+    return true;
+  } catch (error) {
+    logEvent(`Error creating simplified charts: ${error}`);
+
+    // Try creating a single, basic chart as last resort
+    try {
+      const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+      const basicChartRequest = {
+        requests: [
+          {
+            addChart: {
+              chart: {
+                spec: {
+                  title: "Portfolio Overview",
+                  pieChart: {
+                    legendPosition: "RIGHT_LEGEND",
+                    domain: {
+                      sourceRange: {
+                        sources: [
+                          {
+                            sheetId: sheetId,
+                            startRowIndex: 13,
+                            endRowIndex: 17, // Use very few rows to ensure data exists
+                            startColumnIndex: 0,
+                            endColumnIndex: 1,
+                          },
+                        ],
+                      },
+                    },
+                    series: {
+                      sourceRange: {
+                        sources: [
+                          {
+                            sheetId: sheetId,
+                            startRowIndex: 13,
+                            endRowIndex: 17, // Use very few rows to ensure data exists
+                            startColumnIndex: 1,
+                            endColumnIndex: 2,
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+                position: {
+                  overlayPosition: {
+                    anchorCell: {
+                      sheetId: sheetId,
+                      rowIndex: 50,
+                      columnIndex: 2,
+                    },
+                    widthPixels: 600,
+                    heightPixels: 400,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      await sheetClient.batchUpdate(basicChartRequest);
+      logEvent("Basic fallback chart created successfully");
+      return true;
+    } catch (basicError) {
+      logEvent(`Failed to create even basic chart: ${basicError}`);
+      return false;
+    }
   }
 }
