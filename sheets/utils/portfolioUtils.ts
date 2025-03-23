@@ -3,6 +3,10 @@ import { SheetClient } from "../sheets.api";
 import axios from "axios";
 import { PORTFOLIO_SHEET } from "./sheetUtils";
 
+// Constants
+// Set this to true to use mock data, false to fetch real wallet balances
+export const USE_MOCK_DATA = true;
+
 /**
  * Initialize portfolio sheet with enhanced UI
  */
@@ -173,7 +177,7 @@ async function formatEnhancedPortfolioSheet(
 
     // Rows 29-43 - Token holdings data (15 rows)
     for (let i = 0; i < 15; i++) {
-      portfolioTemplate.push(["", "", "", "", "", "", "", "View on Explorer"]);
+      portfolioTemplate.push(["", "", "", "", "", "", "", ""]);
     }
 
     // Row 44 - Portfolio analytics section header
@@ -763,7 +767,7 @@ export async function updatePortfolioData(
     );
 
     // 4. Update token holdings section in a single call
-    await updateEnhancedTokenHoldings(sheetClient, tokenData, logEvent);
+    await updateEnhancedTokenHoldings(sheetClient, tokenData, logEvent, wallet);
 
     // 5. Create/update charts after data is populated
     await createOrUpdateCharts(sheetClient, logEvent);
@@ -924,6 +928,39 @@ async function getEthPrice(logEvent: Function): Promise<number> {
 }
 
 /**
+ * Function to fetch real token balance for a specific address and token
+ */
+async function getTokenBalance(
+  walletAddress: string,
+  tokenAddress: string,
+  provider: ethers.JsonRpcProvider,
+  logEvent: Function
+): Promise<string> {
+  try {
+    // For native ETH
+    if (tokenAddress === "Native") {
+      const balance = await provider.getBalance(walletAddress);
+      return balance.toString();
+    }
+
+    // For ERC20 tokens, use the standard ERC20 interface
+    const erc20Abi = [
+      "function balanceOf(address owner) view returns (uint256)",
+      "function decimals() view returns (uint8)",
+      "function symbol() view returns (string)",
+      "function name() view returns (string)",
+    ];
+
+    const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, provider);
+    const balance = await tokenContract.balanceOf(walletAddress);
+    return balance.toString();
+  } catch (error) {
+    logEvent(`Error fetching balance for token ${tokenAddress}: ${error}`);
+    return "0";
+  }
+}
+
+/**
  * Get token data from CoinGecko API with better error handling and rate limit management
  */
 async function getTokenData(
@@ -932,25 +969,66 @@ async function getTokenData(
   logEvent: Function
 ) {
   try {
-    logEvent(`Fetching token data from CoinGecko for wallet: ${walletAddress}`);
+    // If mock data is enabled, return mock data immediately
+    if (USE_MOCK_DATA) {
+      logEvent("Using mock token data (USE_MOCK_DATA is enabled)");
+      return getMockTokenData();
+    }
+
+    logEvent(
+      `Fetching real token data from CoinGecko for wallet: ${walletAddress}`
+    );
 
     // Map of popular tokens to use with CoinGecko
     const popularTokens = [
-      { id: "ethereum", symbol: "ETH", name: "Ethereum" },
-      { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
-      { id: "usd-coin", symbol: "USDC", name: "USD Coin" },
-      { id: "tether", symbol: "USDT", name: "Tether" },
-      { id: "dai", symbol: "DAI", name: "Dai Stablecoin" },
-      { id: "binancecoin", symbol: "BNB", name: "Binance Coin" },
-      { id: "ripple", symbol: "XRP", name: "XRP" },
-      { id: "cardano", symbol: "ADA", name: "Cardano" },
-      { id: "solana", symbol: "SOL", name: "Solana" },
-      { id: "polkadot", symbol: "DOT", name: "Polkadot" },
-      { id: "chainlink", symbol: "LINK", name: "Chainlink" },
-      { id: "uniswap", symbol: "UNI", name: "Uniswap" },
-      { id: "avalanche-2", symbol: "AVAX", name: "Avalanche" },
-      { id: "shiba-inu", symbol: "SHIB", name: "Shiba Inu" },
+      {
+        id: "ethereum",
+        symbol: "ETH",
+        name: "Ethereum",
+        address: "Native", // Native token
+        explorerUrl: "https://sepolia.arbiscan.io/address/",
+      },
+      {
+        id: "usd-coin",
+        symbol: "USDC",
+        name: "USD Coin",
+        address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia USDC
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "tether",
+        symbol: "USDT",
+        name: "Tether",
+        address: "0xd70835403B83E1358350a44bf64FA9Fc4f7F2b7B", // Arbitrum Sepolia USDT
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "dai",
+        symbol: "DAI",
+        name: "Dai Stablecoin",
+        address: "0xc5fa5669e326da8b2c35540257cd48811f40a36b", // Arbitrum Sepolia DAI
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "uniswap",
+        symbol: "UNI",
+        name: "Uniswap",
+        address: "0x9c64461d0025982d19622ffe72cadcf7c21d7ea5", // Arbitrum Sepolia UNI
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
+      {
+        id: "chainlink",
+        symbol: "LINK",
+        name: "Chainlink",
+        address: "0x08B4B16E1422D4270f64340c199C1A8a8724b69C", // Arbitrum Sepolia LINK
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
+      },
     ];
+
+    // Initialize provider
+    const provider = new ethers.JsonRpcProvider(
+      process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+    );
 
     // Function to wait with increasing backoff
     const delay = (ms: number) =>
@@ -1005,44 +1083,52 @@ async function getTokenData(
         // Transform CoinGecko data to match the format expected by our app
         const items = [];
 
+        // Process each token and fetch real balances
         for (const token of popularTokens) {
-          // Check if we have data for this token
+          // Check if we have price data for this token
           if (priceResponse.data[token.id]) {
             const price = priceResponse.data[token.id].usd || 0;
             const change24h = priceResponse.data[token.id].usd_24h_change || 0;
 
-            // Generate random balance for demo purposes (higher for more realistic values)
-            // In a real application, this would come from blockchain data
-            const randomBalance =
-              (Math.random() * 10 + 1) *
-              (token.symbol === "SHIB"
-                ? 1000000
-                : token.symbol === "BTC"
-                ? 0.1
-                : token.symbol === "ETH"
-                ? 2
-                : 1);
+            // Fetch actual token balance from the blockchain
+            logEvent(`Fetching balance for ${token.name} (${token.symbol})`);
+            const balance = await getTokenBalance(
+              walletAddress,
+              token.address,
+              provider,
+              logEvent
+            );
 
-            const tokenBalance =
+            // Format balance according to token decimals
+            const formattedBalance =
               token.symbol === "USDC" || token.symbol === "USDT"
-                ? randomBalance * 10 ** 6
-                : typeof randomBalance === "string"
-                ? randomBalance
-                : ethers.parseEther(randomBalance.toFixed(8).toString());
+                ? BigInt(balance) // 6 decimals for USDC/USDT
+                : BigInt(balance); // 18 decimals for other tokens
 
-            const tokenQuote = price * randomBalance;
+            // Calculate token value
+            const tokenValueInUsd =
+              token.symbol === "USDC" || token.symbol === "USDT"
+                ? (Number(balance) / 10 ** 6) * price
+                : Number(ethers.formatEther(balance)) * price;
 
             items.push({
               contract_name: token.name,
               contract_ticker_symbol: token.symbol,
-              contract_address: `0x${token.id}`, // Placeholder address
+              contract_address: token.address,
               contract_decimals:
                 token.symbol === "USDC" || token.symbol === "USDT" ? 6 : 18,
-              balance: tokenBalance,
+              balance: formattedBalance,
               quote_rate: price,
-              quote: tokenQuote,
+              quote: tokenValueInUsd,
               price_change_24h: change24h,
+              explorerUrl: token.explorerUrl,
             });
+
+            logEvent(
+              `Added ${
+                token.symbol
+              } with balance: ${balance} (worth $${tokenValueInUsd.toFixed(2)})`
+            );
           }
         }
 
@@ -1108,153 +1194,198 @@ function getNetworkName(chainId: bigint): string {
 }
 
 /**
- * Mock data for token balances with more realistic values
+ * Mock data for token balances with more realistic values for Arbitrum Sepolia
  */
 function getMockTokenData() {
   return {
     items: [
       {
-        contract_name: "Bitcoin",
-        contract_ticker_symbol: "BTC",
-        contract_address: "0xbitcoin",
-        contract_decimals: 8,
-        balance: "15000000", // 0.15 BTC
-        quote_rate: 67000,
-        quote: 10050,
-        price_change_24h: 1.2,
-      },
-      {
         contract_name: "Ethereum",
         contract_ticker_symbol: "ETH",
-        contract_address: "0xethereum",
+        contract_address: "0x980b62da83eff3d4576c647993b0c1d7faf17c73",
         contract_decimals: 18,
         balance: "3000000000000000000", // 3 ETH
         quote_rate: 3500,
         quote: 10500,
         price_change_24h: 3.5,
+        explorerUrl: "https://sepolia.arbiscan.io/address/",
+      },
+      {
+        contract_name: "ERC-20: BTC",
+        contract_ticker_symbol: "BTC",
+        contract_address: "0xF79cE1Cf38A09D572b021B4C5548b75A14082F12",
+        contract_decimals: 8,
+        balance: "15000000", // 0.15 BTC
+        quote_rate: 67000,
+        quote: 10050,
       },
       {
         contract_name: "USD Coin",
         contract_ticker_symbol: "USDC",
-        contract_address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        contract_address: "0x3321Fd36aEaB0d5CdfD26f4A3A93E2D2aAcCB99f",
         contract_decimals: 6,
         balance: 5000000000, // 5000 USDC
         quote_rate: 1,
         quote: 5000,
         price_change_24h: 0.01, // Stable coin, minimal change
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
       },
       {
         contract_name: "Tether",
         contract_ticker_symbol: "USDT",
-        contract_address: "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        contract_address: "0xd70835403B83E1358350a44bf64FA9Fc4f7F2b7B",
         contract_decimals: 6,
         balance: 3000000000, // 3000 USDT
         quote_rate: 1,
         quote: 3000,
         price_change_24h: -0.05,
-      },
-      {
-        contract_name: "Solana",
-        contract_ticker_symbol: "SOL",
-        contract_address: "0xsolana",
-        contract_decimals: 9,
-        balance: "30000000000", // 30 SOL
-        quote_rate: 160,
-        quote: 4800,
-        price_change_24h: 4.7,
-      },
-      {
-        contract_name: "Binance Coin",
-        contract_ticker_symbol: "BNB",
-        contract_address: "0xbnb",
-        contract_decimals: 18,
-        balance: "7000000000000000000", // 7 BNB
-        quote_rate: 580,
-        quote: 4060,
-        price_change_24h: 2.3,
-      },
-      {
-        contract_name: "XRP",
-        contract_ticker_symbol: "XRP",
-        contract_address: "0xripple",
-        contract_decimals: 6,
-        balance: 7500000000, // 7500 XRP
-        quote_rate: 0.55,
-        quote: 4125,
-        price_change_24h: -1.8,
-      },
-      {
-        contract_name: "Cardano",
-        contract_ticker_symbol: "ADA",
-        contract_address: "0xcardano",
-        contract_decimals: 6,
-        balance: 10000000000, // 10000 ADA
-        quote_rate: 0.45,
-        quote: 4500,
-        price_change_24h: 3.2,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
       },
       {
         contract_name: "Dai Stablecoin",
         contract_ticker_symbol: "DAI",
-        contract_address: "0x6b175474e89094c44da98b954eedeac495271d0f",
+        contract_address: "0xc5fa5669e326da8b2c35540257cd48811f40a36b",
         contract_decimals: 18,
         balance: "2500000000000000000000", // 2500 DAI
         quote_rate: 1,
         quote: 2500,
         price_change_24h: 0.03,
-      },
-      {
-        contract_name: "Polkadot",
-        contract_ticker_symbol: "DOT",
-        contract_address: "0xpolkadot",
-        contract_decimals: 10,
-        balance: "30000000000", // 300 DOT
-        quote_rate: 7.5,
-        quote: 2250,
-        price_change_24h: 5.1,
-      },
-      {
-        contract_name: "Chainlink",
-        contract_ticker_symbol: "LINK",
-        contract_address: "0x514910771af9ca656af840dff83e8264ecf986ca",
-        contract_decimals: 18,
-        balance: "100000000000000000000", // 100 LINK
-        quote_rate: 14.5,
-        quote: 1450,
-        price_change_24h: 6.8,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
       },
       {
         contract_name: "Uniswap",
         contract_ticker_symbol: "UNI",
-        contract_address: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+        contract_address: "0x9c64461d0025982d19622ffe72cadcf7c21d7ea5",
         contract_decimals: 18,
         balance: "150000000000000000000", // 150 UNI
         quote_rate: 7.8,
         quote: 1170,
         price_change_24h: -2.3,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
       },
       {
-        contract_name: "Avalanche",
-        contract_ticker_symbol: "AVAX",
-        contract_address: "0x85f138bfee4ef8e540890cfb48f8d22ac038f8ea",
+        contract_name: "Chainlink",
+        contract_ticker_symbol: "LINK",
+        contract_address: "0x08B4B16E1422D4270f64340c199C1A8a8724b69C",
         contract_decimals: 18,
-        balance: "50000000000000000000", // 50 AVAX
-        quote_rate: 34,
-        quote: 1700,
-        price_change_24h: 8.5,
-      },
-      {
-        contract_name: "Shiba Inu",
-        contract_ticker_symbol: "SHIB",
-        contract_address: "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
-        contract_decimals: 18,
-        balance: "150000000000000000000000000", // 150,000,000 SHIB
-        quote_rate: 0.00002,
-        quote: 3000,
-        price_change_24h: 12.6,
+        balance: "100000000000000000000",
+        quote_rate: 14.5,
+        quote: 1450,
+        price_change_24h: 6.8,
+        explorerUrl: "https://sepolia.arbiscan.io/token/",
       },
     ],
   };
+}
+
+/**
+ * Update token holdings with enhanced formatting
+ */
+async function updateEnhancedTokenHoldings(
+  sheetClient: SheetClient,
+  tokenData: any,
+  logEvent: Function,
+  wallet?: ethers.Wallet
+) {
+  try {
+    // Prepare token data rows to update in a single API call
+    let tokenRows = [];
+
+    if (!tokenData || !tokenData.items || tokenData.items.length === 0) {
+      // If no tokens, add a placeholder row
+      tokenRows.push(["No tokens found", "-", "-", "-", "-", "-", "-", "-"]);
+
+      // Pad with empty rows to fill the entire token area (15 rows total)
+      for (let i = 1; i < 15; i++) {
+        tokenRows.push(["", "", "", "", "", "", "", ""]);
+      }
+    } else {
+      // Prepare token data (limit to top 15 by value)
+      const sortedTokens = [...tokenData.items]
+        .sort((a, b) => (b.quote || 0) - (a.quote || 0))
+        .slice(0, 15);
+
+      // Process all tokens at once
+      tokenRows = sortedTokens.map((token: any) => {
+        // Use the actual 24h change if available from CoinGecko, otherwise generate random
+        const change24h =
+          token.price_change_24h !== undefined
+            ? token.price_change_24h.toFixed(2)
+            : (Math.random() * 20 - 10).toFixed(2);
+
+        // Generate random change for 7d (for demo purposes)
+        const change7d = (Math.random() * 30 - 15).toFixed(2);
+
+        // Format the values for better readability
+        // Handle both string and number balance formats, and properly convert BigInt
+        const balance =
+          typeof token.balance === "string"
+            ? Number(ethers.formatEther(token.balance))
+            : typeof token.balance === "bigint"
+            ? token.contract_ticker_symbol === "USDC" ||
+              token.contract_ticker_symbol === "USDT"
+              ? Number(token.balance) / 10 ** 6
+              : Number(token.balance) / 10 ** 18
+            : token.contract_ticker_symbol === "USDC" ||
+              token.contract_ticker_symbol === "USDT"
+            ? (token.balance / 10 ** 6).toFixed(2)
+            : (token.balance / 10 ** 18).toFixed(6);
+
+        // Format as string if not already a string
+        const formattedBalance =
+          typeof balance === "string" ? balance : balance.toFixed(6);
+
+        const formattedUsdValue = `$${
+          token.quote ? token.quote.toFixed(2) : "0.00"
+        }`;
+        const formattedPrice = `$${
+          token.quote_rate ? token.quote_rate.toFixed(4) : "0.0000"
+        }`;
+
+        // Generate a link to Etherscan or another explorer
+        const explorerBaseUrl =
+          token.explorerUrl || "https://sepolia.arbiscan.io/token/";
+        const explorerUrl =
+          token.contract_address === "Native"
+            ? `https://sepolia.arbiscan.io/address/${wallet?.address}`
+            : `${explorerBaseUrl}${token.contract_address}`;
+
+        const explorerLink = `=HYPERLINK("${explorerUrl}", "View on Explorer")`;
+
+        return [
+          token.contract_name || "Unknown",
+          token.contract_ticker_symbol,
+          formattedBalance,
+          formattedUsdValue,
+          formattedPrice,
+          `${change24h}%`,
+          `${change7d}%`,
+          explorerLink, // Now a hyperlink formula instead of plain text
+        ];
+      });
+
+      // Pad with empty rows if we have fewer than 15 tokens
+      while (tokenRows.length < 15) {
+        tokenRows.push(["", "", "", "", "", "", "", ""]);
+      }
+    }
+
+    // Update all token data in a single call (more efficient)
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A29:H43`, tokenRows);
+
+    const tokenCount =
+      tokenData && tokenData.items ? Math.min(tokenData.items.length, 15) : 0;
+    logEvent(
+      `Updated token holdings in a single operation (${tokenCount} tokens)`
+    );
+  } catch (error: unknown) {
+    logEvent(
+      `Error updating enhanced token holdings: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    throw error;
+  }
 }
 
 /**
@@ -1266,206 +1397,116 @@ export function schedulePortfolioUpdates(
   logEvent: Function,
   intervalMinutes: number = 60
 ) {
-  // Track if we've already created charts
+  let lastRefreshTime = new Date().getTime();
   let chartsCreated = false;
+  let initialDataLoaded = false;
 
-  // Force an initial data load to avoid empty tables
+  // Force initial load after 3 seconds
   setTimeout(async () => {
     try {
-      logEvent("Performing initial data load...");
+      logEvent("Loading initial portfolio data...");
 
-      // Set to refreshing state
-      await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45`, [
-        ["🔄 Refreshing..."],
+      // Set cell to show refreshing status
+      await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45:A45`, [
+        ["🔄 REFRESHING DATA..."],
       ]);
 
-      // Update data
+      // Update portfolio data
       await updatePortfolioData(sheetClient, wallet, logEvent);
 
-      // Create charts
-      try {
+      // Create charts and mark as created
+      if (!chartsCreated) {
         await createOrUpdateCharts(sheetClient, logEvent);
         chartsCreated = true;
-        logEvent("Charts created on initial load");
-      } catch (chartError) {
-        logEvent(`Error creating charts on initial load: ${chartError}`);
+        logEvent("Initial charts created successfully");
       }
 
-      // Reset the refresh button text
-      await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45`, [
+      // Reset refresh button
+      await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45:A45`, [
         ["⚠️ TYPE ANYTHING HERE TO REFRESH"],
       ]);
 
-      logEvent("Initial data load completed successfully");
+      initialDataLoaded = true;
+      logEvent("Initial data load complete");
     } catch (error) {
       logEvent(`Error during initial data load: ${error}`);
-      // Reset the refresh button in case of error
-      await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45`, [
+
+      // Reset refresh button on error
+      await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45:A45`, [
         ["⚠️ TYPE ANYTHING HERE TO REFRESH"],
       ]);
     }
-  }, 5000); // Wait 5 seconds after initialization before loading data
+  }, 3000);
 
-  // Set up refresh button monitoring
-  const checkRefreshButton = async () => {
+  // Check for manual refresh trigger
+  const checkForRefreshTrigger = async () => {
     try {
-      // Get the refresh button cell value
-      const refreshCell = await sheetClient.getRange(
+      // Get refresh button status
+      const cellValues = await sheetClient.getRange(
         `${PORTFOLIO_SHEET}!A45:A45`
       );
 
-      // Consider the button pressed if the cell isn't showing the expected text
-      // This covers any case where the user edits the cell
-      const refreshText =
-        refreshCell && refreshCell[0] && refreshCell[0][0]
-          ? refreshCell[0][0].toString()
-          : "";
+      const cellValue = cellValues?.[0]?.[0] || "";
+
+      // Detect if it's different from our refresh texts
+      const defaultText = "⚠️ TYPE ANYTHING HERE TO REFRESH";
+      const refreshingText = "🔄 REFRESHING DATA...";
 
       if (
-        refreshText !== "⚠️ TYPE ANYTHING HERE TO REFRESH" &&
-        refreshText !== "🔄 Refreshing..."
+        cellValue &&
+        cellValue !== defaultText &&
+        cellValue !== refreshingText
       ) {
-        // Always set to refreshing state when any change is detected
-        await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45`, [
-          ["🔄 Refreshing..."],
+        // Something was typed in the cell, trigger refresh
+        logEvent("Manual refresh triggered by user input");
+
+        // Set to refreshing status
+        await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45:A45`, [
+          ["🔄 REFRESHING DATA..."],
         ]);
 
-        logEvent(`Manual refresh triggered by user action: "${refreshText}"`);
+        // Update portfolio data
+        await updatePortfolioData(sheetClient, wallet, logEvent);
 
-        // Update the data
-        try {
-          await updatePortfolioData(sheetClient, wallet, logEvent);
-
-          // Create charts if not created yet
-          if (!chartsCreated) {
-            try {
-              await createOrUpdateCharts(sheetClient, logEvent);
-              chartsCreated = true;
-              logEvent("Charts created on first refresh");
-            } catch (chartError) {
-              logEvent(`Error creating charts: ${chartError}`);
-            }
-
-            // Add borders to data cells
-            try {
-              // Get sheet ID
-              const sheetId = await sheetClient.getSheetIdByName(
-                PORTFOLIO_SHEET
-              );
-
-              // Add borders to asset allocation data
-              await sheetClient.batchUpdate({
-                requests: [
-                  {
-                    updateBorders: {
-                      range: {
-                        sheetId: sheetId,
-                        startRowIndex: 13,
-                        endRowIndex: 25,
-                        startColumnIndex: 0,
-                        endColumnIndex: 3,
-                      },
-                      top: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      bottom: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      left: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      right: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      innerHorizontal: {
-                        style: "SOLID",
-                        color: { red: 0.8, green: 0.8, blue: 0.8 },
-                      },
-                      innerVertical: {
-                        style: "SOLID",
-                        color: { red: 0.8, green: 0.8, blue: 0.8 },
-                      },
-                    },
-                  },
-                  {
-                    updateBorders: {
-                      range: {
-                        sheetId: sheetId,
-                        startRowIndex: 28,
-                        endRowIndex: 43,
-                        startColumnIndex: 0,
-                        endColumnIndex: 8,
-                      },
-                      top: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      bottom: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      left: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      right: {
-                        style: "SOLID",
-                        color: { red: 0.5, green: 0.5, blue: 0.5 },
-                      },
-                      innerHorizontal: {
-                        style: "SOLID",
-                        color: { red: 0.8, green: 0.8, blue: 0.8 },
-                      },
-                      innerVertical: {
-                        style: "SOLID",
-                        color: { red: 0.8, green: 0.8, blue: 0.8 },
-                      },
-                    },
-                  },
-                ],
-              });
-
-              logEvent("Added borders to data cells");
-            } catch (borderError) {
-              logEvent(`Error adding borders: ${borderError}`);
-            }
-          }
-        } catch (refreshError) {
-          logEvent(`Error during refresh: ${refreshError}`);
-        }
-
-        // Reset the button text
-        await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45`, [
+        // Reset the refresh button text
+        await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45:A45`, [
           ["⚠️ TYPE ANYTHING HERE TO REFRESH"],
         ]);
 
-        logEvent("Manual refresh completed");
+        // Record refresh time
+        lastRefreshTime = new Date().getTime();
       }
     } catch (error) {
-      logEvent(`Error checking refresh button: ${error}`);
+      logEvent(`Error checking for refresh trigger: ${error}`);
     }
+
+    // Schedule next check
+    setTimeout(checkForRefreshTrigger, 2000);
   };
 
-  // Check for refresh button changes more frequently (every 2 seconds instead of 5)
-  setInterval(checkRefreshButton, 2000);
+  // Start checking for refresh trigger
+  checkForRefreshTrigger();
 
-  // Regular updates
-  setInterval(async () => {
-    try {
-      await updatePortfolioData(sheetClient, wallet, logEvent);
-      logEvent(
-        `Scheduled portfolio update completed (${new Date().toISOString()})`
-      );
-    } catch (error) {
-      logEvent(`Error in scheduled update: ${error}`);
-    }
-  }, intervalMinutes * 60 * 1000);
+  // Schedule automatic refresh based on interval
+  if (intervalMinutes > 0) {
+    setInterval(async () => {
+      try {
+        const now = new Date().getTime();
+        const timeSinceLastRefresh = now - lastRefreshTime;
 
-  logEvent(`Portfolio updates scheduled (every ${intervalMinutes} minutes)`);
+        // Only auto-refresh if it's been more than intervalMinutes since last refresh
+        if (timeSinceLastRefresh >= intervalMinutes * 60 * 1000) {
+          logEvent("Running scheduled portfolio update");
+
+          // Update without changing button state for automatic updates
+          await updatePortfolioData(sheetClient, wallet, logEvent);
+          lastRefreshTime = now;
+        }
+      } catch (error) {
+        logEvent(`Error in scheduled update: ${error}`);
+      }
+    }, 60000); // Check every minute if it's time for an update
+  }
 }
 
 /**
@@ -1604,104 +1645,5 @@ async function createOrUpdateCharts(
     logEvent("Portfolio charts created with minimal configuration");
   } catch (error) {
     logEvent(`Error creating charts: ${error}`);
-  }
-}
-
-/**
- * Update token holdings with enhanced formatting
- */
-async function updateEnhancedTokenHoldings(
-  sheetClient: SheetClient,
-  tokenData: any,
-  logEvent: Function
-) {
-  try {
-    // Prepare token data rows to update in a single API call
-    let tokenRows = [];
-
-    if (!tokenData || !tokenData.items || tokenData.items.length === 0) {
-      // If no tokens, add a placeholder row
-      tokenRows.push(["No tokens found", "-", "-", "-", "-", "-", "-", "-"]);
-
-      // Pad with empty rows to fill the entire token area (15 rows total)
-      for (let i = 1; i < 15; i++) {
-        tokenRows.push(["", "", "", "", "", "", "", ""]);
-      }
-    } else {
-      // Prepare token data (limit to top 15 by value)
-      const sortedTokens = [...tokenData.items]
-        .sort((a, b) => (b.quote || 0) - (a.quote || 0))
-        .slice(0, 15);
-
-      // Process all tokens at once
-      tokenRows = sortedTokens.map((token: any) => {
-        // Use the actual 24h change if available from CoinGecko, otherwise generate random
-        const change24h =
-          token.price_change_24h !== undefined
-            ? token.price_change_24h.toFixed(2)
-            : (Math.random() * 20 - 10).toFixed(2);
-
-        // Generate random change for 7d (for demo purposes)
-        const change7d = (Math.random() * 30 - 15).toFixed(2);
-
-        // Format the values for better readability
-        // Handle both string and number balance formats, and properly convert BigInt
-        const balance =
-          typeof token.balance === "string"
-            ? Number(ethers.formatEther(token.balance))
-            : typeof token.balance === "bigint"
-            ? token.contract_ticker_symbol === "USDC" ||
-              token.contract_ticker_symbol === "USDT"
-              ? Number(token.balance) / 10 ** 6
-              : Number(token.balance) / 10 ** 18
-            : token.contract_ticker_symbol === "USDC" ||
-              token.contract_ticker_symbol === "USDT"
-            ? (token.balance / 10 ** 6).toFixed(2)
-            : (token.balance / 10 ** 18).toFixed(6);
-
-        // Format as string if not already a string
-        const formattedBalance =
-          typeof balance === "string" ? balance : balance.toFixed(6);
-
-        const formattedUsdValue = `$${
-          token.quote ? token.quote.toFixed(2) : "0.00"
-        }`;
-        const formattedPrice = `$${
-          token.quote_rate ? token.quote_rate.toFixed(4) : "0.0000"
-        }`;
-
-        return [
-          token.contract_name || "Unknown",
-          token.contract_ticker_symbol,
-          formattedBalance,
-          formattedUsdValue,
-          formattedPrice,
-          `${change24h}%`,
-          `${change7d}%`,
-          "View on Explorer", // This could be a hyperlink with proper formatting
-        ];
-      });
-
-      // Pad with empty rows if we have fewer than 15 tokens
-      while (tokenRows.length < 15) {
-        tokenRows.push(["", "", "", "", "", "", "", ""]);
-      }
-    }
-
-    // Update all token data in a single call (more efficient)
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A29:H43`, tokenRows);
-
-    const tokenCount =
-      tokenData && tokenData.items ? Math.min(tokenData.items.length, 15) : 0;
-    logEvent(
-      `Updated token holdings in a single operation (${tokenCount} tokens)`
-    );
-  } catch (error: unknown) {
-    logEvent(
-      `Error updating enhanced token holdings: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    throw error;
   }
 }
