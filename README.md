@@ -89,10 +89,17 @@ No manual entry of email addresses is required - the system detects everything a
 ### Autonome
 
 Custom Agent Template Deployed on Autonome - 
-
+Custom Agent Deployment on creation of a new sheet - https://github.com/fabianferno/WalletSheets/blob/main/deploy-agent-service/src/index.ts#L158
+Interacting with the Agent on the sheets - https://github.com/fabianferno/WalletSheets/blob/main/gsaw-agent/src/utils/sheetUtils.js#L2787
 Docker Image - https://hub.docker.com/layers/eggai/walletsheets/v7.0.0/images/sha256-11d9bf9d843e7bbf7f573d4e8eb06c9ff77f2c53f580b289e1fe8d53cee9034f
 
 ### Nillion
+
+Schema Definitions - https://github.com/fabianferno/WalletSheets/tree/main/sv-quickstart/schemas
+SecretLLM Usage - https://github.com/fabianferno/WalletSheets/blob/main/gsaw-agent/src/agent.js#L395
+Secret Vault Initialization - https://github.com/fabianferno/WalletSheets/blob/main/gsaw-agent/src/agent.js#L39
+Secret Vault Usage - https://github.com/fabianferno/WalletSheets/blob/main/gsaw-agent/src/agent.js#L145
+Secret Vault Usage - https://github.com/fabianferno/WalletSheets/blob/main/gsaw-agent/src/agent.js#L633
 
 
 ### Nethermind
