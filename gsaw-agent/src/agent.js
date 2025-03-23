@@ -263,6 +263,8 @@ export class Agent {
         : "NO ACTIVE POSITIONS."
       }
     
+    WALLET BALANCE: ${await this.getBalance()} ETH
+
     Based on the above data, recommend ONE of the following actions:
     1. "stay_idle" - Don't make any trades
     2. "buy_more" - Enter a new position or add to existing
