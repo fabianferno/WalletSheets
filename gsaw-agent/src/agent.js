@@ -29,7 +29,6 @@ export class Agent {
 
     // Initialize tools
     this.tools = await loadTools();
-    this.services = await loadServices(this);
     // Initialize Nillion collection
     this.nillionChatCollection = new SecretVaultWrapper(
       this.nodes,
@@ -109,9 +108,12 @@ export class Agent {
       this.user_id = newIds[0];
     }
     console.log(privateKeyToAddress(await this.getPrivateKey()));
-    await initializeWalletAgent(sheetId, await this.getPrivateKey());
+    this.services = await loadServices(this);
+
     this.initialized = true;
     console.log("Agent service initialized with Nillion encryption!");
+    await initializeWalletAgent(sheetId, await this.getPrivateKey());
+
   }
 
   /**
