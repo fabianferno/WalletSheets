@@ -307,7 +307,7 @@ function getAgentConfig(sheetId: string, ownerEmail: string) {
     name,
     config: "",
     creationMethod: 2,
-    envList,
+    envList: base64EncodeEnv(envList),
     templateId,
   };
 
