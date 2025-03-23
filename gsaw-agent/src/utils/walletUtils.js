@@ -39,7 +39,7 @@ export async function setUpBlockchainListeners(
 ) {
   try {
     // Connect to Ethereum network (using Goerli for testing)
-    const provider = new ethers.JsonRpcProvider(ETH_RPC_URL);
+    const provider = new ethers.providers.JsonRpcProvider(ETH_RPC_URL);
     const connectedWallet = wallet.connect(provider);
 
     // Listen for incoming transactions
@@ -55,7 +55,7 @@ export async function setUpBlockchainListeners(
           if (tx) {
             const timestamp = new Date().toISOString();
             const status = "Confirmed";
-            const amount = ethers.formatEther(tx.value || "0");
+            const amount = ethers.utils.formatEther(tx.value || "0");
 
             // Add to Wallet Explorer sheet
             await addTransactionToSheet(

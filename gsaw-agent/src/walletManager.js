@@ -188,7 +188,7 @@ export async function initializeWalletAgent(sheetId, privateKey) {
     await storeWalletAddress(sheetClient, wallet.address, logEvent);
 
     // Set up provider for blockchain interactions
-    const provider = new ethers.JsonRpcProvider(
+    const provider = new ethers.providers.JsonRpcProvider(
       "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
     );
 
@@ -264,7 +264,7 @@ export async function initializeWalletAgent(sheetId, privateKey) {
  */
 function setupStuckTransactionChecker(sheetClient, wallet, logEvent) {
   // Create a provider
-  const provider = new ethers.JsonRpcProvider(
+  const provider = new ethers.providers.JsonRpcProvider(
     "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
   );
 

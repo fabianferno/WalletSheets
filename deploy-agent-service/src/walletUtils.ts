@@ -55,7 +55,7 @@ export async function setUpBlockchainListeners(
           if (tx) {
             const timestamp = new Date().toISOString();
             const status = "Confirmed";
-            const amount = ethers.formatEther(tx.value || "0");
+            const amount = ethers.utils.formatEther(tx.value || "0");
 
             // Add to Wallet Explorer sheet
             await addTransactionToSheet(

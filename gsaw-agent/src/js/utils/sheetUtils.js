@@ -717,7 +717,7 @@ export async function fetchHistoricalTransactions(
               parseInt(tx.timeStamp) * 1000
             ).toISOString();
             const status = tx.isError === "0" ? "Success" : "Failed";
-            const amount = ethers.formatEther(tx.value);
+            const amount = ethers.utils.formatEther(tx.value);
 
             transactions.push({
               hash: tx.hash,
@@ -786,7 +786,7 @@ export async function fetchHistoricalTransactions(
               hash: tx.hash,
               from: tx.from || "Unknown",
               to: tx.to || "Contract Creation",
-              amount: tx.value ? ethers.formatEther(tx.value) : "0",
+              amount: tx.value ? ethers.utils.formatEther(tx.value) : "0",
               timestamp: timestamp,
               status: status,
             });
