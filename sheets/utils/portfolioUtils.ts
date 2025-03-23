@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { SheetClient } from "../sheets.api";
 import axios from "axios";
-import { PORTFOLIO_SHEET } from "./sheetUtils";
+import { PORTFOLIO_SHEET, SHEET_STYLES } from "./sheetUtils";
 
 // Constants
 // Set this to true to use mock data, false to fetch real wallet balances
@@ -109,13 +109,13 @@ async function formatEnhancedPortfolioSheet(
     // Initialize the full sheet template with all sections at once
     const portfolioTemplate = [
       // Row 1 - Main header
-      ["🔐 PORTFOLIO", "", "", "", "", "", "", new Date().toISOString()],
+      ["Portfolio", "", "", "", "", "", "", new Date().toISOString()],
 
       // Row 2 - Empty row for spacing
       [""],
 
       // Row 3 - Portfolio summary section header
-      ["💰 SUMMARY", "", "", "", ""],
+      ["Summary", "", "", "", ""],
 
       // Rows 4-6 - Portfolio summary data
       ["Wallet Address", ""],
@@ -126,7 +126,7 @@ async function formatEnhancedPortfolioSheet(
       [""],
 
       // Row 8 - Key metrics section header
-      ["📊 KEY METRICS", "", "", "", "", "", ""],
+      ["Key Metrics", "", "", "", "", "", ""],
 
       // Row 9 - Key metrics labels
       [
@@ -146,7 +146,7 @@ async function formatEnhancedPortfolioSheet(
       [""],
 
       // Row 12 - Asset allocation section header
-      ["📈 DISTRIBUTION", "", ""],
+      ["Distribution", "", ""],
 
       // Row 13 - Asset allocation table header
       ["Asset", "Value (USD)", "% of Portfolio"],
@@ -161,7 +161,7 @@ async function formatEnhancedPortfolioSheet(
     portfolioTemplate.push([""]);
 
     // Row 27 - Token holdings section header
-    portfolioTemplate.push(["💎 TOKEN HOLDINGS", "", "", "", "", "", "", ""]);
+    portfolioTemplate.push(["Token Holdings", "", "", "", "", "", "", ""]);
 
     // Row 28 - Token holdings table header
     portfolioTemplate.push([
@@ -181,7 +181,7 @@ async function formatEnhancedPortfolioSheet(
     }
 
     // Row 44 - Portfolio analytics section header
-    portfolioTemplate.push(["📊 ANALYTICS", "", "", "", "", "", "", ""]);
+    portfolioTemplate.push(["Analytics", "", "", "", "", "", "", ""]);
 
     // Row 45 - Refresh button and instructions
     portfolioTemplate.push([
@@ -289,13 +289,13 @@ async function formatEnhancedPortfolioSheet(
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.15, green: 0.15, blue: 0.3 },
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
                 textFormat: {
-                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
                   fontSize: 16,
                   bold: true,
                 },
-                horizontalAlignment: "CENTER",
+                horizontalAlignment: "LEFT",
                 verticalAlignment: "MIDDLE",
               },
             },
@@ -318,7 +318,7 @@ async function formatEnhancedPortfolioSheet(
                 borders: {
                   bottom: {
                     style: "SOLID",
-                    color: { red: 0.7, green: 0.7, blue: 0.7 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                 },
               },
@@ -338,9 +338,9 @@ async function formatEnhancedPortfolioSheet(
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
                 textFormat: {
-                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
                   fontSize: 12,
                   bold: true,
                 },
@@ -364,9 +364,9 @@ async function formatEnhancedPortfolioSheet(
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
                 textFormat: {
-                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
                   fontSize: 12,
                   bold: true,
                 },
@@ -390,9 +390,9 @@ async function formatEnhancedPortfolioSheet(
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
                 textFormat: {
-                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
                   fontSize: 12,
                   bold: true,
                 },
@@ -413,9 +413,9 @@ async function formatEnhancedPortfolioSheet(
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
                 textFormat: {
-                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
                   fontSize: 12,
                   bold: true,
                 },
@@ -436,9 +436,9 @@ async function formatEnhancedPortfolioSheet(
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+                backgroundColor: SHEET_STYLES.COLORS.HEADER_GREEN,
                 textFormat: {
-                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  foregroundColor: SHEET_STYLES.COLORS.BLACK,
                   fontSize: 12,
                   bold: true,
                 },
@@ -466,19 +466,19 @@ async function formatEnhancedPortfolioSheet(
                 borders: {
                   bottom: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   top: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   left: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   right: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                 },
               },
@@ -505,19 +505,19 @@ async function formatEnhancedPortfolioSheet(
                 borders: {
                   bottom: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   top: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   left: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   right: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                 },
               },
@@ -537,7 +537,7 @@ async function formatEnhancedPortfolioSheet(
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: { red: 0.9, green: 0.95, blue: 1.0 },
+                backgroundColor: SHEET_STYLES.COLORS.USER_BLUE,
                 textFormat: {
                   bold: true,
                   foregroundColor: { red: 0.1, green: 0.4, blue: 0.7 },
@@ -546,19 +546,19 @@ async function formatEnhancedPortfolioSheet(
                 borders: {
                   bottom: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   top: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   left: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                   right: {
                     style: "SOLID",
-                    color: { red: 0.5, green: 0.5, blue: 0.5 },
+                    color: SHEET_STYLES.COLORS.GRAY,
                   },
                 },
               },

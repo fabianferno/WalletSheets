@@ -12,6 +12,18 @@ export const PORTFOLIO_SHEET = "Portfolio";
 
 // Common styling constants for sheets
 export const SHEET_STYLES = {
+  // Color constants
+  COLORS: {
+    HEADER_GREEN: { red: 0.85, green: 0.92, blue: 0.85 }, // Mild green
+    LIGHT_BLUE: { red: 0.95, green: 0.97, blue: 1.0 }, // Very light blue
+    LIGHT_RED: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red
+    GRAY: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey for text
+    BLACK: { red: 0, green: 0, blue: 0 }, // Black text
+    INPUT_BLUE: { red: 0.95, green: 0.95, blue: 1.0 }, // Blue for input fields
+    USER_BLUE: { red: 0.9, green: 0.95, blue: 1.0 }, // Light blue for user messages
+    AGENT_RED: { red: 1.0, green: 0.9, blue: 0.9 }, // Light red for agent blocks
+  },
+
   // Header row styling (mild green)
   HEADER: {
     backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Mild green
@@ -21,6 +33,29 @@ export const SHEET_STYLES = {
       foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
     },
   },
+
+  // Header with right alignment
+  HEADER_RIGHT: {
+    backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Mild green
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    horizontalAlignment: "RIGHT",
+  },
+
+  // Header with center alignment
+  HEADER_CENTER: {
+    backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Mild green
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    horizontalAlignment: "CENTER",
+  },
+
   // Helper notes styling (mild grey)
   HELPER_NOTES: {
     textFormat: {
@@ -29,6 +64,7 @@ export const SHEET_STYLES = {
       italic: true,
     },
   },
+
   // Base text styling
   BASE_TEXT: {
     wrapStrategy: "WRAP",
@@ -36,6 +72,144 @@ export const SHEET_STYLES = {
       fontFamily: "Roboto",
       foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
     },
+  },
+
+  // Bold text styling
+  BOLD_TEXT: {
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+  },
+
+  // Title with Lexend font
+  LEXEND_TITLE: {
+    horizontalAlignment: "RIGHT",
+    textFormat: {
+      bold: true,
+      fontFamily: "Lexend",
+      fontSize: 24,
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+  },
+
+  // Subtitle with Lexend font
+  LEXEND_SUBTITLE: {
+    horizontalAlignment: "RIGHT",
+    textFormat: {
+      fontFamily: "Lexend",
+      fontSize: 14,
+      foregroundColor: { red: 0.3, green: 0.3, blue: 0.3 }, // Dark gray text
+    },
+  },
+
+  // Left-aligned text
+  LEFT_ALIGNED_TEXT: {
+    horizontalAlignment: "LEFT",
+    textFormat: {
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+  },
+
+  // User input label
+  USER_INPUT_LABEL: {
+    backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Mild green
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    horizontalAlignment: "RIGHT",
+  },
+
+  // User input area
+  USER_INPUT_AREA: {
+    backgroundColor: { red: 0.95, green: 0.95, blue: 1.0 }, // Very light blue
+    textFormat: {
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    borders: {
+      top: { style: "SOLID" },
+      bottom: { style: "SOLID" },
+      left: { style: "SOLID" },
+      right: { style: "SOLID" },
+    },
+  },
+
+  // User message
+  USER_MESSAGE: {
+    backgroundColor: { red: 0.95, green: 0.97, blue: 1.0 }, // Very light blue
+    textFormat: {
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    wrapStrategy: "WRAP",
+  },
+
+  // User label
+  USER_LABEL: {
+    backgroundColor: { red: 0.9, green: 0.95, blue: 1.0 }, // Light blue
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    horizontalAlignment: "RIGHT",
+  },
+
+  // Agent message
+  AGENT_MESSAGE: {
+    backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red
+    textFormat: {
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    wrapStrategy: "WRAP",
+  },
+
+  // Agent label
+  AGENT_LABEL: {
+    backgroundColor: { red: 1.0, green: 0.9, blue: 0.9 }, // Light red
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
+    },
+    horizontalAlignment: "RIGHT",
+  },
+
+  // Checkbox centered
+  CHECKBOX_CENTERED: {
+    horizontalAlignment: "CENTER",
+    textFormat: {
+      bold: true,
+    },
+  },
+
+  // Instruction row
+  INSTRUCTION_ROW: {
+    backgroundColor: { red: 0.9, green: 0.97, blue: 1.0 }, // Light blue (#e6f7ff)
+    textFormat: {
+      bold: true,
+      italic: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey for helper notes
+    },
+    wrapStrategy: "WRAP",
+  },
+
+  // Troubleshooting row
+  TROUBLESHOOTING_ROW: {
+    backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey for helper notes
+    },
+    wrapStrategy: "WRAP",
   },
 };
 
@@ -338,12 +512,21 @@ export async function createSettingsSheet(
       // Create the sheet
       const sheetId = await sheetClient.createSheet(SETTINGS_SHEET);
 
-      // Set up headers
-      await sheetClient.setRangeValues(`${SETTINGS_SHEET}!A1:B4`, [
+      // Set up headers and content, including the new WalletSheets section with Lexend font
+      await sheetClient.setRangeValues(`${SETTINGS_SHEET}!A1:B13`, [
         ["Setting", "Value"],
         ["Wallet Address", ""],
         ["Sheet Owner Email", ""],
         ["Risk Factor", "5"], // Default value of 5 (middle of 0-10 range)
+        ["", ""], // Empty row for spacing
+        ["", ""], // Empty row for spacing
+        ["", ""], // Empty row for spacing
+        ["", ""], // Empty row for spacing
+        ["", ""], // Empty row for spacing
+        ["", "Hi there, welcome to"],
+        ["", "WalletSheets"],
+        ["", "Google Sheets as a Wallet"],
+        ["", ""], // Empty row for spacing
       ]);
 
       // Set column widths
@@ -384,7 +567,7 @@ export async function createSettingsSheet(
       await sheetClient.formatRange(
         sheetId,
         0, // startRowIndex
-        4, // endRowIndex (exclusive, increased to include new row)
+        13, // endRowIndex (exclusive, increased to include new rows)
         0, // startColumnIndex
         2, // endColumnIndex (exclusive)
         SHEET_STYLES.BASE_TEXT
@@ -407,11 +590,38 @@ export async function createSettingsSheet(
         4, // endRowIndex (exclusive, increased to include new row)
         0, // startColumnIndex
         1, // endColumnIndex (exclusive)
-        {
-          textFormat: {
-            bold: true,
-          },
-        }
+        SHEET_STYLES.BOLD_TEXT
+      );
+
+      // Apply Lexend font styles to the WalletSheets section
+      // Welcome text
+      await sheetClient.formatRange(
+        sheetId,
+        9, // startRowIndex (row 10)
+        10, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        2, // endColumnIndex (exclusive)
+        SHEET_STYLES.LEXEND_SUBTITLE
+      );
+
+      // WalletSheets Title
+      await sheetClient.formatRange(
+        sheetId,
+        10, // startRowIndex (row 11)
+        11, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        2, // endColumnIndex (exclusive)
+        SHEET_STYLES.LEXEND_TITLE
+      );
+
+      // Subtitle
+      await sheetClient.formatRange(
+        sheetId,
+        11, // startRowIndex (row 12)
+        12, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        2, // endColumnIndex (exclusive)
+        SHEET_STYLES.LEXEND_SUBTITLE
       );
 
       // Add data validation for Risk Factor (0-10)
@@ -447,12 +657,7 @@ export async function createSettingsSheet(
               endColumnIndex: 2,
             },
             cell: {
-              userEnteredFormat: {
-                horizontalAlignment: "LEFT",
-                textFormat: {
-                  fontFamily: "Roboto",
-                },
-              },
+              userEnteredFormat: SHEET_STYLES.LEFT_ALIGNED_TEXT,
             },
             fields:
               "userEnteredFormat(horizontalAlignment,textFormat.fontFamily)",
@@ -462,7 +667,9 @@ export async function createSettingsSheet(
 
       await sheetClient.batchUpdate({ requests });
 
-      logEvent(`${SETTINGS_SHEET} sheet created with styling`);
+      logEvent(
+        `${SETTINGS_SHEET} sheet created with styling and Lexend font section`
+      );
     }
   } catch (error: unknown) {
     logEvent(
@@ -471,6 +678,152 @@ export async function createSettingsSheet(
       }`
     );
     throw error;
+  }
+}
+
+/**
+ * Fetch historical transactions for a wallet address
+ * Returns the last N transactions
+ */
+export async function fetchHistoricalTransactions(
+  walletAddress: string,
+  provider: ethers.JsonRpcProvider,
+  limit: number = 10,
+  logEvent: Function
+): Promise<Array<any>> {
+  try {
+    logEvent(`Fetching last ${limit} transactions for wallet ${walletAddress}`);
+    const transactions: Array<{
+      hash: string;
+      from: string;
+      to: string;
+      amount: string;
+      timestamp: string;
+      status: string;
+    }> = [];
+
+    try {
+      // First try using Etherscan-compatible API if available
+      // You might need to set up an Etherscan API key in environment variables
+      const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
+      const ETHERSCAN_API_URL =
+        process.env.ETHERSCAN_API_URL || "https://api.etherscan.io/api";
+
+      if (ETHERSCAN_API_KEY) {
+        const response = await axios.get(`${ETHERSCAN_API_URL}`, {
+          params: {
+            module: "account",
+            action: "txlist",
+            address: walletAddress,
+            startblock: 0,
+            endblock: 99999999,
+            page: 1,
+            offset: limit,
+            sort: "desc",
+            apikey: ETHERSCAN_API_KEY,
+          },
+        });
+
+        if (response.data.status === "1" && response.data.result.length > 0) {
+          logEvent(
+            `Found ${response.data.result.length} transactions from Etherscan API`
+          );
+
+          for (const tx of response.data.result) {
+            const timestamp = new Date(
+              parseInt(tx.timeStamp) * 1000
+            ).toISOString();
+            const status = tx.isError === "0" ? "Success" : "Failed";
+            const amount = ethers.formatEther(tx.value);
+
+            transactions.push({
+              hash: tx.hash,
+              from: tx.from,
+              to: tx.to,
+              amount: amount,
+              timestamp: timestamp,
+              status: status,
+            });
+          }
+
+          return transactions;
+        }
+      }
+    } catch (etherscanError) {
+      logEvent(
+        `Etherscan API error: ${etherscanError}. Falling back to RPC provider.`
+      );
+    }
+
+    // Fallback to RPC provider if Etherscan is not available or fails
+    // This is much more limited since most providers don't let you query by address easily
+    // We'll try to get the latest blocks and check if our address was involved
+
+    logEvent(`Falling back to RPC provider for transaction history`);
+
+    // Get current block number
+    const currentBlock = await provider.getBlockNumber();
+    const blockCount = Math.min(5000, currentBlock); // Look back up to 5000 blocks
+
+    // Track the blocks we need to scan
+    const blocksToScan = [];
+    for (let i = 0; i < blockCount && blocksToScan.length < 100; i++) {
+      blocksToScan.push(currentBlock - i);
+    }
+
+    // Scan blocks for transactions involving our address
+    for (const blockNumber of blocksToScan) {
+      if (transactions.length >= limit) break;
+
+      try {
+        const block = await provider.getBlock(blockNumber, true);
+        if (!block || !block.transactions) continue;
+
+        // Properly type block transactions
+        const blockTransactions = block.transactions as unknown as Array<{
+          hash: string;
+          from: string;
+          to?: string;
+          value: bigint;
+        }>;
+
+        for (const tx of blockTransactions) {
+          if (transactions.length >= limit) break;
+
+          // Check if the transaction involves our wallet
+          if (
+            (tx.from &&
+              tx.from.toLowerCase() === walletAddress.toLowerCase()) ||
+            (tx.to && tx.to.toLowerCase() === walletAddress.toLowerCase())
+          ) {
+            // Get full transaction details if needed
+            const txReceipt = await provider.getTransactionReceipt(tx.hash);
+            const status =
+              txReceipt && txReceipt.status === 1 ? "Success" : "Failed";
+            const timestamp = new Date(
+              (block.timestamp || 0) * 1000
+            ).toISOString();
+
+            transactions.push({
+              hash: tx.hash,
+              from: tx.from || "Unknown",
+              to: tx.to || "Contract Creation",
+              amount: tx.value ? ethers.formatEther(tx.value) : "0",
+              timestamp: timestamp,
+              status: status,
+            });
+          }
+        }
+      } catch (blockError) {
+        logEvent(`Error scanning block ${blockNumber}: ${blockError}`);
+      }
+    }
+
+    logEvent(`Found ${transactions.length} transactions from RPC provider`);
+    return transactions;
+  } catch (error) {
+    logEvent(`Error fetching historical transactions: ${error}`);
+    return [];
   }
 }
 
@@ -576,6 +929,76 @@ export async function createWalletExplorerSheet(
 }
 
 /**
+ * Initialize the Wallet Explorer sheet with recent transactions
+ * This should be called after the sheet is created and a wallet address is available
+ */
+export async function initializeWalletExplorer(
+  sheetClient: SheetClient,
+  walletAddress: string,
+  provider: ethers.JsonRpcProvider,
+  logEvent: Function
+) {
+  try {
+    logEvent(
+      `Initializing Wallet Explorer with recent transactions for ${walletAddress}`
+    );
+
+    // Check if sheet exists and has data
+    try {
+      const values = await sheetClient.getSheetValues(WALLET_EXPLORER_SHEET);
+
+      // If there's already transaction data, skip initialization
+      if (values.length > 2) {
+        logEvent(
+          `Wallet Explorer already has ${
+            values.length - 1
+          } transactions, skipping initialization`
+        );
+        return;
+      }
+
+      // Fetch recent transactions
+      const transactions = await fetchHistoricalTransactions(
+        walletAddress,
+        provider,
+        10, // Limit to last 10 transactions
+        logEvent
+      );
+
+      if (transactions.length === 0) {
+        logEvent(
+          `No historical transactions found for wallet ${walletAddress}`
+        );
+        return;
+      }
+
+      // Add transactions to the sheet
+      const transactionRows = transactions.map((tx) => [
+        tx.hash,
+        tx.from,
+        tx.to,
+        tx.amount,
+        tx.timestamp,
+        tx.status,
+      ]);
+
+      await sheetClient.appendRows(WALLET_EXPLORER_SHEET, transactionRows);
+      logEvent(
+        `Added ${transactions.length} historical transactions to Wallet Explorer`
+      );
+    } catch (error) {
+      logEvent(`Error initializing Wallet Explorer: ${error}`);
+    }
+  } catch (error: unknown) {
+    logEvent(
+      `Error initializing Wallet Explorer: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+/**
  * Create ActiveSessions sheet
  */
 export async function createActiveSessionsSheet(
@@ -673,16 +1096,7 @@ export async function createActiveSessionsSheet(
         2, // endRowIndex (exclusive)
         0, // startColumnIndex
         5, // endColumnIndex (exclusive, so columns A-E)
-        {
-          backgroundColor: { red: 0.9, green: 0.97, blue: 1.0 }, // Light blue (#e6f7ff)
-          textFormat: {
-            bold: true,
-            italic: true,
-            fontFamily: "Roboto",
-            foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey for helper notes
-          },
-          wrapStrategy: "WRAP",
-        }
+        SHEET_STYLES.INSTRUCTION_ROW
       );
 
       // Format the troubleshooting row
@@ -692,15 +1106,7 @@ export async function createActiveSessionsSheet(
         4, // endRowIndex (exclusive)
         0, // startColumnIndex
         5, // endColumnIndex (exclusive)
-        {
-          backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red
-          textFormat: {
-            bold: true,
-            fontFamily: "Roboto",
-            foregroundColor: { red: 0.5, green: 0.5, blue: 0.5 }, // Mild grey for helper notes
-          },
-          wrapStrategy: "WRAP",
-        }
+        SHEET_STYLES.TROUBLESHOOTING_ROW
       );
 
       logEvent(
@@ -946,7 +1352,7 @@ export async function getSheetOwnerEmail(
     console.log(`⚠️ Owner email not found in settings`);
     return "";
   } catch (error: unknown) {
-    console.error(`❌ Error getting sheet owner email:`, error);
+    console.error(`❌ Error getting sheet owner email`);
     if (error instanceof Error) {
       console.error("Error details:", {
         message: error.message,
@@ -1096,12 +1502,7 @@ export async function forceUpdatePendingTransactions(
                     endColumnIndex: 8, // Column H
                   },
                   cell: {
-                    userEnteredFormat: {
-                      horizontalAlignment: "CENTER",
-                      textFormat: {
-                        bold: true,
-                      },
-                    },
+                    userEnteredFormat: SHEET_STYLES.CHECKBOX_CENTERED,
                   },
                   fields: "userEnteredFormat",
                 },
@@ -1189,12 +1590,7 @@ export async function addCheckboxesToRow(
             endColumnIndex: 8, // Column H
           },
           cell: {
-            userEnteredFormat: {
-              horizontalAlignment: "CENTER",
-              textFormat: {
-                bold: true,
-              },
-            },
+            userEnteredFormat: SHEET_STYLES.CHECKBOX_CENTERED,
           },
           fields: "userEnteredFormat",
         },
@@ -1453,15 +1849,7 @@ export async function createChatSheet(
           2, // endRowIndex
           0, // startColumnIndex
           1, // endColumnIndex
-          {
-            backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Match header style
-            textFormat: {
-              bold: true,
-              fontFamily: "Roboto",
-              foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
-            },
-            horizontalAlignment: "RIGHT",
-          }
+          SHEET_STYLES.USER_INPUT_LABEL
         );
 
         // Format user input area
@@ -1471,19 +1859,7 @@ export async function createChatSheet(
           2, // endRowIndex
           1, // startColumnIndex
           2, // endColumnIndex
-          {
-            backgroundColor: { red: 0.95, green: 0.95, blue: 1.0 }, // Very light blue
-            textFormat: {
-              fontFamily: "Roboto",
-              foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
-            },
-            borders: {
-              top: { style: "SOLID" },
-              bottom: { style: "SOLID" },
-              left: { style: "SOLID" },
-              right: { style: "SOLID" },
-            },
-          }
+          SHEET_STYLES.USER_INPUT_AREA
         );
 
         // Format the instructions with helper notes style
@@ -1503,15 +1879,7 @@ export async function createChatSheet(
           4, // endRowIndex
           0, // startColumnIndex
           6, // endColumnIndex
-          {
-            backgroundColor: { red: 0.85, green: 0.92, blue: 0.85 }, // Match header style
-            textFormat: {
-              bold: true,
-              fontFamily: "Roboto",
-              foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
-            },
-            horizontalAlignment: "RIGHT",
-          }
+          SHEET_STYLES.HEADER_RIGHT
         );
 
         // Set column widths
@@ -1633,15 +2001,7 @@ export async function monitorChatSheet(
             5, // endRowIndex
             0, // startColumnIndex
             1, // endColumnIndex
-            {
-              backgroundColor: { red: 0.9, green: 0.95, blue: 1.0 }, // Light blue
-              textFormat: {
-                bold: true,
-                fontFamily: "Roboto",
-                foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
-              },
-              horizontalAlignment: "RIGHT",
-            }
+            SHEET_STYLES.USER_LABEL
           );
 
           // Format the user message cell
@@ -1651,14 +2011,7 @@ export async function monitorChatSheet(
             5, // endRowIndex
             1, // startColumnIndex
             6, // endColumnIndex
-            {
-              backgroundColor: { red: 0.95, green: 0.97, blue: 1.0 }, // Very light blue
-              textFormat: {
-                fontFamily: "Roboto",
-                foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
-              },
-              wrapStrategy: "WRAP",
-            }
+            SHEET_STYLES.USER_MESSAGE
           );
 
           // Call the chat API
@@ -1675,15 +2028,7 @@ export async function monitorChatSheet(
               6, // endRowIndex
               0, // startColumnIndex
               1, // endColumnIndex
-              {
-                backgroundColor: { red: 1.0, green: 0.9, blue: 0.9 }, // Light red
-                textFormat: {
-                  bold: true,
-                  fontFamily: "Roboto",
-                  foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
-                },
-                horizontalAlignment: "RIGHT",
-              }
+              SHEET_STYLES.AGENT_LABEL
             );
 
             // Use your existing API endpoint instead of a custom local one
@@ -1727,14 +2072,7 @@ export async function monitorChatSheet(
                 6, // endRowIndex
                 1, // startColumnIndex
                 6, // endColumnIndex
-                {
-                  backgroundColor: { red: 1.0, green: 0.95, blue: 0.95 }, // Light red background to match agent label
-                  textFormat: {
-                    fontFamily: "Roboto",
-                    foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
-                  },
-                  wrapStrategy: "WRAP",
-                }
+                SHEET_STYLES.AGENT_MESSAGE
               );
             } catch (apiError) {
               logEvent(
@@ -1837,112 +2175,5 @@ export async function getRiskFactor(
       }. Using default value of 5.`
     );
     return 5; // Default to middle value if error
-  }
-}
-
-/**
- * Lock a sheet to prevent unauthorized edits
- * Only the owner (specified by email) will be able to edit the sheet
- */
-export async function lockSheet(
-  sheetClient: SheetClient,
-  sheetName: string,
-  ownerEmail: string,
-  logEvent: Function
-) {
-  try {
-    console.log(`🔒 Locking "${sheetName}" sheet for owner: ${ownerEmail}`);
-
-    // Get the sheet ID
-    const sheets = await sheetClient.getSheetMetadata();
-    const sheet = sheets.find((s) => s.title === sheetName);
-
-    if (!sheet) {
-      throw new Error(`Sheet "${sheetName}" not found`);
-    }
-
-    // Create a protection that only allows the owner to edit
-    const requests = [
-      {
-        addProtectedRange: {
-          protectedRange: {
-            range: {
-              sheetId: sheet.sheetId,
-              startRowIndex: 0,
-              startColumnIndex: 0,
-            },
-            description: `This sheet is locked and can only be edited by ${ownerEmail}`,
-            warningOnly: false,
-            editors: {
-              users: [ownerEmail],
-            },
-          },
-        },
-      },
-    ];
-
-    await sheetClient.batchUpdate({ requests });
-    logEvent(`Successfully locked "${sheetName}" sheet for ${ownerEmail}`);
-    return true;
-  } catch (error: unknown) {
-    console.error(`❌ Error locking "${sheetName}" sheet:`, error);
-    if (error instanceof Error) {
-      console.error("Error details:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-      });
-    }
-    logEvent(
-      `Error locking "${sheetName}" sheet: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    return false;
-  }
-}
-
-/**
- * Lock Portfolio and Wallet Explorer sheets
- * This prevents unauthorized edits to important financial data
- */
-export async function lockFinancialSheets(
-  sheetClient: SheetClient,
-  logEvent: Function
-) {
-  try {
-    console.log(`🔒 Locking financial sheets...`);
-
-    // Get the owner email from settings
-    const ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
-
-    if (!ownerEmail) {
-      logEvent(`Cannot lock sheets: Owner email not found in Settings sheet`);
-      return false;
-    }
-
-    // Lock the Portfolio sheet
-    await lockSheet(sheetClient, PORTFOLIO_SHEET, ownerEmail, logEvent);
-
-    // Lock the Wallet Explorer sheet
-    await lockSheet(sheetClient, WALLET_EXPLORER_SHEET, ownerEmail, logEvent);
-
-    logEvent(`Successfully locked financial sheets for ${ownerEmail}`);
-    return true;
-  } catch (error: unknown) {
-    console.error(`❌ Error locking financial sheets:`, error);
-    if (error instanceof Error) {
-      console.error("Error details:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-      });
-    }
-    logEvent(
-      `Error locking financial sheets: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    return false;
   }
 }
