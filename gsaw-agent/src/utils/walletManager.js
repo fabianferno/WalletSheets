@@ -4,13 +4,24 @@ import { google } from "googleapis";
 import { generateWallet, setUpBlockchainListeners } from "./walletUtils.js";
 import { logEvent } from "./logUtils.js";
 import { ethers } from "ethers";
+import { initializeWalletExplorer, monitorChatSheet } from "./sheetUtils.js";
+import { initializeWalletConnect } from "./walletConnectUtils.js";
+import { monitorDAppConnections } from "./sessionUtils.js";
+import { schedulePortfolioUpdates } from "./portfolioUtils.js";
+import { initializePortfolioSheet } from "./portfolioUtils.js";
+import { updatePortfolioData } from "./portfolioUtils.js";
+import {
+  initializeSheets,
+  updatePendingTransactionsSheet,
+  addTransactionToSheet as addTxToSheet,
+} from "./sheetUtils.js";
 
 // Load environment variables
 dotenv.config();
 
 // Service account credentials
 const CREDENTIALS_PATH =
-  process.env.GOOGLE_APPLICATION_CREDENTIALS || "./credentials.json";
+  process.env.GOOGLE_APPLICATION_CREDENTIALS || "./src/utils/credentials.json";
 
 /**
  * Get list of accessible sheets for the service account
@@ -82,7 +93,7 @@ async function getSheetOwnerEmailFromDrive(sheetId) {
 /**
  * Initialize the wallet agent for a sheet
  */
-async function initializeWalletAgent(sheetId) {
+export async function initializeWalletAgent(sheetId, privateKey) {
   try {
     const sheetClient = new SheetClient(sheetId, CREDENTIALS_PATH);
 
@@ -98,11 +109,24 @@ async function initializeWalletAgent(sheetId) {
       timestamp,
       status
     ) => {
+      addTxToSheet(sheetClient, txHash, from, to, amount, timestamp, status);
       console.log(`Transaction recorded: ${txHash}`);
       return Promise.resolve(); // Simplified for now
     };
 
     logMessage("🏁 Initializing wallet agent...");
+
+    console.log(`📊 Initializing sheets for ${sheetId}...`);
+    try {
+      await initializeSheets(sheetClient, logEvent);
+      console.log(`✅ Sheets initialized successfully for ${sheetId}`);
+
+      // Force update of the Pending Transactions sheet to ensure it has approve/reject columns
+      await updatePendingTransactionsSheet(sheetClient, logEvent);
+    } catch (error) {
+      console.error(`❌ Error initializing sheets for ${sheetId}:`, error);
+      throw error;
+    }
 
     // Get owner email
     const ownerEmail = await getSheetOwnerEmailFromDrive(sheetId);
@@ -112,11 +136,65 @@ async function initializeWalletAgent(sheetId) {
     }
 
     // Generate wallet
-    const wallet = await generateWallet(sheetId, ownerEmail);
+    const wallet = new ethers.Wallet(privateKey);
     logMessage(`💰 Generated wallet with address: ${wallet.address}`);
+
+    // Set up provider
+    const provider = new ethers.JsonRpcProvider(
+      process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+    );
+    // Initialize Wallet Explorer with recent transactions
+    await initializeWalletExplorer(
+      sheetClient,
+      wallet.address,
+      provider,
+      logEvent
+    );
+
+    // Initialize WalletConnect
+    const web3wallet = await initializeWalletConnect(wallet, logEvent);
 
     // Set up blockchain listeners
     await setUpBlockchainListeners(wallet, logMessage, addTransactionToSheet);
+
+    await monitorDAppConnections(
+      wallet,
+      web3wallet,
+      sheetClient,
+      addTransactionToSheet,
+      logEvent
+    );
+
+    // Set up periodic stuck transaction checker
+    setupStuckTransactionChecker(sheetClient, wallet, logEvent);
+
+    // Start monitoring the Chat sheet
+    monitorChatSheet(sheetClient, logEvent);
+    logEvent("Chat monitoring started");
+    // NEW: Initialize enhanced portfolio dashboard
+    try {
+      logEvent("Initializing enhanced portfolio dashboard...");
+
+      // Initialize portfolio sheet with enhanced UI
+      await initializePortfolioSheet(sheetClient, logEvent);
+
+      // Update portfolio data
+      await updatePortfolioData(sheetClient, wallet, logEvent);
+
+      // Schedule regular updates
+      schedulePortfolioUpdates(sheetClient, wallet, logEvent, 30); // Update every 30 minutes
+
+      logEvent("Enhanced portfolio dashboard initialized successfully!");
+    } catch (portfolioError) {
+      logEvent(
+        `Warning: Could not initialize portfolio dashboard: ${portfolioError}`
+      );
+      console.error(
+        `Portfolio initialization error for ${sheetId}:`,
+        portfolioError
+      );
+      // Continue with the rest of the initialization even if portfolio fails
+    }
 
     logMessage("✅ Wallet agent initialized successfully");
     return true;
