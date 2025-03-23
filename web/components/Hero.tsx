@@ -8,6 +8,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Copy } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const COLOR = "#0F9D58";
 const HIT_COLOR = "#333333";
@@ -212,6 +215,7 @@ export function SheetsIsAllYouNeed() {
   const paddlesRef = useRef<Paddle[]>([]);
   const scaleRef = useRef(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { toast } = useToast();
   const buttonRef = useRef({
     x: 0,
     y: 0,
@@ -219,6 +223,17 @@ export function SheetsIsAllYouNeed() {
     height: 0,
     isHovered: false,
   });
+
+  const copyEmailToClipboard = () => {
+    navigator.clipboard.writeText(
+      "agents@walletsheets.iam.gserviceaccount.com"
+    );
+    toast({
+      title: "Copied to clipboard",
+      description: "Email address has been copied to clipboard",
+      duration: 2000,
+    });
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -561,7 +576,7 @@ export function SheetsIsAllYouNeed() {
       const wordSpacing = WORD_SPACING * pixelSize;
 
       // Calculate total width of text in pixels to center it
-      let totalTextWidth = buttonText.reduce((width, letter, index) => {
+      const totalTextWidth = buttonText.reduce((width, letter, index) => {
         if (letter === " ") {
           return width + wordSpacing;
         }
@@ -633,11 +648,12 @@ export function SheetsIsAllYouNeed() {
               Get Started with Sheets
             </DialogTitle>
             <DialogDescription className="text-lg">
-              Welcome to the world of Sheets - here's how to get started.
+              Follow these simple steps to transform your Google Sheets into a
+              blockchain wallet!
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-6 py-6 px-2">
+          <div className="grid gap-8 py-8 px-4">
             <div className="space-y-6">
               <h3 className="text-2xl font-medium">What is Sheets?</h3>
               <p className="text-lg">
@@ -656,19 +672,64 @@ export function SheetsIsAllYouNeed() {
               </ul>
 
               <h3 className="text-2xl font-medium mt-8">How to Begin</h3>
-              <ol className="list-decimal pl-8 space-y-3 text-lg">
-                <li>Create a new Google Sheet</li>
-                <li>Connect it to the Sheets extension</li>
-                <li>Follow the setup wizard to connect your wallet</li>
-                <li>
-                  Start using the power of blockchain in your spreadsheets!
+              <ol className="list-decimal pl-8 space-y-6 text-lg">
+                <li className="pb-4">
+                  <span className="font-semibold">
+                    Create a new Google Sheet
+                  </span>
+                  <p className="mt-1 text-gray-600">
+                    Go to{" "}
+                    <a
+                      href="https://sheets.google.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Google Sheets
+                    </a>{" "}
+                    and create a new spreadsheet.
+                  </p>
+                </li>
+
+                <li className="pb-4">
+                  <span className="font-semibold">
+                    Add this email as an editor
+                  </span>
+                  <div className="flex items-center gap-3 mt-3 bg-slate-50 p-4 rounded-md border border-slate-200">
+                    <div className="border border-slate-300 rounded-md px-4 py-2 bg-white flex-grow font-mono">
+                      agents@walletsheets.iam.gserviceaccount.com
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={copyEmailToClipboard}
+                      className="h-10 w-10 hover:bg-slate-200"
+                    >
+                      <Copy className="h-4 w-4" />
+                      <span className="sr-only">Copy email address</span>
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Share your spreadsheet with this email address and give it
+                    editor permissions.
+                  </p>
+                </li>
+
+                <li className="pb-4">
+                  <span className="font-semibold">
+                    {`Turn your orthodox daddy's spreadsheets to use blockchain`}
+                  </span>
+                  <p className="mt-1 text-gray-600">
+                    {`Once you've added the agent as an editor, your spreadsheet
+                    will be transformed into a powerful blockchain interface.`}
+                  </p>
                 </li>
               </ol>
 
               <div className="bg-green-50 p-6 rounded-md mt-8">
                 <p className="text-green-800 text-xl">
-                  Ready to transform how you interact with blockchain? Start
-                  using Sheets today!
+                  Ready to transform how you interact with blockchain? Your
+                  Google Sheet is now your blockchain command center!
                 </p>
               </div>
             </div>
