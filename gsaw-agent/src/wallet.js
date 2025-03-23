@@ -1,7 +1,7 @@
 import { runAllWalletAgents } from "./walletManager.js";
 
 // If run directly
-if (process.argv[1] === import.meta.url.substring(7)) {
+if (require.main === module) {
   runAllWalletAgents()
     .then(() => {
       console.log("Wallet Manager started successfully");
