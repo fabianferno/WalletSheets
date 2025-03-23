@@ -83,3 +83,19 @@ No manual entry of email addresses is required - the system detects everything a
 2. Change the Status cell from "Pending" to "Approved" to approve the request
 3. Change the Status cell to "Rejected" to reject the request
 4. The agent checks for status changes every 10 seconds
+
+## Line of Code
+
+### Autonome
+
+Custom Agent Template Deployed on Autonome - 
+
+Docker Image - https://hub.docker.com/layers/eggai/walletsheets/v7.0.0/images/sha256-11d9bf9d843e7bbf7f573d4e8eb06c9ff77f2c53f580b289e1fe8d53cee9034f
+
+### Nillion
+
+
+### Nethermind
+
+
+

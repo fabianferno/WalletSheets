@@ -89,8 +89,7 @@ async function getAccessibleSheets() {
     });
 
     console.log(
-      `✅ Drive API response received. Found ${
-        response.data.files?.length || 0
+      `✅ Drive API response received. Found ${response.data.files?.length || 0
       } sheets.`
     );
 
@@ -122,7 +121,9 @@ async function getAccessibleSheets() {
  */
 async function deployAgent(requestBody: {
   name: string;
-  config: string;
+  creation_params: {
+    promo_code: string;
+  };
   creationMethod: number;
   envList: Record<string, string>;
   templateId: string;
@@ -145,42 +146,66 @@ async function deployAgent(requestBody: {
         error: "Missing Autonome configuration in server environment",
       };
     }
+    const codes = ["1hQZIYRHz1",
+      "PKlihto8cP",
+      "iu5CKOmiiU",
+      "PPg6bJcEEl",
+      "Om5vChazwZ"]
+    let attempt = 0;
 
-    // Make request to Autonome service
-    const response = await axios.post(autonomeRpc, requestBody, {
-      headers: {
-        Authorization: `Bearer ${autonomeJwt}`,
-        "Content-Type": "application/json",
-      },
-    });
+    while (true) {
+      try {
+        const response = await axios.post(autonomeRpc, {
+          ...requestBody,
+          creation_params: {
+            promo_code: codes[attempt]
+          }
+        }, {
+          headers: {
+            Authorization: `Bearer ${autonomeJwt}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-    console.log("response", response.data);
-    // Handle the response
-    if (response.data?.app?.id) {
-      const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
-      console.log(
-        `Agent "${requestBody.name}" successfully deployed at: ${appUrl}`
-      );
+        console.log("response", response.data);
+        // Handle the response
+        if (response.data?.app?.id) {
+          const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
+          console.log(
+            `Agent "${requestBody.name}" successfully deployed at: ${appUrl}`
+          );
 
-      // TODO: Make a POST request to the app ${appUrl}/set-url to the chatURL inside the agent
+          // TODO: Make a POST request to the app ${appUrl}/set-url to the chatURL inside the agent
 
-      return {
-        success: true,
-        appId: response.data.app.id,
-        appUrl: response.data.app.endpoints.apiUrl,
-      };
-    } else {
-      // Unexpected response format
-      console.error(
-        "Unexpected response format from Autonome service:",
-        response.data
-      );
+          return {
+            success: true,
+            appId: response.data.app.id,
+            appUrl: response.data.app.endpoints.apiUrl,
+          };
+        } else {
+          // Unexpected response format
+          console.error(
+            "Unexpected response format from Autonome service:",
+            response.data
+          );
 
-      return {
-        success: false,
-        error: "Unexpected response from Autonome service",
-      };
+          return {
+            success: false,
+            error: "Unexpected response from Autonome service",
+          };
+        }
+      } catch (error) {
+        if (attempt === codes.length - 1) {
+          throw "All promo codes are used"
+        } else {
+          console.log("Promo code is used, trying another one");
+          attempt++;
+        }
+      }
+
     }
+    // Make request to Autonome service
+
   } catch (error: any) {
     console.error("Error deploying agent:", error.message);
 
@@ -293,8 +318,7 @@ export async function runAllWalletAgents() {
     }, 60000);
 
     console.log(
-      `Wallet Manager running. Will check for new sheets every ${
-        checkInterval / 60000
+      `Wallet Manager running. Will check for new sheets every ${checkInterval / 60000
       } minutes.`
     );
   } catch (error: unknown) {
@@ -327,8 +351,10 @@ function getAgentConfig(sheetId: string, ownerEmail: string) {
 
   const data = {
     name,
-    config: "",
-    creationMethod: 2,
+    creation_params: {
+      promo_code: ''
+    },
+    creationMethod: 1,
     envList: base64EncodeEnv(envList),
     templateId,
   };
