@@ -1,10 +1,14 @@
-import express, { Request, Response } from 'express';
-import dotenv from 'dotenv';
-import axios from 'axios';
-import cors from 'cors';
+import express, { Request, Response } from "express";
+import dotenv from "dotenv";
+import axios from "axios";
+import cors from "cors";
+import { google } from "googleapis";
 
 // Load environment variables
 dotenv.config();
+
+// Initialize the Google Sheets API
+const drive = google.drive("v3");
 
 // Create Express app
 const app = express();
@@ -16,115 +20,288 @@ app.use(cors());
 
 // Interface for the request body
 interface DeployAgentRequest {
-    name: string;
-    config?: string;
-    metadata?: Record<string, any>;
-    envList?: Record<string, string>;
+  name: string;
+  config?: string;
+  metadata?: Record<string, any>;
+  envList?: Record<string, string>;
 }
 
 // Interface for the response from Autonome
 interface AutonomeResponse {
-    app?: {
-        id: string;
+  app?: {
+    id: string;
+  };
+  error?: string;
+}
+
+// Authenticate with the service account
+const auth = new google.auth.GoogleAuth({
+  credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS || "{}"),
+  scopes: [
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive.readonly",
+  ],
+});
+
+/**
+ * Get the owner email for a specific sheet
+ */
+async function getSheetOwnerEmailFromDrive(sheetId: string) {
+  try {
+    const authClient = await auth.getClient();
+
+    // Get file metadata
+    const response = await drive.files.get({
+      // @ts-ignore
+      auth: authClient,
+      fileId: sheetId,
+      fields: "owners",
+    });
+
+    // Use type assertion to fix the data property error
+    const responseData = response as unknown as {
+      data: {
+        owners?: Array<{ emailAddress: string }>;
+      };
     };
-    error?: string;
+
+    if (responseData.data.owners && responseData.data.owners.length > 0) {
+      return responseData.data.owners[0].emailAddress;
+    }
+
+    return null;
+  } catch (error: unknown) {
+    console.error(`Error getting owner for sheet ${sheetId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Get all sheets accessible by the service account
+ */
+async function getAccessibleSheets() {
+  try {
+    const drive = google.drive({ version: "v3", auth });
+
+    const response = await drive.files.list({
+      q: "mimeType='application/vnd.google-apps.spreadsheet'",
+      fields: "files(id, name, owners)",
+    });
+
+    console.log(
+      `✅ Drive API response received. Found ${
+        response.data.files?.length || 0
+      } sheets.`
+    );
+
+    if (!response.data.files) {
+      console.log("❌ No files found or response.data.files is undefined.");
+      return [];
+    }
+
+    return response.data.files.map((file) => ({
+      id: file.id!,
+      name: file.name!,
+      owner: file.owners?.[0]?.emailAddress || "unknown",
+    }));
+  } catch (error: unknown) {
+    console.error("❌ Error in getAccessibleSheets:", error);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
+    return [];
+  }
+}
+
+/**
+ * Main function to run all wallet agents
+ */
+export async function runAllWalletAgents() {
+  try {
+    console.log("Starting Google Sheets Wallet Manager");
+
+    // Keep track of sheets we've already initialized
+    const initializedSheets = new Set<string>();
+
+    // Function to check for and initialize new sheets
+    const checkForNewSheets = async () => {
+      // Get all accessible sheets
+      const accessibleSheets = await getAccessibleSheets();
+
+      if (accessibleSheets.length === 0) {
+        console.log("No accessible sheets found.");
+        return;
+      }
+
+      // Find sheets that haven't been initialized yet
+      const newSheets = accessibleSheets.filter(
+        (sheet) => !initializedSheets.has(sheet.id)
+      );
+
+      if (newSheets.length > 0) {
+        console.log(`Found ${newSheets.length} new sheets to initialize.`);
+
+        // Initialize a wallet agent for each new sheet
+        let newInitializedCount = 0;
+        for (const sheet of newSheets) {
+          // If the owner email is not in the settings, get it from the Drive API
+          const emailownerEmailFromDrive = await getSheetOwnerEmailFromDrive(
+            sheet.id
+          );
+
+          // TODO: Call agent deploy
+          const initialized = true;
+          // deployAgent(sheet.id, emailownerEmailFromDrive);
+
+          if (initialized) {
+            initializedSheets.add(sheet.id);
+            newInitializedCount++;
+          }
+        }
+
+        console.log(
+          `Successfully initialized ${newInitializedCount} new wallet agents out of ${newSheets.length} sheets.`
+        );
+      }
+    };
+
+    // Run the initial check for sheets
+    await checkForNewSheets();
+
+    // Set up interval to check for new sheets (every 5 minutes)
+    const checkInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+    setInterval(async () => {
+      console.log("Checking for new sheets...");
+      await checkForNewSheets();
+    }, checkInterval);
+
+    // Keep the process running with a heartbeat
+    setInterval(() => {
+      // Heartbeat
+      console.log(`Wallet Manager heartbeat: ${new Date().toISOString()}`);
+    }, 60000);
+
+    console.log(
+      `Wallet Manager running. Will check for new sheets every ${
+        checkInterval / 60000
+      } minutes.`
+    );
+  } catch (error: unknown) {
+    console.error("Error running wallet agents:", error);
+  }
 }
 
 /**
  * Deploy an agent to Autonome
  */
-app.post('/deploy-agent', async (req: Request, res: Response) => {
-    try {
-        const { name, config = "{}", metadata = {}, envList = {} } = req.body as DeployAgentRequest;
+app.post("/deploy-agent", async (req: Request, res: Response) => {
+  try {
+    const {
+      name,
+      config = "{}",
+      metadata = {},
+      envList = {},
+    } = req.body as DeployAgentRequest;
 
-        // Validate required fields
-        if (!name) {
-            return res.status(400).json({
-                success: false,
-                error: 'Agent name is required'
-            });
-        }
-
-        // Get authentication and endpoint info from environment variables
-        const autonomeJwt = process.env.AUTONOME_JWT_TOKEN;
-        const autonomeRpc = process.env.AUTONOME_RPC_ENDPOINT;
-
-        if (!autonomeJwt || !autonomeRpc) {
-            return res.status(500).json({
-                success: false,
-                error: 'Missing Autonome configuration in server environment'
-            });
-        }
-
-        // Prepare request body
-        const requestBody = {
-            name,
-            config,
-            creationMethod: 2,
-            envList,
-            templateId: "Eliza",
-            ...metadata
-        };
-
-        console.log('Deploying agent with configuration:', {
-            name: requestBody.name,
-            templateId: requestBody.templateId,
-            // Don't log sensitive information
-            hasConfig: !!requestBody.config,
-            hasEnvList: Object.keys(requestBody.envList).length > 0
-        });
-
-        // Make request to Autonome service
-        const response = await axios.post<AutonomeResponse>(autonomeRpc, requestBody, {
-            headers: {
-                Authorization: `Bearer ${autonomeJwt}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        // Handle the response
-        if (response.data?.app?.id) {
-            const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
-            console.log(`Agent "${name}" successfully deployed at: ${appUrl}`);
-
-            return res.status(200).json({
-                success: true,
-                name,
-                appId: response.data.app.id,
-                appUrl
-            });
-        } else {
-            // Unexpected response format
-            console.error('Unexpected response format from Autonome service:', response.data);
-
-            return res.status(500).json({
-                success: false,
-                error: 'Unexpected response from Autonome service',
-                details: response.data
-            });
-        }
-    } catch (error: any) {
-        console.error('Error deploying agent:', error.message);
-
-        // Extract the error message from the Autonome service if available
-        const autonomeError = error.response?.data?.error || error.message;
-
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to deploy agent',
-            details: autonomeError
-        });
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: "Agent name is required",
+      });
     }
+
+    // Get authentication and endpoint info from environment variables
+    const autonomeJwt = process.env.AUTONOME_JWT_TOKEN;
+    const autonomeRpc = process.env.AUTONOME_RPC_ENDPOINT;
+
+    if (!autonomeJwt || !autonomeRpc) {
+      return res.status(500).json({
+        success: false,
+        error: "Missing Autonome configuration in server environment",
+      });
+    }
+
+    // Prepare request body
+    const requestBody = {
+      name,
+      config,
+      creationMethod: 2,
+      envList,
+      templateId: "Eliza",
+      ...metadata,
+    };
+
+    console.log("Deploying agent with configuration:", {
+      name: requestBody.name,
+      templateId: requestBody.templateId,
+      // Don't log sensitive information
+      hasConfig: !!requestBody.config,
+      hasEnvList: Object.keys(requestBody.envList).length > 0,
+    });
+
+    // Make request to Autonome service
+    const response = await axios.post<AutonomeResponse>(
+      autonomeRpc,
+      requestBody,
+      {
+        headers: {
+          Authorization: `Bearer ${autonomeJwt}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    // Handle the response
+    if (response.data?.app?.id) {
+      const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
+      console.log(`Agent "${name}" successfully deployed at: ${appUrl}`);
+
+      return res.status(200).json({
+        success: true,
+        name,
+        appId: response.data.app.id,
+        appUrl,
+      });
+    } else {
+      // Unexpected response format
+      console.error(
+        "Unexpected response format from Autonome service:",
+        response.data
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: "Unexpected response from Autonome service",
+        details: response.data,
+      });
+    }
+  } catch (error: any) {
+    console.error("Error deploying agent:", error.message);
+
+    // Extract the error message from the Autonome service if available
+    const autonomeError = error.response?.data?.error || error.message;
+
+    return res.status(500).json({
+      success: false,
+      error: "Failed to deploy agent",
+      details: autonomeError,
+    });
+  }
 });
 
 /**
  * Health check endpoint
  */
-app.get('/health', (req: Request, res: Response) => {
-    res.status(200).json({ status: 'ok' });
+app.get("/health", (req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
 });
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

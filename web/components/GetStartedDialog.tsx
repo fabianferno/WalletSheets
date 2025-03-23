@@ -33,7 +33,7 @@ export function GetStartedDialog({ isOpen, onOpenChange }: GetStartedDialogProps
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[90vw] min-h-[90vh] max-h-[90vh] overflow-auto">
-                <DialogHeader>
+                <DialogHeader className="bg-green-50 p-6 rounded-md">
                     <DialogTitle className="text-3xl font-bold text-green-600">
                         Get Started with Sheets
                     </DialogTitle>
@@ -43,7 +43,7 @@ export function GetStartedDialog({ isOpen, onOpenChange }: GetStartedDialogProps
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 px-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-3 px-4">
                     <div className="space-y-6">
                         <h3 className="text-2xl font-medium">What is Sheets?</h3>
                         <p className="text-lg">
@@ -53,7 +53,7 @@ export function GetStartedDialog({ isOpen, onOpenChange }: GetStartedDialogProps
                         </p>
 
                         <h3 className="text-2xl font-medium mt-8">Key Features</h3>
-                        <ul className="list-disc pl-8 space-y-3 text-lg">
+                        <ul className="list-disc pl-8 text-lg">
                             <li>Send transactions directly from your spreadsheet</li>
                             <li>Monitor wallet activity in real-time</li>
                             <li>Track transaction history</li>
