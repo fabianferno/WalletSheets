@@ -1,6 +1,4 @@
-import { initializeSearchTool } from "./search.js";
 import { initializePriceTool } from "./price.js";
-import { initializeTradeTool } from "./trade.js";
 import { initializeTransferTool } from "./transfer.js";
 import { initializeTransactionTool } from "./transaction.js";
 import { initializeTradingTool } from './trading.js';
@@ -13,10 +11,8 @@ export async function loadTools() {
   const toolFactories = [
     initializePriceTool,
     initializeTradingTool,
-    // initializeTradeTool,
     // initializeTransferTool,
     // initializeTransactionTool,
-    // Add new tool factories here
   ];
 
   // Use Promise.all with map instead of for...of

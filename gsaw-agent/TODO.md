@@ -33,8 +33,8 @@ ENV
 
 FINAL TODO
 
-1. Test GMX works
-2. Estimate and return error if not enough value to perform trade
+~~1. Test GMX works~~
+~~2. Estimate and return error if not enough value to perform trade~~
 3. Trader Service with Nillion trades
 4. Autonome deployment
 

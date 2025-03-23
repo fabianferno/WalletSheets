@@ -19,7 +19,7 @@ dotenv.config();
 export async function placeTrade(
     pKey,
     native,
-    asset,
+    _asset,
     _chain,
     leverage,
     positionSizeInNative,
@@ -29,6 +29,7 @@ export async function placeTrade(
 ) {
     console.log("Starting placeTrade function...");
     const chain = "421614";
+    const asset = "ETH";
     console.log("Input parameters:", {
         pKey,
         native,
@@ -51,7 +52,11 @@ export async function placeTrade(
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(pKey, provider);
     console.log("Wallet address:", await wallet.getAddress());
-    console.log('Balance:', ethers.utils.formatEther(await wallet.getBalance()));
+    const balance = (await wallet.getBalance()).toBigInt()
+    console.log('Balance: ', balance);
+    if (balance < BigInt("2000000000000000")) {
+        throw 'Insufficient funds to perform the trade';
+    }
     const exchangeRouterAbi = exchangeRouterABI[chain];
     console.log(assets)
     const addresses = {
@@ -116,6 +121,8 @@ export async function placeTrade(
         amountInUSD,
         amountInETH,
     });
+
+
 
     console.log("Fetching market token address...");
     const marketTokenAddress = await getMarketTokenAddress(
