@@ -397,7 +397,7 @@ export class Agent {
             ...new Set(dataWritten.map((item) => item.data.created).flat()),
         ];
         console.log(
-            `Trade data saved with new ID: ${newIds[0]} and encrypted in Nillion`
+            `Trade data encrypted in Nillion and saved with new ID: ${newIds[0]} `
         );
         return newIds[0];
     }
@@ -417,6 +417,16 @@ export class Agent {
         const closeTrades = trades.filter((trade) => trade.action === 'close_position');
         const closedTradeIds = closeTrades.map((trade) => trade.trade_data.reference_trade_id);
         return buyTrades.filter((trade) => !closedTradeIds.includes(trade.trade_data.reference_trade_id));
+    }
+
+    async getTradeById(tradeId) {
+        const trades = await this.nillionTradesCollection.readFromNodes({
+            _id: tradeId,
+        });
+        if (trades.length === 0) {
+            throw new Error(`Trade with ID ${tradeId} not found`);
+        }
+        return trades[0];
     }
     /**
      * Create a new conversation with system message

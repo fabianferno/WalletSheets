@@ -89,13 +89,10 @@ export async function placeTrade(
     };
 
     if (addresses.token == undefined) {
-        console.error(
-            "Token " +
-            addresses.token +
-            " is not configured for chain " +
-            params.chain
-        );
-        return;
+        throw "Token " +
+        addresses.token +
+        " is not configured for chain " +
+        params.chain;
     }
 
     const exchangeRouterContract = new ethers.Contract(

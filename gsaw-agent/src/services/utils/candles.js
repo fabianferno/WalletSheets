@@ -34,8 +34,8 @@ function analyzeTrend(candles) {
     };
 }
 
-async function processCandles(trade_type, asset, chain) {
-    const url = `https://${chain == "avax" ? "avalanche" : "arbitrum"}-api.gmxinfra.io/prices/candles?tokenSymbol=${asset == "WBTC" ? "BTC" : trade_type == "spot" ? "ETH" : asset}&period=1d`;
+async function processCandles(asset) {
+    const url = `https://arbitrum-api.gmxinfra.io/prices/candles?tokenSymbol=${asset}&period=1d`;
     console.log("Fetching candles data from:", url);
     const response = await fetch(url);
     const { candles: rawCandles } = await response.json();

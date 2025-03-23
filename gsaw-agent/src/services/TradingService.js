@@ -1,3 +1,8 @@
+import { placeTrade } from "../tools/gmx";
+import { processCandles } from "./utils/candles";
+import { processSentimentCryptoPanic } from "./utils/cryptopanic";
+import { generateEmbeddings } from "./utils/supavec";
+
 export class TradingService {
     constructor(agent) {
         this.name = "Trading";
@@ -35,26 +40,29 @@ export class TradingService {
             }
 
             // 3. Gather all necessary trading data
-            const [candleStickData, socialSentiment, cryptoPanicNews] = await Promise.all([
-                this.fetchCandleStickData(),
-                this.fetchSocialSentiment(),
-                this.fetchCryptoPanicNews()
+            const [candleStickData, socialSentiment] = await Promise.all([
+                processCandles("ETH"),
+                processSentimentCryptoPanic("ETH", this.agent),
             ]);
 
             // 4. Generate embeddings using RAG service
-            const embeddingsData = await this.generateTradingEmbeddings({
-                candleStick: candleStickData,
-                sentiment: socialSentiment,
-                news: cryptoPanicNews
-            });
+            const embeddingsData = await generateEmbeddings(
+                'ETH',
+                candleStickData,
+                socialSentiment,
+            );
 
             const decision = await this.agent.processAnalysis({
                 marketData: candleStickData,
                 socialSentiment: socialSentiment,
             }, embeddingsData);
+            let selectedTrade = null;
+            if (decision.action === "close_position") {
+                selectedTrade = await this.agent.getTradeById(decision.data.trade_id);
+            }
 
             // 6. Execute the decision
-            return await this.executeDecision(decision);
+            return await this.executeDecision(decision, selectedTrade);
 
         } catch (error) {
             console.error("Error in trading execution:", error);
@@ -62,58 +70,77 @@ export class TradingService {
         }
     }
 
-    async fetchCandleStickData() {
-        // Fetch candlestick data for ETH
-        // Implementation details would go here
-        return {};
-    }
 
-    async fetchSocialSentiment() {
-        // Fetch social sentiment data for ETH
-        // Implementation details would go here
-        return {};
-    }
-
-    async fetchCryptoPanicNews() {
-        // Fetch crypto panic news data related to ETH
-        // Implementation details would go here
-        return {};
-    }
-
-    async generateTradingEmbeddings(data) {
-        // Use RAG service to generate embeddings from collected data
-        // Implementation details would go here
-        return {};
-    }
-
-
-    async executeDecision(decision, activePositions) {
+    async executeDecision(decision, selectedTrade) {
         switch (decision.action) {
             case "buy_more":
-                return {
-                    decision: "buy_more",
-                    asset: decision.asset,
-                    amount: decision.amount,
-                    leverage: decision.leverage,
-                    isLong: decision.isLong,
-                    reason: decision.reason
-                };
 
-            case "close_position":
-                // Validate position ID exists
-                const positionExists = activePositions.some(p => p.id === decision.positionId);
-                if (!positionExists) {
-                    return {
-                        decision: "stay_idle",
-                        reason: `Position ${decision.positionId} not found`
-                    };
+                const hash = await placeTrade(
+                    this.agent.getPrivateKey(),
+                    'ETH',
+                    'ETH',
+                    '421614',
+                    decision.data.leverage,
+                    decision.data.amount,
+                    [],
+                    [],
+                    decision.data.isLong
+                );
+                await this.agent.addTradingData({
+                    action: {
+                        "%allot": 'buy_more'
+                    },
+                    trade_data: {
+                        is_long: {
+                            "%allot": decision.data.isLong
+                        },
+                        asset: {
+                            "%allot": "ETH"
+                        },
+                        leverage: {
+                            "%allot": decision.data.leverage
+                        },
+                        amount: {
+                            "%allot": decision.data.amount
+                        },
+                        tx_hash: {
+                            "%allot": hash
+                        },
+                    },
+                    explanation: {
+                        "%allot": decision.reason
+                    }
+                })
+                return {
+                    success: true,
                 }
 
-                return {
-                    decision: "close_position",
-                    positionId: decision.positionId,
-                    reason: decision.reason
-                };
+            case "close_position":
+                await this.agent.addTradingData({
+                    action: {
+                        "%allot": 'close_position'
+                    },
+                    trade_data: {
+                        is_long: {
+                            "%allot": selectedTrade.isLong
+                        },
+                        asset: {
+                            "%allot": "ETH"
+                        },
+                        leverage: {
+                            "%allot": selectedTrade.leverage
+                        },
+                        amount: {
+                            "%allot": selectedTrade.amount
+                        },
+                        reference_trade_id: {
+                            "%allot": decision.data.trade_id
+                        }
+                    },
+                    explanation: {
+                        "%allot": decision.reason
+                    }
+                })
 
             case "stay_idle":
             default:
