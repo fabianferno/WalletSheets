@@ -626,7 +626,7 @@ export async function updatePortfolioData(
         "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
       );
     const ethBalance = await provider.getBalance(wallet.address);
-    const ethBalanceFormatted = Number(ethers.formatEther(ethBalance));
+    const ethBalanceFormatted = Number(ethers.utils.formatEther(ethBalance));
     const ethValueUsd = ethBalanceFormatted * ethPrice;
 
     // 2. Get token data using the enhanced function
@@ -682,7 +682,7 @@ export async function updatePortfolioData(
     // Calculate some basic metrics for the key metrics section
     const metricsData = [
       [
-        ethers.formatEther(ethBalance).substring(0, 8),
+        ethers.utils.formatEther(ethBalance).substring(0, 8),
         tokenData.items.length.toString(),
         "N/A", // Transactions
         "Arbitrum Sepolia", // Networks
@@ -1344,7 +1344,7 @@ async function getTokenData(
             const tokenValueInUsd =
               token.symbol === "USDC" || token.symbol === "USDT"
                 ? (Number(balance) / 10 ** 6) * price
-                : Number(ethers.formatEther(balance)) * price;
+                : Number(ethers.utils.formatEther(balance)) * price;
 
             items.push({
               contract_name: token.name,
@@ -1555,7 +1555,7 @@ async function updateEnhancedTokenHoldings(
         // Handle both string and number balance formats, and properly convert BigInt
         const balance =
           typeof token.balance === "string"
-            ? Number(ethers.formatEther(token.balance))
+            ? Number(ethers.utils.formatEther(token.balance))
             : typeof token.balance === "bigint"
             ? token.contract_ticker_symbol === "USDC" ||
               token.contract_ticker_symbol === "USDT"

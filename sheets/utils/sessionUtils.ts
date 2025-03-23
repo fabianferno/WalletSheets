@@ -317,7 +317,7 @@ export async function monitorRequestApproval(
                   "pending-" + requestId, // Temporary hash until real one is available
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   currentTimestamp,
                   "Processing"
                 );
@@ -383,7 +383,7 @@ export async function monitorRequestApproval(
                   "rejected-" + requestId,
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   currentTimestamp,
                   "Rejected"
                 );
@@ -461,7 +461,7 @@ export async function monitorRequestApproval(
                   "rejected-" + requestId,
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   currentTimestamp,
                   "Rejected"
                 );
@@ -650,7 +650,7 @@ export async function processRequest(
                   tx.hash,
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   timestamp,
                   "Pending"
                 );
@@ -679,7 +679,7 @@ export async function processRequest(
                 tx.hash,
                 wallet.address,
                 txParams.to,
-                ethers.formatEther(txParams.value || "0"),
+                ethers.utils.formatEther(txParams.value || "0"),
                 timestamp,
                 "Pending"
               );
@@ -705,7 +705,7 @@ export async function processRequest(
               tx.hash,
               wallet.address,
               txParams.to,
-              ethers.formatEther(txParams.value || "0"),
+              ethers.utils.formatEther(txParams.value || "0"),
               timestamp,
               "Pending"
             );

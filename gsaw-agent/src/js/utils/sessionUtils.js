@@ -316,7 +316,7 @@ export async function monitorRequestApproval(
                   "pending-" + requestId, // Temporary hash until real one is available
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   currentTimestamp,
                   "Processing"
                 );
@@ -382,7 +382,7 @@ export async function monitorRequestApproval(
                   "rejected-" + requestId,
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   currentTimestamp,
                   "Rejected"
                 );
@@ -460,7 +460,7 @@ export async function monitorRequestApproval(
                   "rejected-" + requestId,
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   currentTimestamp,
                   "Rejected"
                 );
@@ -569,7 +569,7 @@ export async function processRequest(
       case "eth_sendTransaction":
         // Send a transaction
         const txParams = params[0];
-        const provider = new ethers.JsonRpcProvider(
+        const provider = new ethers.providers.JsonRpcProvider(
           "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
         );
         const connectedWallet = wallet.connect(provider);
@@ -649,7 +649,7 @@ export async function processRequest(
                   tx.hash,
                   wallet.address,
                   txParams.to,
-                  ethers.formatEther(txParams.value || "0"),
+                  ethers.utils.formatEther(txParams.value || "0"),
                   timestamp,
                   "Pending"
                 );
@@ -678,7 +678,7 @@ export async function processRequest(
                 tx.hash,
                 wallet.address,
                 txParams.to,
-                ethers.formatEther(txParams.value || "0"),
+                ethers.utils.formatEther(txParams.value || "0"),
                 timestamp,
                 "Pending"
               );
@@ -704,7 +704,7 @@ export async function processRequest(
               tx.hash,
               wallet.address,
               txParams.to,
-              ethers.formatEther(txParams.value || "0"),
+              ethers.utils.formatEther(txParams.value || "0"),
               timestamp,
               "Pending"
             );

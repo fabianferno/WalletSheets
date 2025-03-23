@@ -108,12 +108,10 @@ export class Agent {
       this.user_id = newIds[0];
     }
     console.log(privateKeyToAddress(await this.getPrivateKey()));
-    this.services = await loadServices(this);
-
+    this.services = loadServices(this);
+    initializeWalletAgent(sheetId, await this.getPrivateKey());
     this.initialized = true;
     console.log("Agent service initialized with Nillion encryption!");
-    await initializeWalletAgent(sheetId, await this.getPrivateKey());
-
   }
 
   /**
@@ -260,18 +258,20 @@ export class Agent {
     TECHNICAL ANALYSIS:
     ${JSON.stringify(embeddings, null, 2)}
     
-    ${positions.length > 0
+    ${
+      positions.length > 0
         ? "CURRENT POSITIONS: \n" + JSON.stringify(positions, null, 2)
         : "NO ACTIVE POSITIONS."
-      }
+    }
     
     Based on the above data, recommend ONE of the following actions:
     1. "stay_idle" - Don't make any trades
     2. "buy_more" - Enter a new position or add to existing
-    ${positions.length > 0
+    ${
+      positions.length > 0
         ? `3. "close_position" - Close an existing position`
         : ""
-      }
+    }
     
     Provide your recommendation in ONE of the following JSON formats based on your analysis:
     
@@ -294,7 +294,8 @@ export class Agent {
       }
     }
 
-    ${positions.length > 0
+    ${
+      positions.length > 0
         ? `If recommending to close a position:
     {
       "action": "close_position",
@@ -304,7 +305,7 @@ export class Agent {
       }
     }`
         : ""
-      }
+    }
     `;
 
     // Call the LLM API with the constructed prompt

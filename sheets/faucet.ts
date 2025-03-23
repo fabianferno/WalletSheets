@@ -45,7 +45,9 @@ async function main() {
 
     // Check faucet balance
     const faucetBalance = await provider.getBalance(wallet.address);
-    console.log(`Faucet balance: ${ethers.formatEther(faucetBalance)} ETH`);
+    console.log(
+      `Faucet balance: ${ethers.utils.formatEther(faucetBalance)} ETH`
+    );
 
     if (faucetBalance < ethers.parseEther(FAUCET_AMOUNT_ETH.toString())) {
       console.error("Error: Faucet balance is too low to send ETH");
@@ -54,7 +56,9 @@ async function main() {
 
     // Check target address balance
     const targetBalance = await provider.getBalance(targetAddress);
-    const targetBalanceEth = parseFloat(ethers.formatEther(targetBalance));
+    const targetBalanceEth = parseFloat(
+      ethers.utils.formatEther(targetBalance)
+    );
     console.log(`Target address balance: ${targetBalanceEth} ETH`);
 
     // Check if target balance is below threshold
