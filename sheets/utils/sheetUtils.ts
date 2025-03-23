@@ -8,6 +8,7 @@ export const WALLET_EXPLORER_SHEET = "Wallet Explorer";
 export const ACTIVE_SESSIONS_SHEET = "ActiveSessions";
 export const PENDING_TRANSACTIONS_SHEET = "Pending Transactions";
 export const CHAT_SHEET = "Chat";
+export const PORTFOLIO_SHEET = "Portfolio";
 
 // Common styling constants for sheets
 export const SHEET_STYLES = {

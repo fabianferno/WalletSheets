@@ -1,9 +1,8 @@
 import { ethers } from "ethers";
 import { SheetClient } from "../sheets.api";
 import axios from "axios";
+import { PORTFOLIO_SHEET } from "./sheetUtils";
 
-// Constants
-const PORTFOLIO_SHEET = "Crypto Portfolio";
 /**
  * Initialize portfolio sheet with enhanced UI
  */
@@ -106,21 +105,13 @@ async function formatEnhancedPortfolioSheet(
     // Initialize the full sheet template with all sections at once
     const portfolioTemplate = [
       // Row 1 - Main header
-      [
-        "🔐 CRYPTO PORTFOLIO TRACKER",
-        "",
-        "",
-        "",
-        "",
-        "",
-        new Date().toISOString(),
-      ],
+      ["🔐 PORTFOLIO", "", "", "", "", "", new Date().toISOString()],
 
       // Row 2 - Empty row for spacing
       [""],
 
       // Row 3 - Portfolio summary section header
-      ["💰 PORTFOLIO SUMMARY", "", "", "", ""],
+      ["💰 SUMMARY", "", "", "", ""],
 
       // Rows 4-6 - Portfolio summary data
       ["Wallet Address", ""],
@@ -151,7 +142,7 @@ async function formatEnhancedPortfolioSheet(
       [""],
 
       // Row 12 - Asset allocation section header
-      ["📈 ASSET ALLOCATION", "", ""],
+      ["📈 DISTRIBUTION", "", ""],
 
       // Row 13 - Asset allocation table header
       ["Asset", "Value (USD)", "% of Portfolio"],
@@ -186,16 +177,7 @@ async function formatEnhancedPortfolioSheet(
     }
 
     // Row 44 - Portfolio analytics section header
-    portfolioTemplate.push([
-      "📊 PORTFOLIO ANALYTICS",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
+    portfolioTemplate.push(["📊 ANALYTICS", "", "", "", "", "", "", ""]);
 
     // Row 45 - Refresh button and instructions
     portfolioTemplate.push([
