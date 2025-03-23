@@ -8,6 +8,7 @@ export const ACTIVE_SESSIONS_SHEET = "Connect to Dapp";
 export const PENDING_TRANSACTIONS_SHEET = "Pending Transactions";
 export const CHAT_SHEET = "Chat with Wallet";
 export const PORTFOLIO_SHEET = "Portfolio";
+export const AGENT_LOGS_SHEET = "Agent Logs";
 
 // Common styling constants for sheets
 export const SHEET_STYLES = {
@@ -227,6 +228,7 @@ export async function initializeSheets(sheetClient, logEvent) {
       PENDING_TRANSACTIONS_SHEET,
       CHAT_SHEET,
       PORTFOLIO_SHEET,
+      AGENT_LOGS_SHEET,
     ];
 
     console.log(`📋 Required sheets: ${requiredSheets.join(", ")}`);
@@ -431,6 +433,9 @@ export async function initializeSheets(sheetClient, logEvent) {
         case PORTFOLIO_SHEET:
           // Handle Portfolio sheet creation if needed
           break;
+        case AGENT_LOGS_SHEET:
+          await createAgentLogsSheet(sheetClient, logEvent);
+          break;
       }
     }
 
@@ -477,6 +482,9 @@ export async function createSheets(sheetClient, logEvent) {
 
     // Create Chat sheet
     await createChatSheet(sheetClient, logEvent);
+
+    // Create Agent Logs sheet
+    await createAgentLogsSheet(sheetClient, logEvent);
 
     logEvent("All sheets created successfully");
   } catch (error) {
@@ -1406,6 +1414,158 @@ export async function updatePendingTransactionsSheet(sheetClient, logEvent) {
 }
 
 /**
+ * Create Agent Logs sheet
+ */
+export async function createAgentLogsSheet(sheetClient, logEvent) {
+  try {
+    // Check if sheet exists
+    try {
+      await sheetClient.getSheetValues(AGENT_LOGS_SHEET);
+      return;
+    } catch {
+      // Create the sheet
+      const sheetId = await sheetClient.createSheet(AGENT_LOGS_SHEET);
+
+      // Set up headers
+      await sheetClient.setRangeValues(`${AGENT_LOGS_SHEET}!A1:D1`, [
+        ["Action", "Explanation", "Transaction Hash", "Created At"],
+      ]);
+
+      // Set column widths
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 0, // Action column
+                endIndex: 1,
+              },
+              properties: {
+                pixelSize: 150, // Width for Action
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 1, // Explanation column
+                endIndex: 2,
+              },
+              properties: {
+                pixelSize: 350, // Width for Explanation (wider for detailed text)
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 2, // Transaction Hash column
+                endIndex: 3,
+              },
+              properties: {
+                pixelSize: 250, // Width for Transaction Hash
+              },
+              fields: "pixelSize",
+            },
+          },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 3, // Created At column
+                endIndex: 4,
+              },
+              properties: {
+                pixelSize: 180, // Width for Created At
+              },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      });
+
+      // Apply text wrapping and Roboto font to all cells
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex
+        2, // endRowIndex (enough for header and first data row)
+        0, // startColumnIndex
+        4, // endColumnIndex (exclusive)
+        SHEET_STYLES.BASE_TEXT
+      );
+
+      // Format the header row with mild green
+      await sheetClient.formatRange(
+        sheetId,
+        0, // startRowIndex (0-based, so row 1)
+        1, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        4, // endColumnIndex (exclusive)
+        SHEET_STYLES.HEADER
+      );
+
+      logEvent(`${AGENT_LOGS_SHEET} sheet created with styling`);
+    }
+  } catch (error) {
+    logEvent(
+      `Error creating ${AGENT_LOGS_SHEET} sheet: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    throw error;
+  }
+}
+
+/**
+ * Insert a new agent log entry
+ * @param {Object} sheetClient - The sheet client instance
+ * @param {Object} tradeData - Object containing action, explanation and trade_data with tx_hash
+ * @param {string} tradeData.action - The action that was performed
+ * @param {string} tradeData.explanation - The explanation for the action
+ * @param {Object} tradeData.trade_data - Object containing transaction details
+ * @param {string} tradeData.trade_data.tx_hash - The transaction hash
+ * @param {Function} logEvent - Function to log events
+ */
+export async function insertAgentLogEntry(sheetClient, tradeData, logEvent) {
+  try {
+    // Check if sheet exists, create if not
+    try {
+      await sheetClient.getSheetValues(AGENT_LOGS_SHEET);
+    } catch {
+      await createAgentLogsSheet(sheetClient, logEvent);
+    }
+
+    // Extract data from the tradeData object
+    const action = tradeData.action || "Unknown";
+    const explanation = tradeData.explanation || "";
+    const txHash = tradeData.trade_data?.tx_hash || "";
+    const createdAt = new Date().toISOString();
+
+    // Add the log entry to the sheet
+    await sheetClient.appendRows(AGENT_LOGS_SHEET, [
+      [action, explanation, txHash, createdAt],
+    ]);
+
+    logEvent(`Added agent log entry for action: ${action}`);
+  } catch (error) {
+    logEvent(
+      `Error inserting agent log entry: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}
+
+/**
  * Force update all pending transactions to ensure they have checkbox cells
  * This can be called manually to fix existing transactions
  */
@@ -1887,9 +2047,10 @@ export async function createChatSheet(sheetClient, logEvent) {
 /**
  * Monitor the Chat sheet for new messages
  */
-export async function monitorChatSheet(sheetClient, logEvent) {
+export async function monitorChatSheet(sheetClient, logEvent, agent) {
   try {
     logEvent(`Starting Chat sheet monitoring`);
+    let url = "placeholder";
 
     // Keep track of the last processed message to avoid duplication
     let lastProcessedMessage = "";
@@ -1975,27 +2136,34 @@ export async function monitorChatSheet(sheetClient, logEvent) {
                 "B"
               );
 
-              // Get API URL from environment or use default
-              const apiUrl = "http://localhost:3000/chat";
+              let agentResponse = "";
+              if (url == "placeholder") url = await agent.getUrl();
 
-              // Make API call to the agent service
-              const response = await axios.post(apiUrl, {
-                message: userMessage,
-                walletAddress: walletAddress || "unknown",
-                context: "chat",
-              });
+              if (url == "placeholder") {
+                agentResponse = "Agent is still deploying. Please wait...";
+              } else {
+                // Get API URL from environment or use default
+                const apiUrl = `${url}/chat`;
 
-              if (response.status !== 200) {
-                throw new Error(`API error: ${response.status}`);
+                // Make API call to the agent service
+                const response = await axios.post(apiUrl, {
+                  message: userMessage,
+                  walletAddress: walletAddress || "unknown",
+                  context: "chat",
+                });
+
+                if (response.status !== 200) {
+                  throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = response.data;
+                // Extract response from your API's response format
+                agentResponse =
+                  data.response ||
+                  data.message ||
+                  data.content ||
+                  "Sorry, I couldn't process your request.";
               }
-
-              const data = response.data;
-              // Extract response from your API's response format
-              const agentResponse =
-                data.response ||
-                data.message ||
-                data.content ||
-                "Sorry, I couldn't process your request.";
 
               // Update the agent response
               await sheetClient.setCellValue(CHAT_SHEET, 6, "B", agentResponse);

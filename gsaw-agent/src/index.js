@@ -120,7 +120,6 @@ function runServerMode() {
   });
 
   app.post('/set-url', async (req, res) => {
-
     try {
       const { url, apiKey } = req.body;
 
