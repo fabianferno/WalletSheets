@@ -93,7 +93,7 @@ export class TradingService {
         switch (decision.action) {
             case "buy_more":
 
-                const hash = await placeTrade(
+                const { hash } = await placeTrade(
                     await this.agent.getPrivateKey(),
                     'ETH',
                     'ETH',
@@ -110,16 +110,16 @@ export class TradingService {
                     },
                     trade_data: {
                         is_long: {
-                            "%allot": decision.data.isLong
+                            "%allot": decision.data.isLong.toString()
                         },
                         asset: {
                             "%allot": "ETH"
                         },
                         leverage: {
-                            "%allot": decision.data.leverage
+                            "%allot": decision.data.leverage.toString()
                         },
                         amount: {
-                            "%allot": decision.data.amount
+                            "%allot": decision.data.amount.toString()
                         },
                         tx_hash: {
                             "%allot": hash
@@ -140,16 +140,16 @@ export class TradingService {
                     },
                     trade_data: {
                         is_long: {
-                            "%allot": selectedTrade.isLong
+                            "%allot": selectedTrade.isLong.toString()
                         },
                         asset: {
                             "%allot": "ETH"
                         },
                         leverage: {
-                            "%allot": selectedTrade.leverage
+                            "%allot": selectedTrade.leverage.toString()
                         },
                         amount: {
-                            "%allot": selectedTrade.amount
+                            "%allot": selectedTrade.amount.toString()
                         },
                         reference_trade_id: {
                             "%allot": decision.data.trade_id

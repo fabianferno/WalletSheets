@@ -78,7 +78,7 @@
                             "%share"
                         ]
                     },
-                    "leaverage": {
+                    "leverage": {
                         "type": "object",
                         "properties": {
                             "%share": {
@@ -119,7 +119,7 @@
                     "is_long",
                     "asset",
                     "amount",
-                    "leaverage"
+                    "leverage"
                 ]
             },
             "explanation": {

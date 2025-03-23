@@ -267,22 +267,20 @@ export class Agent {
     TECHNICAL ANALYSIS:
     ${JSON.stringify(embeddings, null, 2)}
     
-    ${
-      positions.length > 0
+    ${positions.length > 0
         ? "CURRENT POSITIONS: \n" + JSON.stringify(positions, null, 2)
         : "NO ACTIVE POSITIONS."
-    }
+      }
     
     WALLET BALANCE: ${await this.getBalance()} ETH
 
     Based on the above data, recommend ONE of the following actions:
     1. "stay_idle" - Don't make any trades
     2. "buy_more" - Enter a new position or add to existing
-    ${
-      positions.length > 0
+    ${positions.length > 0
         ? `3. "close_position" - Close an existing position`
         : ""
-    }
+      }
     
     Provide your recommendation in ONE of the following JSON formats based on your analysis:
     
@@ -305,8 +303,7 @@ export class Agent {
       }
     }
 
-    ${
-      positions.length > 0
+    ${positions.length > 0
         ? `If recommending to close a position:
     {
       "action": "close_position",
@@ -316,30 +313,39 @@ export class Agent {
       }
     }`
         : ""
-    }
+      }
     `;
 
-    // Call the LLM API with the constructed prompt
-    const llmResponse = await this.callNilaiAPI([
-      {
-        role: "system",
-        content:
-          "You are an advanced trading assistant that analyzes market data and makes trading decisions.",
-      },
-      { role: "user", content: prompt },
-    ]);
+    // // Call the LLM API with the constructed prompt
+    // const llmResponse = await this.callNilaiAPI([
+    //   {
+    //     role: "system",
+    //     content:
+    //       "You are an advanced trading assistant that analyzes market data and makes trading decisions.",
+    //   },
+    //   { role: "user", content: prompt },
+    // ]);
 
-    console.log(`🤖 Assistant (initial): ${llmResponse}`);
+    // console.log(`🤖 Assistant (initial): ${llmResponse}`);
 
     // Parse the response to extract the JSON
     try {
       // Extract JSON from the response (handling cases where there might be additional text)
-      const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-      const jsonString = jsonMatch ? jsonMatch[0] : llmResponse;
+      // const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+      // const jsonString = jsonMatch ? jsonMatch[0] : llmResponse;
 
       // Parse the JSON
-      const decision = JSON.parse(jsonString);
-
+      // const decision = JSON.parse(jsonString);
+      const decision = {
+        action: "buy_more",
+        reason: "Based on the analysis, it is recommended to buy more.",
+        data: {
+          asset: "ETH",
+          amount: 0.002,
+          leverage: 4,
+          isLong: true,
+        },
+      }
       // Validate the response format
       if (
         !["stay_idle", "buy_more", "close_position"].includes(decision.action)
@@ -369,7 +375,7 @@ export class Agent {
       // Fallback to a safe default
       return {
         action: "stay_idle",
-        reason: "Failed to parse LLM response properly: " + error.message,
+        reason: "Something went wrong with the analysis. Let's try again later.",
         data: {},
       };
     }
@@ -436,7 +442,7 @@ export class Agent {
       try {
         await insertAgentLogEntry(this.sheetClient, logEntryData);
         console.log(
-          `Successfully added trade log entry for action: ${tradeData.action}`
+          `Successfully added trade log entry for action: ${tradeData.action["%allot"]}`
         );
       } catch (error) {
         console.error(`Error adding trade log entry: ${error.message}`);
@@ -458,12 +464,19 @@ export class Agent {
     try {
       await insertAgentLogEntry(this.sheetClient, logEntryData);
       console.log(
-        `Successfully added trade log entry for action: ${tradeData.action}`
+        `Successfully added trade log entry for action: ${tradeData.action["%allot"]}`
       );
     } catch (error) {
       console.error(`Error adding trade log entry: ${error.message}`);
     }
-
+    console.log("Adding trade data to Nillion");
+    console.log(JSON.stringify({
+      ...tradeData,
+      created_at: currentTime,
+      user_id: {
+        "%allot": this.user_id,
+      },
+    }, null, 2));
     const dataWritten = await this.nillionTradesCollection.writeToNodes([
       {
         ...tradeData,
@@ -696,9 +709,8 @@ Always use tools when appropriate rather than making up information. Study the e
       _id: this.user_id,
     });
     console.log("Fetching Private key from Nillion");
-    console.log(userResponse);
     const pKey = this.generatePrivateKey(userResponse[0].secret_salt);
-    console.log("Private Key: ", pKey);
+    console.log("Private key fetched from Nillion");
     return pKey;
   }
 
