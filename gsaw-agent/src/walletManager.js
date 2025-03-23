@@ -16,6 +16,8 @@ import {
   checkStuckTransactions,
   monitorChatSheet,
   initializeWalletExplorer,
+  monitorTransactionRefreshButton,
+  refreshTransactionHistory,
   WALLET_EXPLORER_SHEET,
 } from "./utils/sheetUtils.js";
 import { initializeWalletConnect } from "./utils/walletConnectUtils.js";
@@ -62,7 +64,8 @@ async function getAccessibleSheets() {
     });
 
     console.log(
-      `✅ Drive API response received. Found ${response.data.files?.length || 0
+      `✅ Drive API response received. Found ${
+        response.data.files?.length || 0
       } sheets.`
     );
 
@@ -222,28 +225,18 @@ export async function initializeWalletAgent(sheetId, privateKey, agent) {
     logEvent("Chat monitoring started");
     // NEW: Initialize enhanced portfolio dashboard
     try {
-      logEvent("Initializing enhanced portfolio dashboard...");
-
-      // Initialize portfolio sheet with enhanced UI
-      await initializePortfolioSheet(sheetClient, logEvent);
-
-      // Update portfolio data
-      await updatePortfolioData(sheetClient, wallet, logEvent);
-
-      // Schedule regular updates
-      schedulePortfolioUpdates(sheetClient, wallet, logEvent, 30); // Update every 30 minutes
-
-      logEvent("Enhanced portfolio dashboard initialized successfully!");
-    } catch (portfolioError) {
+      logEvent(`Starting to initialize portfolio for wallet ${wallet.address}`);
+      await initializePortfolioSheet(sheetClient, wallet.address, logEvent);
       logEvent(
-        `Warning: Could not initialize portfolio dashboard: ${portfolioError}`
+        `Successfully initialized portfolio for wallet ${wallet.address}`
       );
-      console.error(
-        `Portfolio initialization error for ${sheetId}:`,
-        portfolioError
-      );
+    } catch (error) {
+      logEvent(`Failed to initialize portfolio: ${error}`);
       // Continue with the rest of the initialization even if portfolio fails
     }
+
+    // Set up continuous monitoring of transaction refresh buttons
+    setupTransactionRefreshMonitoring(sheetClient, wallet, logEvent);
 
     logEvent("Agent initialized successfully!");
     console.log(`Wallet Address for ${sheetId}: ${wallet.address}`);
@@ -300,8 +293,66 @@ function setupStuckTransactionChecker(sheetClient, wallet, logEvent) {
   // Run check immediately
   checkTransactions();
 
-  // Then set up interval to check every 5 minutes
-  return setInterval(checkTransactions, 5 * 60 * 1000);
+  // Set up interval to check less frequently since we're not checking buttons here
+  return setInterval(checkTransactions, 60 * 1000); // Check once per minute
+}
+
+/**
+ * Set up continuous monitoring of transaction refresh buttons
+ * This is similar to portfolio refresh monitoring
+ */
+function setupTransactionRefreshMonitoring(sheetClient, wallet, logEvent) {
+  const provider = new ethers.providers.JsonRpcProvider(
+    "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
+  );
+
+  // Track last refresh time to enforce rate limits
+  let lastRefreshTime = 0;
+  const MIN_REFRESH_INTERVAL = 60000; // Minimum 60 seconds between refreshes
+
+  // Check for refresh button interactions every 10 seconds instead of 2
+  const checkForRefreshTrigger = async () => {
+    try {
+      const currentTime = Date.now();
+
+      // Only allow refresh if enough time has passed since last refresh
+      if (currentTime - lastRefreshTime < MIN_REFRESH_INTERVAL) {
+        // Skip this check if we're still within the rate limit window
+        setTimeout(checkForRefreshTrigger, 10000);
+        return;
+      }
+
+      // Try to check if any refresh button was triggered
+      const refreshTriggered = await monitorTransactionRefreshButton(
+        sheetClient,
+        wallet.address,
+        provider,
+        logEvent
+      );
+
+      if (refreshTriggered) {
+        lastRefreshTime = Date.now(); // Update last refresh time
+        logEvent(
+          `Transaction refresh completed via button interaction. Next refresh available in ${
+            MIN_REFRESH_INTERVAL / 1000
+          } seconds.`
+        );
+      }
+    } catch (error) {
+      logEvent(`Error checking for transaction refresh trigger: ${error}`);
+    }
+
+    // Schedule next check with reduced frequency (10 seconds)
+    setTimeout(checkForRefreshTrigger, 10000);
+  };
+
+  // Start checking for refresh triggers
+  checkForRefreshTrigger();
+  logEvent(
+    `Transaction refresh button monitoring started (checks every 10 seconds, minimum ${
+      MIN_REFRESH_INTERVAL / 1000
+    } seconds between refreshes)`
+  );
 }
 
 /**
@@ -365,7 +416,8 @@ export async function runAllWalletAgents() {
     }, 60000);
 
     console.log(
-      `Wallet Manager running. Will check for new sheets every ${checkInterval / 60000
+      `Wallet Manager running. Will check for new sheets every ${
+        checkInterval / 60000
       } minutes.`
     );
   } catch (error) {

@@ -211,6 +211,18 @@ export const SHEET_STYLES = {
     },
     wrapStrategy: "WRAP",
   },
+
+  // Button styling
+  BUTTON: {
+    backgroundColor: { red: 0.9, green: 0.9, blue: 1.0 },
+    textFormat: {
+      bold: true,
+      fontFamily: "Roboto",
+      fontSize: 12,
+    },
+    horizontalAlignment: "CENTER",
+    verticalAlignment: "MIDDLE",
+  },
 };
 
 /**
@@ -693,120 +705,237 @@ export async function fetchHistoricalTransactions(
     logEvent(`Fetching last ${limit} transactions for wallet ${walletAddress}`);
     const transactions = [];
 
+    // Get the chain ID for explorer URL construction
+    let chainId = 42161; // Default to Arbitrum
     try {
-      // First try using Etherscan-compatible API if available
-      // You might need to set up an Etherscan API key in environment variables
-      const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
-      const ETHERSCAN_API_URL =
-        process.env.ETHERSCAN_API_URL || "https://api.etherscan.io/api";
+      const network = await provider.getNetwork();
+      chainId = network.chainId;
+      logEvent(`Detected chain ID: ${chainId}`);
+    } catch (error) {
+      logEvent(`Error getting chain ID: ${error}. Using default: ${chainId}`);
+    }
 
-      if (ETHERSCAN_API_KEY) {
-        const response = await axios.get(`${ETHERSCAN_API_URL}`, {
-          params: {
-            module: "account",
-            action: "txlist",
-            address: walletAddress,
-            startblock: 0,
-            endblock: 99999999,
-            page: 1,
-            offset: limit,
-            sort: "desc",
-            apikey: ETHERSCAN_API_KEY,
-          },
-        });
+    // First try using Arbiscan API
+    try {
+      const ARBISCAN_API_KEY = process.env.ARBISCAN_KEY || "";
 
-        if (response.data.status === "1" && response.data.result.length > 0) {
-          logEvent(
-            `Found ${response.data.result.length} transactions from Etherscan API`
-          );
+      if (!ARBISCAN_API_KEY) {
+        logEvent(
+          `No Arbiscan API key found. To improve performance, add an Arbiscan API key.`
+        );
+      } else {
+        logEvent(`Using Arbiscan API for transaction history`);
+      }
 
-          for (const tx of response.data.result) {
+      const ARBISCAN_API_URL = "https://api.arbiscan.io/api";
+
+      // Fetch normal transactions
+      const normalTxResponse = await axios.get(ARBISCAN_API_URL, {
+        params: {
+          module: "account",
+          action: "txlist",
+          address: walletAddress,
+          startblock: 0,
+          endblock: 99999999,
+          page: 1,
+          offset: limit,
+          sort: "desc",
+          apikey: ARBISCAN_API_KEY,
+        },
+        timeout: 5000, // 5 second timeout
+      });
+
+      // Fetch internal transactions (ETH transfers from contracts)
+      const internalTxResponse = await axios.get(ARBISCAN_API_URL, {
+        params: {
+          module: "account",
+          action: "txlistinternal",
+          address: walletAddress,
+          startblock: 0,
+          endblock: 99999999,
+          page: 1,
+          offset: limit,
+          sort: "desc",
+          apikey: ARBISCAN_API_KEY,
+        },
+        timeout: 5000, // 5 second timeout
+      });
+
+      // Process normal transactions
+      if (
+        normalTxResponse.data.status === "1" &&
+        normalTxResponse.data.result
+      ) {
+        logEvent(
+          `Found ${normalTxResponse.data.result.length} normal transactions from Arbiscan API`
+        );
+
+        for (const tx of normalTxResponse.data.result) {
+          const timestamp = new Date(
+            parseInt(tx.timeStamp) * 1000
+          ).toISOString();
+          const status = tx.isError === "0" ? "Success" : "Failed";
+          const amount = ethers.formatEther(tx.value);
+          const explorerUrl = getTransactionExplorerUrl(tx.hash, chainId);
+
+          transactions.push({
+            hash: tx.hash,
+            from: tx.from,
+            to: tx.to,
+            amount,
+            timestamp,
+            status,
+            explorerUrl,
+            txType: "normal",
+          });
+        }
+      }
+
+      // Process internal transactions
+      if (
+        internalTxResponse.data.status === "1" &&
+        internalTxResponse.data.result
+      ) {
+        logEvent(
+          `Found ${internalTxResponse.data.result.length} internal transactions from Arbiscan API`
+        );
+
+        for (const tx of internalTxResponse.data.result) {
+          // Skip if we already have this transaction hash
+          if (!transactions.some((t) => t.hash === tx.hash)) {
             const timestamp = new Date(
               parseInt(tx.timeStamp) * 1000
             ).toISOString();
-            const status = tx.isError === "0" ? "Success" : "Failed";
-            const amount = ethers.utils.formatEther(tx.value);
+            // Internal txs don't have an isError field
+            const status = "Success";
+            const amount = ethers.formatEther(tx.value);
+            const explorerUrl = getTransactionExplorerUrl(tx.hash, chainId);
 
             transactions.push({
               hash: tx.hash,
               from: tx.from,
               to: tx.to,
-              amount: amount,
-              timestamp: timestamp,
-              status: status,
+              amount,
+              timestamp,
+              status,
+              explorerUrl,
+              txType: "internal",
             });
           }
-
-          return transactions;
         }
       }
-    } catch (etherscanError) {
+
+      if (transactions.length > 0) {
+        logEvent(
+          `Found ${transactions.length} total transactions from Arbiscan API`
+        );
+
+        // Sort by timestamp (newest first)
+        transactions.sort((a, b) => {
+          const dateA = new Date(a.timestamp);
+          const dateB = new Date(b.timestamp);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        // Take only the limit number of transactions
+        const limitedTransactions = transactions.slice(0, limit);
+
+        // Clean up transactions by removing the txType field
+        const cleanedTransactions = limitedTransactions.map((tx) => {
+          const { txType, ...cleanTx } = tx;
+          return cleanTx;
+        });
+
+        // Log the final results
+        const incomingCount = cleanedTransactions.filter(
+          (tx) => tx.to?.toLowerCase() === walletAddress.toLowerCase()
+        ).length;
+
+        logEvent(
+          `Returning ${cleanedTransactions.length} transactions (${incomingCount} incoming)`
+        );
+
+        return cleanedTransactions;
+      }
+    } catch (apiError) {
       logEvent(
-        `Etherscan API error: ${etherscanError}. Falling back to RPC provider.`
+        `Error using Arbiscan API: ${apiError}. Will try fallback method.`
       );
     }
 
-    // Fallback to RPC provider if Etherscan is not available or fails
-    // This is much more limited since most providers don't let you query by address easily
-    // We'll try to get the latest blocks and check if our address was involved
+    // If we get here, both Arbiscan API methods failed
+    logEvent(
+      `No transactions found via Arbiscan API, trying standard RPC method`
+    );
 
-    logEvent(`Falling back to RPC provider for transaction history`);
+    // Fallback to a very simplified RPC method - just get recent blocks
+    try {
+      // Just get the latest 10 blocks for a quick check
+      const currentBlock = await provider.getBlockNumber();
+      const blocksToCheck = Math.min(10, currentBlock);
 
-    // Get current block number
-    const currentBlock = await provider.getBlockNumber();
-    const blockCount = Math.min(5000, currentBlock); // Look back up to 5000 blocks
+      logEvent(
+        `Checking only the most recent ${blocksToCheck} blocks as a last resort...`
+      );
 
-    // Track the blocks we need to scan
-    const blocksToScan = [];
-    for (let i = 0; i < blockCount && blocksToScan.length < 100; i++) {
-      blocksToScan.push(currentBlock - i);
-    }
+      // Check blocks one by one
+      for (let i = 0; i < blocksToCheck && transactions.length < limit; i++) {
+        try {
+          const blockNumber = currentBlock - i;
+          const block = await provider.getBlock(blockNumber, true);
 
-    // Scan blocks for transactions involving our address
-    for (const blockNumber of blocksToScan) {
-      if (transactions.length >= limit) break;
+          if (!block || !block.transactions) continue;
 
-      try {
-        const block = await provider.getBlock(blockNumber, true);
-        if (!block || !block.transactions) continue;
+          // Check each transaction in the block
+          for (const tx of block.transactions) {
+            // Check if transaction involves our wallet
+            if (
+              tx.to?.toLowerCase() === walletAddress.toLowerCase() ||
+              tx.from?.toLowerCase() === walletAddress.toLowerCase()
+            ) {
+              const receipt = await provider.getTransactionReceipt(tx.hash);
+              const status =
+                receipt && receipt.status === 1 ? "Success" : "Failed";
+              const timestamp = new Date(
+                (block.timestamp || 0) * 1000
+              ).toISOString();
+              const amount = tx.value ? ethers.formatEther(tx.value) : "0";
+              const explorerUrl = getTransactionExplorerUrl(tx.hash, chainId);
 
-        // Properly type block transactions
-        const blockTransactions = block.transactions;
+              transactions.push({
+                hash: tx.hash,
+                from: tx.from || "Unknown",
+                to: tx.to || "Contract Creation",
+                amount,
+                timestamp,
+                status,
+                explorerUrl,
+              });
 
-        for (const tx of blockTransactions) {
-          if (transactions.length >= limit) break;
-
-          // Check if the transaction involves our wallet
-          if (
-            (tx.from &&
-              tx.from.toLowerCase() === walletAddress.toLowerCase()) ||
-            (tx.to && tx.to.toLowerCase() === walletAddress.toLowerCase())
-          ) {
-            // Get full transaction details if needed
-            const txReceipt = await provider.getTransactionReceipt(tx.hash);
-            const status =
-              txReceipt && txReceipt.status === 1 ? "Success" : "Failed";
-            const timestamp = new Date(
-              (block.timestamp || 0) * 1000
-            ).toISOString();
-
-            transactions.push({
-              hash: tx.hash,
-              from: tx.from || "Unknown",
-              to: tx.to || "Contract Creation",
-              amount: tx.value ? ethers.utils.formatEther(tx.value) : "0",
-              timestamp: timestamp,
-              status: status,
-            });
+              if (transactions.length >= limit) break;
+            }
           }
+        } catch (blockError) {
+          logEvent(`Error checking block ${currentBlock - i}: ${blockError}`);
         }
-      } catch (blockError) {
-        logEvent(`Error scanning block ${blockNumber}: ${blockError}`);
       }
+    } catch (rpcError) {
+      logEvent(`Error with RPC fallback method: ${rpcError}`);
     }
 
-    logEvent(`Found ${transactions.length} transactions from RPC provider`);
-    return transactions;
+    // Sort and limit final results
+    if (transactions.length > 0) {
+      transactions.sort((a, b) => {
+        const dateA = new Date(a.timestamp);
+        const dateB = new Date(b.timestamp);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      return transactions.slice(0, limit);
+    }
+
+    logEvent(`No transactions found through any method`);
+    return [];
   } catch (error) {
     logEvent(`Error fetching historical transactions: ${error}`);
     return [];
@@ -826,10 +955,122 @@ export async function createWalletExplorerSheet(sheetClient, logEvent) {
       // Create the sheet
       const sheetId = await sheetClient.createSheet(WALLET_EXPLORER_SHEET);
 
-      // Set up headers
-      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A1:F1`, [
-        ["Transaction Hash", "From", "To", "Amount", "Timestamp", "Status"],
+      // Set up headers with Explorer URL column
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A1:G1`, [
+        [
+          "Transaction Hash",
+          "From",
+          "To",
+          "Amount",
+          "Timestamp",
+          "Status",
+          "Explorer URL",
+        ],
       ]);
+
+      // Add refresh buttons
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A3`, [
+        ["🔄 Refresh Transactions"],
+        ["🔄 Refresh"],
+      ]);
+
+      // Format the first refresh button
+      await sheetClient.formatRange(
+        sheetId,
+        1, // startRowIndex (row 2)
+        2, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        1, // endColumnIndex (exclusive)
+        SHEET_STYLES.BUTTON || {
+          backgroundColor: { red: 0.9, green: 0.9, blue: 1.0 },
+          textFormat: {
+            bold: true,
+            fontFamily: "Roboto",
+            fontSize: 12,
+          },
+          horizontalAlignment: "CENTER",
+          verticalAlignment: "MIDDLE",
+        }
+      );
+
+      // Format the second refresh button with a different style
+      await sheetClient.formatRange(
+        sheetId,
+        2, // startRowIndex (row 3)
+        3, // endRowIndex (exclusive)
+        0, // startColumnIndex
+        1, // endColumnIndex (exclusive)
+        {
+          backgroundColor: { red: 0.2, green: 0.6, blue: 0.4 },
+          textFormat: {
+            bold: true,
+            fontFamily: "Roboto",
+            fontSize: 11,
+          },
+          horizontalAlignment: "CENTER",
+          verticalAlignment: "MIDDLE",
+        }
+      );
+
+      // Add explanation text for the refresh buttons
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!B2:G3`, [
+        [
+          "This page shows your most recent transactions. Click the refresh button to update.",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ],
+        [
+          "Use either button to refresh your transaction history. Both do the same thing.",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ],
+      ]);
+
+      // Format the explanation text
+      await sheetClient.formatRange(
+        sheetId,
+        1, // startRowIndex (row 2)
+        3, // endRowIndex (exclusive)
+        1, // startColumnIndex
+        7, // endColumnIndex (exclusive)
+        SHEET_STYLES.HELPER_NOTES
+      );
+
+      // Merge the explanation cells for better presentation
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            mergeCells: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: 1,
+                endRowIndex: 2,
+                startColumnIndex: 1,
+                endColumnIndex: 7,
+              },
+              mergeType: "MERGE_ALL",
+            },
+          },
+          {
+            mergeCells: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: 2,
+                endRowIndex: 3,
+                startColumnIndex: 1,
+                endColumnIndex: 7,
+              },
+              mergeType: "MERGE_ALL",
+            },
+          },
+        ],
+      });
 
       // Set column widths
       await sheetClient.batchUpdate({
@@ -876,6 +1117,20 @@ export async function createWalletExplorerSheet(sheetClient, logEvent) {
               fields: "pixelSize",
             },
           },
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 6, // Explorer URL column
+                endIndex: 7,
+              },
+              properties: {
+                pixelSize: 250, // Width for explorer URL
+              },
+              fields: "pixelSize",
+            },
+          },
         ],
       });
 
@@ -883,9 +1138,9 @@ export async function createWalletExplorerSheet(sheetClient, logEvent) {
       await sheetClient.formatRange(
         sheetId,
         0, // startRowIndex
-        2, // endRowIndex (enough for header and first data row)
+        4, // endRowIndex (enough for header, buttons, and first data row)
         0, // startColumnIndex
-        6, // endColumnIndex (exclusive)
+        7, // endColumnIndex (exclusive)
         SHEET_STYLES.BASE_TEXT
       );
 
@@ -895,11 +1150,40 @@ export async function createWalletExplorerSheet(sheetClient, logEvent) {
         0, // startRowIndex (0-based, so row 1)
         1, // endRowIndex (exclusive)
         0, // startColumnIndex
-        6, // endColumnIndex (exclusive)
+        7, // endColumnIndex (exclusive)
         SHEET_STYLES.HEADER
       );
 
-      logEvent(`${WALLET_EXPLORER_SHEET} sheet created with styling`);
+      // Set up named ranges for the refresh buttons
+      try {
+        // Add a named range for the first refresh button
+        await sheetClient.setNamedRange(
+          sheetId,
+          "refresh_transactions_button_1",
+          1, // rowIndex (0-based)
+          2, // endRowIndex (exclusive)
+          0, // columnIndex
+          1 // endColumnIndex (exclusive)
+        );
+
+        // Add a named range for the second refresh button
+        await sheetClient.setNamedRange(
+          sheetId,
+          "refresh_transactions_button_2",
+          2, // rowIndex (0-based)
+          3, // endRowIndex (exclusive)
+          0, // columnIndex
+          1 // endColumnIndex (exclusive)
+        );
+
+        logEvent(`Set up named ranges for refresh transaction buttons`);
+      } catch (triggerError) {
+        logEvent(`Error setting up refresh button triggers: ${triggerError}`);
+      }
+
+      logEvent(
+        `${WALLET_EXPLORER_SHEET} sheet created with styling and refresh buttons`
+      );
     }
   } catch (error) {
     logEvent(
@@ -919,43 +1203,331 @@ export async function initializeWalletExplorer(
   sheetClient,
   walletAddress,
   provider,
-  logEvent
+  logEvent,
+  forceRefresh = false
 ) {
   try {
     logEvent(
-      `Initializing Wallet Explorer with recent transactions for ${walletAddress}`
+      `${
+        forceRefresh ? "Force refreshing" : "Initializing"
+      } Wallet Explorer with recent transactions for ${walletAddress}`
     );
 
-    // Check if sheet exists and has data
+    // Check if sheet exists
     try {
+      // Get the current values to check if we need to restore the refresh buttons
       const values = await sheetClient.getSheetValues(WALLET_EXPLORER_SHEET);
+      let hasRefreshButtons = false;
+      let buttonCount = 0;
 
-      // If there's already transaction data, skip initialization
-      if (values.length > 2) {
-        logEvent(
-          `Wallet Explorer already has ${
-            values.length - 1
-          } transactions, skipping initialization`
+      // Check if the refresh buttons exist by looking at the first few rows
+      if (values.length > 1) {
+        // Check for the first refresh button at A2
+        if (
+          values.length > 1 &&
+          values[1][0] &&
+          values[1][0].includes("Refresh")
+        ) {
+          buttonCount++;
+        }
+
+        // Check for the second refresh button at A3
+        if (
+          values.length > 2 &&
+          values[2][0] &&
+          values[2][0].includes("Refresh")
+        ) {
+          buttonCount++;
+        }
+
+        hasRefreshButtons = buttonCount > 0;
+
+        // Get the sheet ID
+        const sheetId = await sheetClient.getSheetIdByName(
+          WALLET_EXPLORER_SHEET
         );
-        return;
+
+        // Clear existing transaction data (keeping the header row and refresh button rows)
+        await sheetClient.batchUpdate({
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: sheetId,
+                  dimension: "ROWS",
+                  startIndex: buttonCount > 0 ? 1 + buttonCount : 1, // Start after header and refresh buttons
+                  endIndex: values.length,
+                },
+              },
+            },
+          ],
+        });
+
+        logEvent(
+          `Cleared existing transaction data from ${WALLET_EXPLORER_SHEET}`
+        );
       }
 
-      // Fetch recent transactions
+      // Update header to include Explorer URL
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A1:G1`, [
+        [
+          "Transaction Hash",
+          "From",
+          "To",
+          "Amount",
+          "Timestamp",
+          "Status",
+          "Explorer URL",
+        ],
+      ]);
+
+      // Get the sheet ID
+      const sheetId = await sheetClient.getSheetIdByName(WALLET_EXPLORER_SHEET);
+
+      // If there are no refresh buttons, add them
+      if (!hasRefreshButtons) {
+        // Add first refresh button - "Refresh Transactions"
+        await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
+          ["🔄 Refresh Transactions"],
+        ]);
+
+        // Format the first refresh button with custom style
+        await sheetClient.formatRange(
+          sheetId,
+          1, // startRowIndex (row 2)
+          2, // endRowIndex (exclusive)
+          0, // startColumnIndex
+          1, // endColumnIndex (exclusive)
+          SHEET_STYLES.BUTTON
+        );
+
+        // Add second refresh button - "Refresh"
+        await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
+          ["🔄 Refresh"],
+        ]);
+
+        // Format the second refresh button with a different style
+        await sheetClient.formatRange(
+          sheetId,
+          2, // startRowIndex (row 3)
+          3, // endRowIndex (exclusive)
+          0, // startColumnIndex
+          1, // endColumnIndex (exclusive)
+          {
+            ...SHEET_STYLES.BUTTON,
+            backgroundColor: {
+              red: 0.2,
+              green: 0.6,
+              blue: 0.4,
+            },
+            textFormat: {
+              ...SHEET_STYLES.BUTTON.textFormat,
+              fontSize: 11,
+            },
+          }
+        );
+
+        // Add a message explaining the transaction history feature
+        await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!B2:G3`, [
+          [
+            "This page shows your most recent transactions. Click the refresh button to update.",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ],
+          [
+            "Use either button to refresh your transaction history. Both do the same thing.",
+            "",
+            "",
+            "",
+            "",
+            "",
+          ],
+        ]);
+
+        // Format the explanation rows
+        await sheetClient.formatRange(
+          sheetId,
+          1, // startRowIndex (row 2)
+          3, // endRowIndex (exclusive)
+          1, // startColumnIndex
+          7, // endColumnIndex (exclusive)
+          SHEET_STYLES.HELPER_NOTES
+        );
+
+        // Merge the explanation cells for better presentation
+        await sheetClient.batchUpdate({
+          requests: [
+            {
+              mergeCells: {
+                range: {
+                  sheetId: sheetId,
+                  startRowIndex: 1,
+                  endRowIndex: 2,
+                  startColumnIndex: 1,
+                  endColumnIndex: 7,
+                },
+                mergeType: "MERGE_ALL",
+              },
+            },
+            {
+              mergeCells: {
+                range: {
+                  sheetId: sheetId,
+                  startRowIndex: 2,
+                  endRowIndex: 3,
+                  startColumnIndex: 1,
+                  endColumnIndex: 7,
+                },
+                mergeType: "MERGE_ALL",
+              },
+            },
+          ],
+        });
+
+        logEvent(`Added refresh buttons to Wallet Explorer sheet`);
+        buttonCount = 2; // We've added 2 buttons
+      }
+
+      // Update column widths
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            updateDimensionProperties: {
+              range: {
+                sheetId: sheetId,
+                dimension: "COLUMNS",
+                startIndex: 6, // Explorer URL column
+                endIndex: 7,
+              },
+              properties: {
+                pixelSize: 250, // Width for explorer URL column
+              },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      });
+
+      // Display a "Loading..." message while we fetch transactions
+      const startRow = 1 + buttonCount; // Start after header and buttons
+      await sheetClient.setRangeValues(
+        `${WALLET_EXPLORER_SHEET}!A${startRow}:G${startRow}`,
+        [["Loading transactions...", "", "", "", "", "", ""]]
+      );
+
+      // Format the loading message
+      await sheetClient.formatRange(
+        sheetId,
+        startRow - 1, // Convert to 0-based index
+        startRow, // Exclusive end
+        0,
+        7,
+        {
+          ...SHEET_STYLES.HELPER_NOTES,
+          textFormat: {
+            ...SHEET_STYLES.HELPER_NOTES.textFormat,
+            italic: true,
+            bold: true,
+          },
+        }
+      );
+
+      // Merge the loading message cells for better presentation
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            mergeCells: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: startRow - 1, // Convert to 0-based index
+                endRowIndex: startRow, // Exclusive end
+                startColumnIndex: 0,
+                endColumnIndex: 7,
+              },
+              mergeType: "MERGE_ALL",
+            },
+          },
+        ],
+      });
+
+      // If force refresh, clear provider cache by creating a new one
+      let transactionProvider = provider;
+      if (forceRefresh) {
+        logEvent(`Creating new provider to ensure fresh blockchain data`);
+        transactionProvider = new ethers.JsonRpcProvider(
+          provider.connection.url
+        );
+      }
+
+      // Fetch recent transactions with slightly increased timeout for refresh
       const transactions = await fetchHistoricalTransactions(
         walletAddress,
-        provider,
+        transactionProvider,
         10, // Limit to last 10 transactions
         logEvent
       );
 
+      // Clear the loading message by deleting the row
+      await sheetClient.batchUpdate({
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: "ROWS",
+                startIndex: startRow - 1, // Convert to 0-based index
+                endIndex: startRow,
+              },
+            },
+          },
+        ],
+      });
+
       if (transactions.length === 0) {
+        // Add a "No transactions available" row if no transactions found
+        await sheetClient.setRangeValues(
+          `${WALLET_EXPLORER_SHEET}!A${startRow}:G${startRow}`,
+          [["No transactions available", "", "", "", "", "", ""]]
+        );
+
+        // Format the no transactions message
+        await sheetClient.formatRange(
+          sheetId,
+          startRow - 1, // Convert to 0-based index
+          startRow, // Exclusive end
+          0,
+          7,
+          SHEET_STYLES.HELPER_NOTES
+        );
+
+        // Merge the no transactions message cells
+        await sheetClient.batchUpdate({
+          requests: [
+            {
+              mergeCells: {
+                range: {
+                  sheetId: sheetId,
+                  startRowIndex: startRow - 1, // Convert to 0-based index
+                  endRowIndex: startRow, // Exclusive end
+                  startColumnIndex: 0,
+                  endColumnIndex: 7,
+                },
+                mergeType: "MERGE_ALL",
+              },
+            },
+          ],
+        });
+
         logEvent(
           `No historical transactions found for wallet ${walletAddress}`
         );
         return;
       }
 
-      // Add transactions to the sheet
+      // Add transactions to the sheet with explorer URLs
       const transactionRows = transactions.map((tx) => [
         tx.hash,
         tx.from,
@@ -963,12 +1535,78 @@ export async function initializeWalletExplorer(
         tx.amount,
         tx.timestamp,
         tx.status,
+        tx.explorerUrl || "", // Include the explorer URL
       ]);
 
+      // Append rows after the refresh buttons and any explanation text
       await sheetClient.appendRows(WALLET_EXPLORER_SHEET, transactionRows);
+
+      // Make the Explorer URL column clickable (hyperlink)
+      for (let i = 0; i < transactions.length; i++) {
+        const rowIndex = 1 + buttonCount + i; // Adjust for header and button rows
+        const url = transactions[i].explorerUrl;
+
+        if (url) {
+          await sheetClient.batchUpdate({
+            requests: [
+              {
+                updateCells: {
+                  range: {
+                    sheetId: sheetId,
+                    startRowIndex: rowIndex - 1, // Convert to 0-based index
+                    endRowIndex: rowIndex,
+                    startColumnIndex: 6,
+                    endColumnIndex: 7,
+                  },
+                  rows: [
+                    {
+                      values: [
+                        {
+                          userEnteredValue: {
+                            formulaValue: `=HYPERLINK("${url}","View Transaction")`,
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                  fields: "userEnteredValue",
+                },
+              },
+            ],
+          });
+        }
+      }
+
       logEvent(
-        `Added ${transactions.length} historical transactions to Wallet Explorer`
+        `Added ${transactions.length} historical transactions with explorer links to Wallet Explorer`
       );
+
+      // Add named ranges for the refresh buttons
+      try {
+        // Add a named range for the first refresh button
+        await sheetClient.setNamedRange(
+          sheetId,
+          "refresh_transactions_button_1",
+          1, // rowIndex (0-based)
+          2, // endRowIndex (exclusive)
+          0, // columnIndex
+          1 // endColumnIndex (exclusive)
+        );
+
+        // Add a named range for the second refresh button
+        await sheetClient.setNamedRange(
+          sheetId,
+          "refresh_transactions_button_2",
+          2, // rowIndex (0-based)
+          3, // endRowIndex (exclusive)
+          0, // columnIndex
+          1 // endColumnIndex (exclusive)
+        );
+
+        logEvent(`Set up named ranges for refresh transaction buttons`);
+      } catch (triggerError) {
+        logEvent(`Error setting up refresh button triggers: ${triggerError}`);
+      }
     } catch (error) {
       logEvent(`Error initializing Wallet Explorer: ${error}`);
     }
@@ -2275,5 +2913,376 @@ export async function getRiskFactor(sheetClient, logEvent) {
       }. Using default value of 5.`
     );
     return 5; // Default to middle value if error
+  }
+}
+
+/**
+ * Monitors clicks on either of the transaction refresh buttons and refreshes transactions when clicked
+ * Uses a portfolio-style approach checking for any value change
+ * @param {SheetClient} sheetClient - Google Sheets API client
+ * @param {string} walletAddress - Wallet address to fetch transactions for
+ * @param {ethers.Provider} provider - Ethereum provider to use for fetching transactions
+ * @param {Function} logEvent - Function to log events
+ * @returns {Promise<boolean>} - Returns true if a refresh was triggered
+ */
+export async function monitorTransactionRefreshButton(
+  sheetClient,
+  walletAddress,
+  provider,
+  logEvent
+) {
+  try {
+    // Check if sheet exists
+    const sheetId = await sheetClient.getSheetIdByName(WALLET_EXPLORER_SHEET);
+    if (!sheetId) return false;
+
+    // Get the current values of both buttons
+    const button1Values = await sheetClient.getSheetValues(
+      WALLET_EXPLORER_SHEET,
+      "A2:A2"
+    );
+    const button2Values = await sheetClient.getSheetValues(
+      WALLET_EXPLORER_SHEET,
+      "A3:A3"
+    );
+
+    const button1Text = button1Values?.[0]?.[0] || "";
+    const button2Text = button2Values?.[0]?.[0] || "";
+
+    // Define the expected button states
+    const defaultButton1Text = "🔄 Refresh Transactions";
+    const defaultButton2Text = "🔄 Refresh";
+    const refreshingText = "⏳ Refreshing...";
+
+    // Check if either button text indicates it's in a refreshing state
+    const isRefreshing =
+      button1Text.includes(refreshingText) ||
+      button2Text.includes(refreshingText);
+
+    if (isRefreshing) {
+      // Already refreshing, don't trigger again
+      return false;
+    }
+
+    // Only trigger refresh if button text has been MODIFIED by a user
+    // and is NOT one of the known states (default or refreshing)
+    const button1Modified =
+      button1Text &&
+      button1Text !== defaultButton1Text &&
+      !button1Text.includes(refreshingText);
+
+    const button2Modified =
+      button2Text &&
+      button2Text !== defaultButton2Text &&
+      !button2Text.includes(refreshingText);
+
+    if (button1Modified || button2Modified) {
+      logEvent(
+        `Detected change in refresh button text: "${button1Text}" or "${button2Text}". Triggering refresh.`
+      );
+
+      // Directly call the refresh function
+      await refreshTransactionHistory(
+        sheetClient,
+        walletAddress,
+        provider,
+        logEvent
+      );
+
+      // Reset buttons to default state to prevent continuous refreshing
+      if (button1Modified) {
+        await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
+          [defaultButton1Text],
+        ]);
+      }
+
+      if (button2Modified) {
+        await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
+          [defaultButton2Text],
+        ]);
+      }
+
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    logEvent(
+      `Error monitoring transaction refresh button: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return false;
+  }
+}
+
+/**
+ * Generates a transaction explorer URL based on the chain ID
+ * @param {string} txHash - Transaction hash
+ * @param {number} chainId - Chain ID
+ * @returns {string} - Explorer URL
+ */
+function getTransactionExplorerUrl(txHash, chainId = 42161) {
+  // Default to Arbitrum explorer
+  let baseUrl = "https://arbiscan.io/tx/";
+
+  // Use the appropriate explorer based on chain ID
+  switch (chainId) {
+    case 1: // Ethereum Mainnet
+      baseUrl = "https://etherscan.io/tx/";
+      break;
+    case 42161: // Arbitrum One
+      baseUrl = "https://arbiscan.io/tx/";
+      break;
+    case 10: // Optimism
+      baseUrl = "https://optimistic.etherscan.io/tx/";
+      break;
+    case 137: // Polygon
+      baseUrl = "https://polygonscan.com/tx/";
+      break;
+    case 56: // BNB Smart Chain
+      baseUrl = "https://bscscan.com/tx/";
+      break;
+    case 43114: // Avalanche C-Chain
+      baseUrl = "https://snowtrace.io/tx/";
+      break;
+    case 42170: // Arbitrum Nova
+      baseUrl = "https://nova.arbiscan.io/tx/";
+      break;
+    case 11155111: // Sepolia testnet
+      baseUrl = "https://sepolia.etherscan.io/tx/";
+      break;
+    default:
+      // Keep default Arbitrum explorer
+      baseUrl = "https://arbiscan.io/tx/";
+  }
+
+  return baseUrl + txHash;
+}
+
+/**
+ * Directly trigger a refresh of the wallet transaction history
+ * This can be called when a user clicks a refresh button
+ * @param {SheetClient} sheetClient - Google Sheets API client
+ * @param {string} walletAddress - Wallet address to fetch transactions for
+ * @param {ethers.Provider} provider - Ethereum provider to use for fetching transactions
+ * @param {Function} logEvent - Function to log events
+ * @returns {Promise<boolean>} - Returns true if the refresh was successful
+ */
+export async function refreshTransactionHistory(
+  sheetClient,
+  walletAddress,
+  provider,
+  logEvent
+) {
+  try {
+    logEvent(`Manually refreshing transaction history for ${walletAddress}...`);
+
+    // Get the sheet ID to work with
+    const sheetId = await sheetClient.getSheetIdByName(WALLET_EXPLORER_SHEET);
+    if (!sheetId) {
+      logEvent(`Wallet Explorer sheet not found`);
+      return false;
+    }
+
+    // Get the current sheet values to determine button positions
+    const values = await sheetClient.getSheetValues(WALLET_EXPLORER_SHEET);
+
+    // Determine button count for positioning
+    let buttonCount = 0;
+    if (values.length > 1 && values[1][0] && values[1][0].includes("Refresh")) {
+      buttonCount++;
+    }
+    if (values.length > 2 && values[2][0] && values[2][0].includes("Refresh")) {
+      buttonCount++;
+    }
+
+    // Set both buttons to refreshing state
+    if (buttonCount >= 1) {
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
+        ["⏳ Refreshing (API rate limited)..."],
+      ]);
+
+      // Change button color to indicate processing
+      await sheetClient.formatRange(
+        sheetId,
+        1, // row 2 (0-based)
+        2, // exclusive end
+        0, // column A
+        1, // exclusive end
+        {
+          backgroundColor: {
+            red: 0.9,
+            green: 0.7,
+            blue: 0.2,
+          },
+          textFormat: {
+            bold: true,
+            fontFamily: "Roboto",
+            fontSize: 12,
+          },
+          horizontalAlignment: "CENTER",
+          verticalAlignment: "MIDDLE",
+        }
+      );
+    }
+
+    if (buttonCount >= 2) {
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
+        ["⏳ Refreshing (API rate limited)..."],
+      ]);
+
+      // Change button color to indicate processing
+      await sheetClient.formatRange(
+        sheetId,
+        2, // row 3 (0-based)
+        3, // exclusive end
+        0, // column A
+        1, // exclusive end
+        {
+          backgroundColor: {
+            red: 0.9,
+            green: 0.7,
+            blue: 0.2,
+          },
+          textFormat: {
+            bold: true,
+            fontFamily: "Roboto",
+            fontSize: 12,
+          },
+          horizontalAlignment: "CENTER",
+          verticalAlignment: "MIDDLE",
+        }
+      );
+    }
+
+    // Create a fresh provider to ensure no caching issues
+    const freshProvider = new ethers.providers.JsonRpcProvider(
+      provider.connection.url
+    );
+
+    // Force a refresh of the transactions
+    await initializeWalletExplorer(
+      sheetClient,
+      walletAddress,
+      freshProvider,
+      logEvent,
+      true // Force refresh
+    );
+
+    // Restore button states with cooldown info
+    const nextRefreshTime = new Date(Date.now() + 60000).toLocaleTimeString();
+
+    if (buttonCount >= 1) {
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
+        [`🔄 Next refresh after ${nextRefreshTime}`],
+      ]);
+
+      // Restore button style but with gray to indicate cooldown
+      await sheetClient.formatRange(
+        sheetId,
+        1, // row 2 (0-based)
+        2, // exclusive end
+        0, // column A
+        1, // exclusive end
+        {
+          ...SHEET_STYLES.BUTTON,
+          backgroundColor: {
+            red: 0.7,
+            green: 0.7,
+            blue: 0.7,
+          },
+          textFormat: {
+            ...SHEET_STYLES.BUTTON.textFormat,
+            fontSize: 10,
+          },
+        }
+      );
+    }
+
+    if (buttonCount >= 2) {
+      await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
+        [`🔄 Available at ${nextRefreshTime}`],
+      ]);
+
+      // Restore button style for second button but grayed out
+      await sheetClient.formatRange(
+        sheetId,
+        2, // row 3 (0-based)
+        3, // exclusive end
+        0, // column A
+        1, // exclusive end
+        {
+          ...SHEET_STYLES.BUTTON,
+          backgroundColor: {
+            red: 0.7,
+            green: 0.7,
+            blue: 0.7,
+          },
+          textFormat: {
+            ...SHEET_STYLES.BUTTON.textFormat,
+            fontSize: 10,
+          },
+        }
+      );
+    }
+
+    // Schedule restoration of normal button text after cooldown
+    setTimeout(async () => {
+      try {
+        if (buttonCount >= 1) {
+          await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
+            ["🔄 Refresh Transactions"],
+          ]);
+
+          // Restore original button style
+          await sheetClient.formatRange(
+            sheetId,
+            1, // row 2 (0-based)
+            2, // exclusive end
+            0, // column A
+            1, // exclusive end
+            SHEET_STYLES.BUTTON
+          );
+        }
+
+        if (buttonCount >= 2) {
+          await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
+            ["🔄 Refresh"],
+          ]);
+
+          // Restore original button style for second button
+          await sheetClient.formatRange(
+            sheetId,
+            2, // row 3 (0-based)
+            3, // exclusive end
+            0, // column A
+            1, // exclusive end
+            {
+              ...SHEET_STYLES.BUTTON,
+              backgroundColor: {
+                red: 0.2,
+                green: 0.6,
+                blue: 0.4,
+              },
+              textFormat: {
+                ...SHEET_STYLES.BUTTON.textFormat,
+                fontSize: 11,
+              },
+            }
+          );
+        }
+
+        logEvent("Refresh buttons restored to normal state after cooldown");
+      } catch (restoreError) {
+        logEvent(`Error restoring button state: ${restoreError}`);
+      }
+    }, 60000); // After 60 seconds (matches the rate limit in walletManager.js)
+
+    logEvent(`Transaction history refreshed successfully (rate limited)`);
+    return true;
+  } catch (error) {
+    logEvent(`Error refreshing transaction history: ${error}`);
+    return false;
   }
 }
