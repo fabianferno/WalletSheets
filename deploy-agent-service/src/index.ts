@@ -14,7 +14,7 @@ const drive = google.drive("v3");
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
-const templateId = "Eliza";
+const templateId = "15bb11d0-3d35-4f87-9f26-cd3cb713f2a2";
 
 // Middleware
 app.use(express.json());
@@ -300,6 +300,7 @@ function getAgentConfig(sheetId: string, ownerEmail: string) {
     NILLION_CHAT_SCHEMA_ID: process.env.NILLION_CHAT_SCHEMA_ID || "",
     NILLION_USER_SCHEMA_ID: process.env.NILLION_USER_SCHEMA_ID || "",
     NILLION_TRADES_SCHEMA_ID: process.env.NILLION_TRADES_SCHEMA_ID || "",
+    ARBISCAN_KEY: process.env.ARBISCAN_KEY || "",
     LANGCHAIN_TRACING: "true",
   };
 
