@@ -20,7 +20,7 @@ export async function placeTrade(
     pKey,
     native,
     asset,
-    chain,
+    _chain,
     leverage,
     positionSizeInNative,
     takeProfit,
@@ -28,6 +28,7 @@ export async function placeTrade(
     isLong
 ) {
     console.log("Starting placeTrade function...");
+    const chain = "421614";
     console.log("Input parameters:", {
         pKey,
         native,
@@ -39,7 +40,6 @@ export async function placeTrade(
         stopLoss,
         isLong,
     });
-
     const dataStoreAbi = dataStore.abi;
     const rpcUrl =
         chain == "421614"
@@ -51,6 +51,7 @@ export async function placeTrade(
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(pKey, provider);
     console.log("Wallet address:", await wallet.getAddress());
+    console.log('Balance:', ethers.utils.formatEther(await wallet.getBalance()));
     const exchangeRouterAbi = exchangeRouterABI[chain];
     console.log(assets)
     const addresses = {
