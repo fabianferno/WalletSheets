@@ -103,8 +103,9 @@ async function formatEnhancedPortfolioSheet(
       logEvent("Column width setup not supported, skipping...");
     }
 
-    // Main header
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A1:G1`, [
+    // Initialize the full sheet template with all sections at once
+    const portfolioTemplate = [
+      // Row 1 - Main header
       [
         "🔐 CRYPTO PORTFOLIO TRACKER",
         "",
@@ -114,37 +115,25 @@ async function formatEnhancedPortfolioSheet(
         "",
         new Date().toISOString(),
       ],
-    ]);
 
-    // Empty row for spacing
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A2:A2`, [[""]]);
+      // Row 2 - Empty row for spacing
+      [""],
 
-    // Wallet summary section - modern card-like layout
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A3:E3`, [
+      // Row 3 - Portfolio summary section header
       ["💰 PORTFOLIO SUMMARY", "", "", "", ""],
-    ]);
 
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A4:B6`, [
+      // Rows 4-6 - Portfolio summary data
       ["Wallet Address", ""],
       ["Network", ""],
       ["Last Updated", ""],
-    ]);
 
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!D4:E6`, [
-      ["Total Balance (USD)", ""],
-      ["24h Change", ""],
-      ["30d Change", ""],
-    ]);
+      // Row 7 - Empty row for spacing
+      [""],
 
-    // Empty row for spacing
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A7:A7`, [[""]]);
-
-    // Quick stats section
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A8:G8`, [
+      // Row 8 - Key metrics section header
       ["📊 KEY METRICS", "", "", "", "", "", ""],
-    ]);
 
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A9:G9`, [
+      // Row 9 - Key metrics labels
       [
         "ETH Balance",
         "Token Count",
@@ -154,83 +143,90 @@ async function formatEnhancedPortfolioSheet(
         "",
         "",
       ],
-    ]);
 
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:G10`, [
+      // Row 10 - Key metrics values (empty)
       ["", "", "", "", "", "", ""],
-    ]);
 
-    // Empty row for spacing
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A11:A11`, [[""]]);
+      // Row 11 - Empty row for spacing
+      [""],
 
-    // Asset allocation with better labeling
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A12:C12`, [
+      // Row 12 - Asset allocation section header
       ["📈 ASSET ALLOCATION", "", ""],
-    ]);
 
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A13:C13`, [
+      // Row 13 - Asset allocation table header
       ["Asset", "Value (USD)", "% of Portfolio"],
-    ]);
+    ];
 
-    // Reserved space for asset allocation data (up to 12 assets)
+    // Add rows 14-25 for asset allocation data (12 rows)
     for (let i = 0; i < 12; i++) {
-      await sheetClient.setRangeValues(
-        `${PORTFOLIO_SHEET}!A${14 + i}:C${14 + i}`,
-        [["", "", ""]]
-      );
+      portfolioTemplate.push(["", "", ""]);
     }
 
-    // Empty row for spacing
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A26:A26`, [[""]]);
+    // Row 26 - Empty row for spacing
+    portfolioTemplate.push([""]);
 
-    // Token holdings section - with modern styling
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A27:H27`, [
-      ["💎 TOKEN HOLDINGS", "", "", "", "", "", "", ""],
+    // Row 27 - Token holdings section header
+    portfolioTemplate.push(["💎 TOKEN HOLDINGS", "", "", "", "", "", "", ""]);
+
+    // Row 28 - Token holdings table header
+    portfolioTemplate.push([
+      "Token",
+      "Symbol",
+      "Balance",
+      "USD Value",
+      "Price (USD)",
+      "24h Change",
+      "7d Change",
+      "Actions",
     ]);
 
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A28:H28`, [
-      [
-        "Token",
-        "Symbol",
-        "Balance",
-        "USD Value",
-        "Price (USD)",
-        "24h Change",
-        "7d Change",
-        "Actions",
-      ],
-    ]);
-
-    // Reserved space for token data (up to 15 tokens)
+    // Rows 29-43 - Token holdings data (15 rows)
     for (let i = 0; i < 15; i++) {
-      await sheetClient.setRangeValues(
-        `${PORTFOLIO_SHEET}!A${29 + i}:H${29 + i}`,
-        [["", "", "", "", "", "", "", "View on Explorer"]]
-      );
+      portfolioTemplate.push(["", "", "", "", "", "", "", "View on Explorer"]);
     }
 
-    // Empty rows for charts and add refresh button with instructions
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A44:H45`, [
-      ["📊 PORTFOLIO ANALYTICS", "", "", "", "", "", "", ""],
-      [
-        "⚠️ TYPE ANYTHING HERE TO REFRESH",
-        "← Just edit this cell and press Enter to load data",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ],
+    // Row 44 - Portfolio analytics section header
+    portfolioTemplate.push([
+      "📊 PORTFOLIO ANALYTICS",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
     ]);
 
-    // Add space for charts
+    // Row 45 - Refresh button and instructions
+    portfolioTemplate.push([
+      "⚠️ TYPE ANYTHING HERE TO REFRESH",
+      "← Just edit this cell and press Enter to load data",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+
+    // Rows 46-60 - Space for charts (15 rows)
     for (let i = 0; i < 15; i++) {
-      await sheetClient.setRangeValues(
-        `${PORTFOLIO_SHEET}!A${46 + i}:H${46 + i}`,
-        [["", "", "", "", "", "", "", ""]]
-      );
+      portfolioTemplate.push(["", "", "", "", "", "", "", ""]);
     }
+
+    // Set the entire template at once (much more efficient than individual calls)
+    await sheetClient.setRangeValues(
+      `${PORTFOLIO_SHEET}!A1:H${portfolioTemplate.length}`,
+      portfolioTemplate
+    );
+
+    // Set supplementary data in specific cells not covered by the main template
+    // These are the cells that have different column counts
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!D4:E6`, [
+      ["Total Balance (USD)", ""],
+      ["24h Change", ""],
+      ["30d Change", ""],
+    ]);
 
     // Apply conditional formatting for token changes
     try {
@@ -292,7 +288,7 @@ async function formatEnhancedPortfolioSheet(
       logEvent("Conditional formatting not supported, skipping...");
     }
 
-    // Apply enhanced cell formatting for headers and data
+    // Apply enhanced cell formatting for headers and data in a single batch update
     await sheetClient.batchUpdate({
       requests: [
         // Main header formatting
@@ -612,7 +608,9 @@ async function formatEnhancedPortfolioSheet(
       ],
     });
 
-    logEvent("Enhanced portfolio sheet formatted successfully");
+    logEvent(
+      "Enhanced portfolio sheet formatted successfully with optimized API calls"
+    );
   } catch (error: unknown) {
     logEvent(
       `Error formatting enhanced portfolio sheet: ${
@@ -727,30 +725,53 @@ export async function updatePortfolioData(
       portfolioChange30d = Math.random() * 30 - 15;
     }
 
-    // Update portfolio summary section
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!B4:B6`, [
-      [wallet.address],
-      [networkName],
-      [new Date().toISOString()],
-    ]);
+    // Prepare all portfolio data updates to be done in a batch
+    // 1. Portfolio summary data (combine wallet info and balances in single update)
+    const portfolioSummary = [
+      [
+        "Wallet Address",
+        wallet.address,
+        "",
+        "Total Balance (USD)",
+        `$${totalValueUsd.toFixed(2)}`,
+      ],
+      [
+        "Network",
+        networkName,
+        "",
+        "24h Change",
+        `${portfolioChange24h.toFixed(2)}%`,
+      ],
+      [
+        "Last Updated",
+        new Date().toISOString(),
+        "",
+        "30d Change",
+        `${portfolioChange30d.toFixed(2)}%`,
+      ],
+    ];
 
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!E4:E6`, [
-      [`$${totalValueUsd.toFixed(2)}`],
-      [`${portfolioChange24h.toFixed(2)}%`],
-      [`${portfolioChange30d.toFixed(2)}%`],
-    ]);
-
-    // Update key metrics section
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:E10`, [
+    // 2. Key metrics
+    const keyMetrics = [
       [
         ethBalance,
         tokenData ? tokenData.items.length : 0,
         txCount,
         "1", // Number of networks - could be expanded if tracking multiple networks
+        "",
+        "",
+        "",
       ],
-    ]);
+    ];
 
-    // Update asset allocation section
+    // Batch update all the summary data in just two API calls
+    await sheetClient.setRangeValues(
+      `${PORTFOLIO_SHEET}!A4:E6`,
+      portfolioSummary
+    );
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:G10`, keyMetrics);
+
+    // 3. Update asset allocation section in a single call
     await updateEnhancedAssetAllocation(
       sheetClient,
       ethValueUsd,
@@ -759,13 +780,15 @@ export async function updatePortfolioData(
       logEvent
     );
 
-    // Update token holdings section
+    // 4. Update token holdings section in a single call
     await updateEnhancedTokenHoldings(sheetClient, tokenData, logEvent);
 
-    // Create/update charts after data is populated
+    // 5. Create/update charts after data is populated
     await createOrUpdateCharts(sheetClient, logEvent);
 
-    logEvent("Enhanced portfolio data updated successfully");
+    logEvent(
+      "Enhanced portfolio data updated successfully with optimized API calls"
+    );
   } catch (error: unknown) {
     logEvent(
       `Error updating enhanced portfolio data: ${
@@ -813,18 +836,23 @@ async function updateEnhancedAssetAllocation(
         });
     }
 
-    // Clear existing allocation data
-    await sheetClient.clearRange(`${PORTFOLIO_SHEET}!A14:C25`);
+    // Clear and update asset allocation in a single call by filling with empty rows if needed
+    const paddedAllocation = [...assetAllocation];
 
-    // Update asset allocation in sheet
-    if (assetAllocation.length > 0) {
-      await sheetClient.setRangeValues(
-        `${PORTFOLIO_SHEET}!A14:C${13 + assetAllocation.length}`,
-        assetAllocation
-      );
+    // Pad with empty rows to always fill rows 14-25 (12 rows total)
+    while (paddedAllocation.length < 12) {
+      paddedAllocation.push(["", "", ""]);
     }
 
-    logEvent("Enhanced asset allocation data updated");
+    // Set all allocation data at once
+    await sheetClient.setRangeValues(
+      `${PORTFOLIO_SHEET}!A14:C25`,
+      paddedAllocation
+    );
+
+    logEvent(
+      `Enhanced asset allocation data updated (${assetAllocation.length} assets)`
+    );
   } catch (error: unknown) {
     logEvent(
       `Error updating enhanced asset allocation: ${
@@ -1606,77 +1634,86 @@ async function updateEnhancedTokenHoldings(
   logEvent: Function
 ) {
   try {
+    // Prepare token data rows to update in a single API call
+    let tokenRows = [];
+
     if (!tokenData || !tokenData.items || tokenData.items.length === 0) {
       // If no tokens, add a placeholder row
-      await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A29:H29`, [
-        ["No tokens found", "-", "-", "-", "-", "-", "-", "-"],
-      ]);
-      return;
+      tokenRows.push(["No tokens found", "-", "-", "-", "-", "-", "-", "-"]);
+
+      // Pad with empty rows to fill the entire token area (15 rows total)
+      for (let i = 1; i < 15; i++) {
+        tokenRows.push(["", "", "", "", "", "", "", ""]);
+      }
+    } else {
+      // Prepare token data (limit to top 15 by value)
+      const sortedTokens = [...tokenData.items]
+        .sort((a, b) => (b.quote || 0) - (a.quote || 0))
+        .slice(0, 15);
+
+      // Process all tokens at once
+      tokenRows = sortedTokens.map((token: any) => {
+        // Use the actual 24h change if available from CoinGecko, otherwise generate random
+        const change24h =
+          token.price_change_24h !== undefined
+            ? token.price_change_24h.toFixed(2)
+            : (Math.random() * 20 - 10).toFixed(2);
+
+        // Generate random change for 7d (for demo purposes)
+        const change7d = (Math.random() * 30 - 15).toFixed(2);
+
+        // Format the values for better readability
+        // Handle both string and number balance formats, and properly convert BigInt
+        const balance =
+          typeof token.balance === "string"
+            ? Number(ethers.formatEther(token.balance))
+            : typeof token.balance === "bigint"
+            ? token.contract_ticker_symbol === "USDC" ||
+              token.contract_ticker_symbol === "USDT"
+              ? Number(token.balance) / 10 ** 6
+              : Number(token.balance) / 10 ** 18
+            : token.contract_ticker_symbol === "USDC" ||
+              token.contract_ticker_symbol === "USDT"
+            ? (token.balance / 10 ** 6).toFixed(2)
+            : (token.balance / 10 ** 18).toFixed(6);
+
+        // Format as string if not already a string
+        const formattedBalance =
+          typeof balance === "string" ? balance : balance.toFixed(6);
+
+        const formattedUsdValue = `$${
+          token.quote ? token.quote.toFixed(2) : "0.00"
+        }`;
+        const formattedPrice = `$${
+          token.quote_rate ? token.quote_rate.toFixed(4) : "0.0000"
+        }`;
+
+        return [
+          token.contract_name || "Unknown",
+          token.contract_ticker_symbol,
+          formattedBalance,
+          formattedUsdValue,
+          formattedPrice,
+          `${change24h}%`,
+          `${change7d}%`,
+          "View on Explorer", // This could be a hyperlink with proper formatting
+        ];
+      });
+
+      // Pad with empty rows if we have fewer than 15 tokens
+      while (tokenRows.length < 15) {
+        tokenRows.push(["", "", "", "", "", "", "", ""]);
+      }
     }
 
-    // Prepare token data (limit to top 15 by value)
-    const sortedTokens = [...tokenData.items]
-      .sort((a, b) => (b.quote || 0) - (a.quote || 0))
-      .slice(0, 15);
+    // Update all token data in a single call (more efficient)
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A29:H43`, tokenRows);
 
-    const tokenRows = sortedTokens.map((token: any) => {
-      // Use the actual 24h change if available from CoinGecko, otherwise generate random
-      const change24h =
-        token.price_change_24h !== undefined
-          ? token.price_change_24h.toFixed(2)
-          : (Math.random() * 20 - 10).toFixed(2);
-
-      // Generate random change for 7d (for demo purposes)
-      const change7d = (Math.random() * 30 - 15).toFixed(2);
-
-      // Format the values for better readability
-      // Handle both string and number balance formats, and properly convert BigInt
-      const balance =
-        typeof token.balance === "string"
-          ? Number(ethers.formatEther(token.balance))
-          : typeof token.balance === "bigint"
-          ? token.contract_ticker_symbol === "USDC" ||
-            token.contract_ticker_symbol === "USDT"
-            ? Number(token.balance) / 10 ** 6
-            : Number(token.balance) / 10 ** 18
-          : token.contract_ticker_symbol === "USDC" ||
-            token.contract_ticker_symbol === "USDT"
-          ? (token.balance / 10 ** 6).toFixed(2)
-          : (token.balance / 10 ** 18).toFixed(6);
-
-      // Format as string if not already a string
-      const formattedBalance =
-        typeof balance === "string" ? balance : balance.toFixed(6);
-
-      const formattedUsdValue = `$${
-        token.quote ? token.quote.toFixed(2) : "0.00"
-      }`;
-      const formattedPrice = `$${
-        token.quote_rate ? token.quote_rate.toFixed(4) : "0.0000"
-      }`;
-
-      return [
-        token.contract_name || "Unknown",
-        token.contract_ticker_symbol,
-        formattedBalance,
-        formattedUsdValue,
-        formattedPrice,
-        `${change24h}%`,
-        `${change7d}%`,
-        "View on Explorer", // This could be a hyperlink with proper formatting
-      ];
-    });
-
-    // Clear existing data
-    await sheetClient.clearRange(`${PORTFOLIO_SHEET}!A29:H43`);
-
-    // Update token data
-    await sheetClient.setRangeValues(
-      `${PORTFOLIO_SHEET}!A29:H${28 + tokenRows.length}`,
-      tokenRows
+    const tokenCount =
+      tokenData && tokenData.items ? Math.min(tokenData.items.length, 15) : 0;
+    logEvent(
+      `Updated token holdings in a single operation (${tokenCount} tokens)`
     );
-
-    logEvent(`Updated ${tokenRows.length} tokens in enhanced holdings section`);
   } catch (error: unknown) {
     logEvent(
       `Error updating enhanced token holdings: ${
