@@ -316,36 +316,27 @@ export class Agent {
       }
     `;
 
-    // // Call the LLM API with the constructed prompt
-    // const llmResponse = await this.callNilaiAPI([
-    //   {
-    //     role: "system",
-    //     content:
-    //       "You are an advanced trading assistant that analyzes market data and makes trading decisions.",
-    //   },
-    //   { role: "user", content: prompt },
-    // ]);
+    // Call the LLM API with the constructed prompt
+    const llmResponse = await this.callNilaiAPI([
+      {
+        role: "system",
+        content:
+          "You are an advanced trading assistant that analyzes market data and makes trading decisions.",
+      },
+      { role: "user", content: prompt },
+    ]);
 
-    // console.log(`🤖 Assistant (initial): ${llmResponse}`);
+    console.log(`🤖 Assistant (initial): ${llmResponse}`);
 
     // Parse the response to extract the JSON
     try {
       // Extract JSON from the response (handling cases where there might be additional text)
-      // const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-      // const jsonString = jsonMatch ? jsonMatch[0] : llmResponse;
+      const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+      const jsonString = jsonMatch ? jsonMatch[0] : llmResponse;
 
       // Parse the JSON
-      // const decision = JSON.parse(jsonString);
-      const decision = {
-        action: "buy_more",
-        reason: "Based on the analysis, it is recommended to buy more.",
-        data: {
-          asset: "ETH",
-          amount: 0.002,
-          leverage: 4,
-          isLong: true,
-        },
-      }
+      const decision = JSON.parse(jsonString);
+
       // Validate the response format
       if (
         !["stay_idle", "buy_more", "close_position"].includes(decision.action)
