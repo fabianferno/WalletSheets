@@ -3100,7 +3100,7 @@ export async function refreshTransactionHistory(
     // Set both buttons to refreshing state
     if (buttonCount >= 1) {
       await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
-        ["⏳ Refreshing..."],
+        ["⏳ Refreshing (API rate limited)..."],
       ]);
 
       // Change button color to indicate processing
@@ -3129,7 +3129,7 @@ export async function refreshTransactionHistory(
 
     if (buttonCount >= 2) {
       await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
-        ["⏳ Refreshing..."],
+        ["⏳ Refreshing (API rate limited)..."],
       ]);
 
       // Change button color to indicate processing
@@ -3170,29 +3170,42 @@ export async function refreshTransactionHistory(
       true // Force refresh
     );
 
-    // Restore button states
+    // Restore button states with cooldown info
+    const nextRefreshTime = new Date(Date.now() + 60000).toLocaleTimeString();
+
     if (buttonCount >= 1) {
       await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
-        ["🔄 Refresh Transactions"],
+        [`🔄 Next refresh after ${nextRefreshTime}`],
       ]);
 
-      // Restore original button style
+      // Restore button style but with gray to indicate cooldown
       await sheetClient.formatRange(
         sheetId,
         1, // row 2 (0-based)
         2, // exclusive end
         0, // column A
         1, // exclusive end
-        SHEET_STYLES.BUTTON
+        {
+          ...SHEET_STYLES.BUTTON,
+          backgroundColor: {
+            red: 0.7,
+            green: 0.7,
+            blue: 0.7,
+          },
+          textFormat: {
+            ...SHEET_STYLES.BUTTON.textFormat,
+            fontSize: 10,
+          },
+        }
       );
     }
 
     if (buttonCount >= 2) {
       await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
-        ["🔄 Refresh"],
+        [`🔄 Available at ${nextRefreshTime}`],
       ]);
 
-      // Restore original button style for second button
+      // Restore button style for second button but grayed out
       await sheetClient.formatRange(
         sheetId,
         2, // row 3 (0-based)
@@ -3202,19 +3215,71 @@ export async function refreshTransactionHistory(
         {
           ...SHEET_STYLES.BUTTON,
           backgroundColor: {
-            red: 0.2,
-            green: 0.6,
-            blue: 0.4,
+            red: 0.7,
+            green: 0.7,
+            blue: 0.7,
           },
           textFormat: {
             ...SHEET_STYLES.BUTTON.textFormat,
-            fontSize: 11,
+            fontSize: 10,
           },
         }
       );
     }
 
-    logEvent(`Transaction history refreshed successfully`);
+    // Schedule restoration of normal button text after cooldown
+    setTimeout(async () => {
+      try {
+        if (buttonCount >= 1) {
+          await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A2:A2`, [
+            ["🔄 Refresh Transactions"],
+          ]);
+
+          // Restore original button style
+          await sheetClient.formatRange(
+            sheetId,
+            1, // row 2 (0-based)
+            2, // exclusive end
+            0, // column A
+            1, // exclusive end
+            SHEET_STYLES.BUTTON
+          );
+        }
+
+        if (buttonCount >= 2) {
+          await sheetClient.setRangeValues(`${WALLET_EXPLORER_SHEET}!A3:A3`, [
+            ["🔄 Refresh"],
+          ]);
+
+          // Restore original button style for second button
+          await sheetClient.formatRange(
+            sheetId,
+            2, // row 3 (0-based)
+            3, // exclusive end
+            0, // column A
+            1, // exclusive end
+            {
+              ...SHEET_STYLES.BUTTON,
+              backgroundColor: {
+                red: 0.2,
+                green: 0.6,
+                blue: 0.4,
+              },
+              textFormat: {
+                ...SHEET_STYLES.BUTTON.textFormat,
+                fontSize: 11,
+              },
+            }
+          );
+        }
+
+        logEvent("Refresh buttons restored to normal state after cooldown");
+      } catch (restoreError) {
+        logEvent(`Error restoring button state: ${restoreError}`);
+      }
+    }, 60000); // After 60 seconds (matches the rate limit in walletManager.js)
+
+    logEvent(`Transaction history refreshed successfully (rate limited)`);
     return true;
   } catch (error) {
     logEvent(`Error refreshing transaction history: ${error}`);

@@ -306,9 +306,22 @@ function setupTransactionRefreshMonitoring(sheetClient, wallet, logEvent) {
     "https://arb-sepolia.g.alchemy.com/v2/MShQiNPi5VzUekdRsalsGufPl0IkOFqR"
   );
 
-  // Check for refresh button interactions every 2 seconds
+  // Track last refresh time to enforce rate limits
+  let lastRefreshTime = 0;
+  const MIN_REFRESH_INTERVAL = 60000; // Minimum 60 seconds between refreshes
+
+  // Check for refresh button interactions every 10 seconds instead of 2
   const checkForRefreshTrigger = async () => {
     try {
+      const currentTime = Date.now();
+
+      // Only allow refresh if enough time has passed since last refresh
+      if (currentTime - lastRefreshTime < MIN_REFRESH_INTERVAL) {
+        // Skip this check if we're still within the rate limit window
+        setTimeout(checkForRefreshTrigger, 10000);
+        return;
+      }
+
       // Try to check if any refresh button was triggered
       const refreshTriggered = await monitorTransactionRefreshButton(
         sheetClient,
@@ -318,20 +331,27 @@ function setupTransactionRefreshMonitoring(sheetClient, wallet, logEvent) {
       );
 
       if (refreshTriggered) {
-        logEvent(`Transaction refresh completed via button interaction`);
+        lastRefreshTime = Date.now(); // Update last refresh time
+        logEvent(
+          `Transaction refresh completed via button interaction. Next refresh available in ${
+            MIN_REFRESH_INTERVAL / 1000
+          } seconds.`
+        );
       }
     } catch (error) {
       logEvent(`Error checking for transaction refresh trigger: ${error}`);
     }
 
-    // Schedule next check
-    setTimeout(checkForRefreshTrigger, 2000);
+    // Schedule next check with reduced frequency (10 seconds)
+    setTimeout(checkForRefreshTrigger, 10000);
   };
 
   // Start checking for refresh triggers
   checkForRefreshTrigger();
   logEvent(
-    `Transaction refresh button monitoring started (checks every 2 seconds)`
+    `Transaction refresh button monitoring started (checks every 10 seconds, minimum ${
+      MIN_REFRESH_INTERVAL / 1000
+    } seconds between refreshes)`
   );
 }
 
