@@ -82,7 +82,7 @@ export async function initializeTradingTool() {
         name: "trading",
         description: "Enables users to place leveraged long or short positions on GMX with customizable take profit and stop loss levels",
         examples: examples,
-        execute: async (input) => {
+        execute: async (input, agent) => {
             try {
                 console.log(`🔧 Executing GMX trading tool with input: "${input}"`);
 
@@ -90,7 +90,7 @@ export async function initializeTradingTool() {
                 const params = JSON.parse(input);
 
                 // Validate required parameters
-                const requiredParams = ['privateKey', 'native', 'asset', 'chain', 'leverage', 'positionSizeInNative', 'isLong'];
+                const requiredParams = ['native', 'asset', 'chain', 'leverage', 'positionSizeInNative', 'isLong'];
                 for (const param of requiredParams) {
                     if (!params[param] && params[param] !== false) {
                         throw new Error(`Missing required parameter: ${param}`);
@@ -100,10 +100,23 @@ export async function initializeTradingTool() {
                 // Default empty arrays if not provided
                 const takeProfit = params.takeProfit || [];
                 const stopLoss = params.stopLoss || [];
+                const privateKey = await agent.getPrivateKey();
+                // Log the trade details before execution
+                console.log("Trade details:", {
+                    privateKey: privateKey ? "Provided" : "Not provided",
+                    native: params.native,
+                    asset: params.asset,
+                    chain: params.chain,
+                    leverage: params.leverage,
+                    positionSizeInNative: params.positionSizeInNative,
+                    takeProfit: takeProfit,
+                    stopLoss: stopLoss,
+                    isLong: params.isLong
+                });
 
                 // Execute the trade
                 const tx = await placeTrade(
-                    params.privateKey,
+                    privateKey,
                     params.native,
                     params.asset,
                     params.chain,

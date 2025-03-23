@@ -27,15 +27,32 @@ export async function placeTrade(
     stopLoss,
     isLong
 ) {
+    console.log("Starting placeTrade function...");
+    console.log("Input parameters:", {
+        pKey,
+        native,
+        asset,
+        chain,
+        leverage,
+        positionSizeInNative,
+        takeProfit,
+        stopLoss,
+        isLong,
+    });
+
     const dataStoreAbi = dataStore.abi;
     const rpcUrl =
         chain == "421614"
-            ? "https://arb-sepolia.g.alchemy.com/v2/" + process.env.ALCHMEY_API_KEY
-            : "https://avax-fuji.g.alchemy.com/v2/" + process.env.ALCHMEY_API_KEY;
+            ? "https://arb-sepolia.g.alchemy.com/v2/" + process.env.ALCHEMY_API_KEY
+            : "https://avax-fuji.g.alchemy.com/v2/" + process.env.ALCHEMY_API_KEY;
+
+    console.log("RPC URL:", rpcUrl);
 
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(pKey, provider);
+    console.log("Wallet address:", await wallet.getAddress());
     const exchangeRouterAbi = exchangeRouterABI[chain];
+    console.log(assets)
     const addresses = {
         wnt: assets[chain == "421614" ? "ETH" : "AVAX"][chain],
         token: assets[asset][chain],
@@ -44,8 +61,12 @@ export async function placeTrade(
         dataStore: dataStore[chain],
     };
 
+    console.log("Resolved addresses:", addresses);
+
     const executionFee =
         chain == "421614" ? expandDecimals(5, 14) : expandDecimals(1, 16);
+
+    console.log("Execution fee:", executionFee.toString());
 
     const params = {
         rpcUrl: rpcUrl,
@@ -62,7 +83,7 @@ export async function placeTrade(
     };
 
     if (addresses.token == undefined) {
-        console.log(
+        console.error(
             "Token " +
             addresses.token +
             " is not configured for chain " +
@@ -82,15 +103,20 @@ export async function placeTrade(
         wallet
     );
 
-    // Get Price
+    console.log("Fetching asset price...");
     const { assetPriceInUSD, amountInUSD, amountInETH } = await convertEthToAsset(
         params.chain,
         params.native,
         params.assetName,
         params.positionSizeInETH
     );
+    console.log("Asset price details:", {
+        assetPriceInUSD,
+        amountInUSD,
+        amountInETH,
+    });
 
-    // Get Market Token Address
+    console.log("Fetching market token address...");
     const marketTokenAddress = await getMarketTokenAddress(
         dataStoreContract,
         addresses.token,
@@ -98,6 +124,7 @@ export async function placeTrade(
         addresses.usdc,
         "0x4bd5869a01440a9ac6d7bf7aa7004f402b52b845f20e2cec925101e13d84d075"
     );
+    console.log("Market token address:", marketTokenAddress);
 
     const ethUsdMarket = await getMarketTokenAddress(
         dataStoreContract,
@@ -106,9 +133,9 @@ export async function placeTrade(
         addresses.usdc,
         "0x4bd5869a01440a9ac6d7bf7aa7004f402b52b845f20e2cec925101e13d84d075"
     );
+    console.log("ETH/USD market token address:", ethUsdMarket);
 
-    // TODO: Implement Stop Loss and Take Profit
-
+    console.log("Preparing order parameters...");
     const walletAddress = await wallet.getAddress();
     const createOrderParams =
         params.chain == "421614"
@@ -186,7 +213,9 @@ export async function placeTrade(
                         "0x0000000000000000000000000000000000000000000000000000000000000000",
                 },
             ];
-    console.log(createOrderParams);
+    console.log("Order parameters:", createOrderParams);
+
+    console.log("Sending transaction...");
     const tx = await exchangeRouterContract.multicall(
         [
             exchangeRouterContract.interface.encodeFunctionData("sendWnt", [
@@ -200,10 +229,11 @@ export async function placeTrade(
         ],
         { value: amountInETH + params.executionFee }
     );
-    console.log("Transaction sent. Waiting for confirmation..");
+    console.log("Transaction sent. Waiting for confirmation...");
     const receipt = await tx.wait();
-    console.log("Transaction Confirmed. View in explorer.");
+    console.log("Transaction confirmed. Receipt:", receipt);
     console.log(
+        "View transaction in explorer:",
         (params.chain != "421614"
             ? "https://testnet.snowtrace.io/tx/"
             : "https://sepolia.arbiscan.io/tx/") + receipt.transactionHash
