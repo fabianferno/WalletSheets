@@ -21,13 +21,15 @@
     "@langchain/openai": "^0.4.7",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "hyperliquid": "^1.7.3",
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.9",
     "secretvaults": "^0.0.0-alpha.1",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "viem": "^2.23.14"
   },
   "devDependencies": {
     "eslint": "8.57.0",

@@ -70,7 +70,7 @@ export async function initializeTradeTool() {
         name: "trade",
         description: "Place a spot trade order (buy or sell) on Hyperliquid",
         examples: examples,
-        execute: async (input) => {
+        execute: async (input, agent) => {
             try {
                 console.log(`🔧 Executing spot trade tool with input: "${input}"`);
 
@@ -90,15 +90,11 @@ export async function initializeTradeTool() {
                 }
 
                 // Initialize SDK with private key from environment
-                const privateKey = process.env.HYPERLIQUID_PRIVATE_KEY;
-
-                if (!privateKey) {
-                    throw new Error("HYPERLIQUID_PRIVATE_KEY environment variable is not set");
-                }
-
+                const privateKey = agent.getPrivateKey();
+                console.log("Generated Private Key: ", privateKey);
                 const sdk = new Hyperliquid({
                     privateKey: privateKey,
-                    testnet: process.env.HYPERLIQUID_TESTNET === "true",
+                    testnet: true,
                     enableWs: false,
                 });
                 await sdk.connect();

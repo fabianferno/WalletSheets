@@ -32,7 +32,7 @@
                 "properties": {
                     "%share": {
                         "type": "string",
-                        "description": "Encrypted wallet-related data (gmail, sheet_id, secret_salt)"
+                        "description": "Encrypted wallet-related data"
                     }
                 },
                 "required": [
@@ -45,18 +45,6 @@
                     "%share": {
                         "type": "string",
                         "description": "The Google Sheet ID for the user"
-                    }
-                },
-                "required": [
-                    "%share"
-                ]
-            },
-            "recovery_email": {
-                "type": "object",
-                "properties": {
-                    "%share": {
-                        "type": "string",
-                        "description": "The email address to send recovery information to"
                     }
                 },
                 "required": [
@@ -110,7 +98,6 @@
             "_id",
             "name",
             "email",
-            "recovery_email",
             "sheet_id",
             "secret_salt",
             "created_at",

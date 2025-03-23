@@ -12,7 +12,7 @@ async function main() {
         await org.init();
 
         // create a new collectionschema
-        const newSchema = await org.createSchema(schema, 'User Data Test');
+        const newSchema = await org.createSchema(schema, 'User Data Test 3');
         console.log('📚 New Schema:', newSchema);
     } catch (error) {
         console.error('❌ Failed to use SecretVaultWrapper:', error.message);

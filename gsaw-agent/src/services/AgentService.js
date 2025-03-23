@@ -1,6 +1,9 @@
 import { v5 as uuidv5 } from "uuid";
 import { SecretVaultWrapper } from "secretvaults";
 import { loadTools } from "../tools/index.js";
+import crypto from "crypto";
+import { generatePrivateKey } from 'viem/accounts'
+import { toHex } from 'viem'
 
 const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
@@ -11,7 +14,6 @@ export class AgentService {
     this.initialized = false;
     this.nillionChatCollection = null;
     this.nodes = nodes;
-    this.user_id = uuidv5("gabriel", NAMESPACE);
   }
 
   /**
@@ -46,6 +48,51 @@ export class AgentService {
       process.env.NILLION_USER_SCHEMA_ID
     );
     await this.nillionUserCollection.init();
+
+    const email = process.env.GMAIL;
+    const sheetId = process.env.SHEET_ID;
+    const name = process.env.NAME;
+    const secretSalt = crypto.getRandomValues(new Uint8Array(16))
+      .reduce((salt, byte) => salt + byte.toString(16).padStart(2, '0'), '')
+
+    const currentTime = new Date().toISOString();
+
+    const existingUser = await this.getUserFromGmailAndSheetId(email, sheetId);
+    if (existingUser) {
+      console.log("User wallet with this sheet Id already exists in Nillion");
+      this.user_id = existingUser._id;
+    } else {
+      console.log("User does not exist in Nillion, creating new user");
+
+      const dataWritten = await this.nillionUserCollection.writeToNodes([{
+        created_at: currentTime,
+        sheet_id: {
+          '%allot': sheetId
+        },
+        secret_salt: {
+          '%allot': secretSalt
+        },
+        email: {
+          '%allot': email
+        },
+        agent: {
+          url: {
+            '%allot': "placeholder"
+          },
+          api_key:
+            { '%allot': "placeholder" }
+        },
+        name,
+        last_login: currentTime,
+      }])
+      const newIds = [
+        ...new Set(dataWritten.map((item) => item.data.created).flat()),
+      ];
+      console.log(
+        `Created User with new ID: ${newIds[0]} and encrypted in Nillion`
+      );
+      this.user_id = newIds[0];
+    }
 
     this.initialized = true;
     console.log("Agent service initialized with Nillion encryption!");
@@ -391,6 +438,28 @@ Always use tools when appropriate rather than making up information. Study the e
   }
 
   async getPrivateKey() {
+    const userResponse = await this.nillionUserCollection.readFromNodes({
+      _id: this.user_id,
+    });
+    console.log("Fetching Private key from Nillion");
+    console.log(userResponse)
+    const saltBytes = new Uint8Array(userResponse[0].secret_salt.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
 
+    return generatePrivateKey(toHex(saltBytes));
+  }
+
+  async getUserFromGmailAndSheetId(email, sheetId) {
+    const userResponse = await this.nillionUserCollection.readFromNodes({
+      "$and": [
+        { "email": email },
+        { "sheet_id": sheetId },
+      ]
+    });
+    console.log("Retreiving User from Nillion");
+    if (userResponse.length === 0) {
+      return null;
+    } else {
+      return userResponse[0];
+    }
   }
 }
