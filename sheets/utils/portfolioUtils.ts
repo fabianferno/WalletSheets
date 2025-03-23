@@ -5,7 +5,7 @@ import { PORTFOLIO_SHEET } from "./sheetUtils";
 
 // Constants
 // Set this to true to use mock data, false to fetch real wallet balances
-export const USE_MOCK_DATA = false;
+export const USE_MOCK_DATA = true;
 
 /**
  * Initialize portfolio sheet with enhanced UI
@@ -109,7 +109,7 @@ async function formatEnhancedPortfolioSheet(
     // Initialize the full sheet template with all sections at once
     const portfolioTemplate = [
       // Row 1 - Main header
-      ["🔐 PORTFOLIO", "", "", "", "", "", new Date().toISOString()],
+      ["🔐 PORTFOLIO", "", "", "", "", "", "", new Date().toISOString()],
 
       // Row 2 - Empty row for spacing
       [""],
@@ -616,103 +616,39 @@ export async function updatePortfolioData(
   logEvent: Function
 ) {
   try {
-    logEvent(`Updating portfolio data for wallet: ${wallet.address}`);
+    logEvent("Updating enhanced portfolio data...");
 
-    // Get network from provider
-    const provider = new ethers.JsonRpcProvider(
-      process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+    // 1. Get ETH price and the wallet's ETH balance
+    const ethPrice = await getEthPrice(logEvent);
+    const provider =
+      wallet.provider ||
+      new ethers.JsonRpcProvider(
+        process.env.ETH_RPC_URL || "https://arbitrum-sepolia.drpc.org"
+      );
+    const ethBalance = await provider.getBalance(wallet.address);
+    const ethBalanceFormatted = Number(ethers.formatEther(ethBalance));
+    const ethValueUsd = ethBalanceFormatted * ethPrice;
+
+    // 2. Get token data using the enhanced function
+    let tokenData = await getTokenData(wallet.address, "", logEvent);
+
+    // Calculate total portfolio value (ETH + all tokens)
+    const tokenValuesUsd = tokenData.items.reduce(
+      (total: number, token: any) => total + (token.quote || 0),
+      0
     );
+    const totalValueUsd = tokenValuesUsd;
+
+    // Update portfolio summary section
+    // Prepare all portfolio data updates to be done in a batch
     const network = await provider.getNetwork();
     const networkName = getNetworkName(network.chainId);
 
-    // Get ETH balance
-    const balance = await provider.getBalance(wallet.address);
-    const ethBalance = ethers.formatEther(balance);
+    // Calculate portfolio changes (simple example)
+    const portfolioChange24h = 0; // Could calculate from tokenData
+    const portfolioChange30d = 0; // Could calculate from tokenData
 
-    // Get ETH price first
-    const ethUsdPrice = await getEthPrice(logEvent);
-
-    // Calculate ETH value
-    const ethValueUsd = parseFloat(ethBalance) * ethUsdPrice;
-    logEvent(
-      `ETH Value: ${ethValueUsd.toFixed(
-        2
-      )} USD (${ethBalance} ETH @ $${ethUsdPrice})`
-    );
-
-    // Get token data
-    const tokenData = await getTokenData(
-      wallet.address,
-      network.chainId.toString(),
-      logEvent
-    );
-
-    // Get transaction count
-    const txCount = await provider.getTransactionCount(wallet.address);
-
-    // Calculate total token value
-    let tokenTotalValueUsd = 0;
-    let tokenCount = 0;
-
-    if (tokenData && tokenData.items) {
-      tokenCount = tokenData.items.length;
-      tokenTotalValueUsd = tokenData.items.reduce(
-        (total: number, token: { quote?: number }) =>
-          total + (token.quote || 0),
-        0
-      );
-      logEvent(
-        `Token Value: ${tokenTotalValueUsd.toFixed(
-          2
-        )} USD from ${tokenCount} tokens`
-      );
-    } else {
-      logEvent("No token data available");
-    }
-
-    const totalValueUsd = ethValueUsd + tokenTotalValueUsd;
-
-    // Calculate portfolio-wide changes based on token data
-    let portfolioChange24h = 0;
-    let portfolioChange30d = 0;
-
-    if (tokenData && tokenData.items && tokenData.items.length > 0) {
-      // Calculate weighted average of 24h changes
-      let totalWeight = ethValueUsd;
-      let weightedSum24h = 0;
-
-      // Include ETH in the calculation with a random change (in real app, get from API)
-      const ethChange24h = Math.random() * 14 - 7; // Random between -7% and +7%
-      weightedSum24h += ethValueUsd * ethChange24h;
-
-      // Add weighted changes from tokens
-      for (const token of tokenData.items) {
-        const tokenValue = token.quote || 0;
-        totalWeight += tokenValue;
-
-        const change24h =
-          token.price_change_24h !== undefined
-            ? token.price_change_24h
-            : Math.random() * 20 - 10; // Fallback to random
-
-        weightedSum24h += tokenValue * change24h;
-      }
-
-      // Calculate weighted average if we have values
-      if (totalWeight > 0) {
-        portfolioChange24h = weightedSum24h / totalWeight;
-      }
-
-      // For 30d change, just use random for demo
-      portfolioChange30d = Math.random() * 30 - 15;
-    } else {
-      // Fallback to random changes if no token data
-      portfolioChange24h = Math.random() * 14 - 7;
-      portfolioChange30d = Math.random() * 30 - 15;
-    }
-
-    // Prepare all portfolio data updates to be done in a batch
-    // 1. Portfolio summary data (combine wallet info and balances in single update)
+    // Portfolio summary data
     const portfolioSummary = [
       [
         "Wallet Address",
@@ -737,25 +673,27 @@ export async function updatePortfolioData(
       ],
     ];
 
-    // 2. Key metrics
-    const keyMetrics = [
+    // Batch update all the summary data
+    await sheetClient.setRangeValues(
+      `${PORTFOLIO_SHEET}!A4:E6`,
+      portfolioSummary
+    );
+
+    // Calculate some basic metrics for the key metrics section
+    const metricsData = [
       [
-        ethBalance,
-        tokenData ? tokenData.items.length : 0,
-        txCount,
-        "1", // Number of networks - could be expanded if tracking multiple networks
-        "",
+        ethers.formatEther(ethBalance).substring(0, 8),
+        tokenData.items.length.toString(),
+        "N/A", // Transactions
+        "Arbitrum Sepolia", // Networks
+        "N/A", // DeFi Protocols
         "",
         "",
       ],
     ];
 
-    // Batch update all the summary data in just two API calls
-    await sheetClient.setRangeValues(
-      `${PORTFOLIO_SHEET}!A4:E6`,
-      portfolioSummary
-    );
-    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:G10`, keyMetrics);
+    // Update key metrics section in a single call
+    await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A10:G10`, metricsData);
 
     // 3. Update asset allocation section in a single call
     await updateEnhancedAssetAllocation(
@@ -769,8 +707,142 @@ export async function updatePortfolioData(
     // 4. Update token holdings section in a single call
     await updateEnhancedTokenHoldings(sheetClient, tokenData, logEvent, wallet);
 
-    // 5. Create/update charts after data is populated
-    await createOrUpdateCharts(sheetClient, logEvent);
+    // 5. If we have tokens, try to create charts directly
+    if (tokenData.items.length > 0) {
+      try {
+        logEvent("Attempting direct chart creation with data");
+        const CHART_WIDTH = 400;
+        const CHART_HEIGHT = 350;
+
+        // Get sheet ID for chart creation
+        const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+
+        // Create batch update request for charts
+        const chartRequests = {
+          requests: [
+            // Asset Distribution (Pie Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "Asset Distribution",
+                    pieChart: {
+                      legendPosition: "RIGHT_LEGEND",
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 12,
+                              endRowIndex: 25,
+                              startColumnIndex: 0,
+                              endColumnIndex: 1,
+                            },
+                          ],
+                        },
+                      },
+                      series: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 12,
+                              endRowIndex: 25,
+                              startColumnIndex: 2,
+                              endColumnIndex: 3,
+                            },
+                          ],
+                        },
+                      },
+                      pieHole: 0.4, // Add a donut hole for better visualization
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 46,
+                        columnIndex: 0,
+                      },
+                      widthPixels: CHART_WIDTH,
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+            // 24h Performance (Column Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "24h Performance",
+                    basicChart: {
+                      chartType: "COLUMN",
+                      legendPosition: "BOTTOM_LEGEND",
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 1,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      series: [
+                        {
+                          data: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 3,
+                                  endColumnIndex: 4,
+                                },
+                              ],
+                            },
+                          },
+                          targetAxis: "LEFT_AXIS",
+                        },
+                      ],
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 46,
+                        columnIndex: 4,
+                      },
+                      widthPixels: CHART_WIDTH,
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        };
+
+        await sheetClient.batchUpdate(chartRequests);
+        logEvent("Portfolio charts created directly during data update");
+      } catch (chartError) {
+        logEvent(`Direct chart creation failed: ${chartError}`);
+        logEvent("Will rely on the scheduled chart creation instead");
+        // Fall back to the normal chart creation function
+        createOrUpdateCharts(sheetClient, logEvent);
+      }
+    }
 
     logEvent(
       "Enhanced portfolio data updated successfully with optimized API calls"
@@ -1400,6 +1472,8 @@ export function schedulePortfolioUpdates(
   let lastRefreshTime = new Date().getTime();
   let chartsCreated = false;
   let initialDataLoaded = false;
+  let initialLoadAttempts = 0;
+  const maxInitialLoadAttempts = 3;
 
   // Force initial load after 3 seconds
   setTimeout(async () => {
@@ -1414,12 +1488,186 @@ export function schedulePortfolioUpdates(
       // Update portfolio data
       await updatePortfolioData(sheetClient, wallet, logEvent);
 
-      // Create charts and mark as created
-      if (!chartsCreated) {
-        await createOrUpdateCharts(sheetClient, logEvent);
-        chartsCreated = true;
-        logEvent("Initial charts created successfully");
-      }
+      // Create charts after a short delay to ensure data is populated
+      setTimeout(async () => {
+        try {
+          // Check if data is available before creating charts
+          const assetData = await sheetClient.getRange(
+            `${PORTFOLIO_SHEET}!A14:C25`
+          );
+          if (assetData && assetData.length > 0) {
+            // First attempt: Try standard chart creation
+            try {
+              await createOrUpdateCharts(sheetClient, logEvent);
+              chartsCreated = true;
+              logEvent("Initial charts created successfully");
+            } catch (chartError) {
+              logEvent(
+                `First chart creation attempt failed: ${chartError}. Trying alternative...`
+              );
+
+              // Second attempt: Try with simplified charts
+              try {
+                await createSimplifiedCharts(sheetClient, logEvent);
+                chartsCreated = true;
+                logEvent("Created simplified charts as fallback");
+              } catch (fallbackError) {
+                logEvent(
+                  `Second chart attempt failed: ${fallbackError}. Trying final method...`
+                );
+
+                // Final attempt: Try with direct chart creation
+                try {
+                  // Create a single basic chart as last resort
+                  const sheetId = await sheetClient.getSheetIdByName(
+                    PORTFOLIO_SHEET
+                  );
+                  const lastResortChart = {
+                    requests: [
+                      {
+                        addChart: {
+                          chart: {
+                            spec: {
+                              title: "Portfolio Summary",
+                              pieChart: {
+                                domain: {
+                                  sourceRange: {
+                                    sources: [
+                                      {
+                                        sheetId: sheetId,
+                                        startRowIndex: 13,
+                                        endRowIndex: 18, // Use minimal rows
+                                        startColumnIndex: 0,
+                                        endColumnIndex: 1,
+                                      },
+                                    ],
+                                  },
+                                },
+                              },
+                              series: {
+                                sourceRange: {
+                                  sources: [
+                                    {
+                                      sheetId: sheetId,
+                                      startRowIndex: 13,
+                                      endRowIndex: 18, // Use fewer rows to ensure data exists
+                                      startColumnIndex: 1,
+                                      endColumnIndex: 2,
+                                    },
+                                  ],
+                                },
+                              },
+                            },
+                          },
+                          position: {
+                            overlayPosition: {
+                              anchorCell: {
+                                sheetId: sheetId,
+                                rowIndex: 52, // Position very low
+                                columnIndex: 1,
+                              },
+                              widthPixels: 600, // Make it large
+                              heightPixels: 400, // Make it tall
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  };
+
+                  await sheetClient.batchUpdate(lastResortChart);
+                  logEvent("Last resort chart created with direct approach");
+                  chartsCreated = true;
+                } catch (finalError) {
+                  logEvent(`All chart creation attempts failed: ${finalError}`);
+                }
+              }
+            }
+          } else {
+            logEvent("Not enough data to create charts during initial load");
+
+            // Try creating a placeholder chart anyway
+            try {
+              const sheetId = await sheetClient.getSheetIdByName(
+                PORTFOLIO_SHEET
+              );
+              const placeholderChart = {
+                requests: [
+                  {
+                    addChart: {
+                      chart: {
+                        spec: {
+                          title: "Portfolio Chart",
+                          basicChart: {
+                            chartType: "COLUMN",
+                            legendPosition: "BOTTOM_LEGEND",
+                            domains: [
+                              {
+                                domain: {
+                                  sourceRange: {
+                                    sources: [
+                                      {
+                                        sheetId: sheetId,
+                                        startRowIndex: 8,
+                                        endRowIndex: 10,
+                                        startColumnIndex: 0,
+                                        endColumnIndex: 1,
+                                      },
+                                    ],
+                                  },
+                                },
+                              },
+                            ],
+                            series: [
+                              {
+                                data: {
+                                  sourceRange: {
+                                    sources: [
+                                      {
+                                        sheetId: sheetId,
+                                        startRowIndex: 8,
+                                        endRowIndex: 10,
+                                        startColumnIndex: 1,
+                                        endColumnIndex: 2,
+                                      },
+                                    ],
+                                  },
+                                },
+                                targetAxis: "LEFT_AXIS",
+                              },
+                            ],
+                          },
+                        },
+                        position: {
+                          overlayPosition: {
+                            anchorCell: {
+                              sheetId: sheetId,
+                              rowIndex: 50,
+                              columnIndex: 2,
+                            },
+                            widthPixels: 500,
+                            heightPixels: 350,
+                          },
+                        },
+                      },
+                    },
+                  },
+                ],
+              };
+
+              await sheetClient.batchUpdate(placeholderChart);
+              logEvent("Created placeholder chart even without full data");
+              chartsCreated = true;
+            } catch (placeholderError) {
+              logEvent(
+                `Failed to create placeholder chart: ${placeholderError}`
+              );
+            }
+          }
+        } catch (error) {
+          logEvent(`Error during delayed chart creation: ${error}`);
+        }
+      }, 2000);
 
       // Reset refresh button
       await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45:A45`, [
@@ -1430,6 +1678,29 @@ export function schedulePortfolioUpdates(
       logEvent("Initial data load complete");
     } catch (error) {
       logEvent(`Error during initial data load: ${error}`);
+
+      // Retry initial data load if failed
+      initialLoadAttempts++;
+      if (initialLoadAttempts < maxInitialLoadAttempts) {
+        logEvent(
+          `Retrying initial data load (attempt ${
+            initialLoadAttempts + 1
+          }/${maxInitialLoadAttempts})...`
+        );
+        setTimeout(() => {
+          // This will trigger another attempt via recursion
+          schedulePortfolioUpdates(
+            sheetClient,
+            wallet,
+            logEvent,
+            intervalMinutes
+          );
+        }, 5000);
+      } else {
+        logEvent(
+          `Failed to load initial data after ${maxInitialLoadAttempts} attempts.`
+        );
+      }
 
       // Reset refresh button on error
       await sheetClient.setRangeValues(`${PORTFOLIO_SHEET}!A45:A45`, [
@@ -1512,34 +1783,197 @@ export function schedulePortfolioUpdates(
 /**
  * Create or update charts in the portfolio sheet
  */
-async function createOrUpdateCharts(
+export function createOrUpdateCharts(
+  sheetClient: SheetClient,
+  logEvent: Function
+): void {
+  try {
+    logEvent("Attempting to create portfolio charts");
+    const CHART_WIDTH = 400;
+    const CHART_HEIGHT = 350;
+
+    // First get the sheet ID
+    sheetClient
+      .getSheetIdByName(PORTFOLIO_SHEET)
+      .then((sheetId) => {
+        // Create batch update request for charts
+        const chartRequests = {
+          requests: [
+            // Asset Distribution (Pie Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "Asset Distribution",
+                    pieChart: {
+                      legendPosition: "RIGHT_LEGEND",
+                      domain: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 12,
+                              endRowIndex: 25,
+                              startColumnIndex: 0,
+                              endColumnIndex: 1,
+                            },
+                          ],
+                        },
+                      },
+                      series: {
+                        sourceRange: {
+                          sources: [
+                            {
+                              sheetId: sheetId,
+                              startRowIndex: 12,
+                              endRowIndex: 25,
+                              startColumnIndex: 2,
+                              endColumnIndex: 3,
+                            },
+                          ],
+                        },
+                      },
+                      pieHole: 0.4, // Add a donut hole for better visualization
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 46,
+                        columnIndex: 0,
+                      },
+                      widthPixels: CHART_WIDTH,
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+            // 24h Performance (Column Chart)
+            {
+              addChart: {
+                chart: {
+                  spec: {
+                    title: "24h Performance",
+                    basicChart: {
+                      chartType: "COLUMN",
+                      legendPosition: "BOTTOM_LEGEND",
+                      domains: [
+                        {
+                          domain: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 1,
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      series: [
+                        {
+                          data: {
+                            sourceRange: {
+                              sources: [
+                                {
+                                  sheetId: sheetId,
+                                  startRowIndex: 27,
+                                  endRowIndex: 35,
+                                  startColumnIndex: 3,
+                                  endColumnIndex: 4,
+                                },
+                              ],
+                            },
+                          },
+                          targetAxis: "LEFT_AXIS",
+                        },
+                      ],
+                    },
+                  },
+                  position: {
+                    overlayPosition: {
+                      anchorCell: {
+                        sheetId: sheetId,
+                        rowIndex: 46,
+                        columnIndex: 4,
+                      },
+                      widthPixels: CHART_WIDTH,
+                      heightPixels: CHART_HEIGHT,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        };
+
+        // Execute the batch update to create charts
+        sheetClient
+          .batchUpdate(chartRequests)
+          .then(() => {
+            logEvent("Portfolio charts created successfully");
+          })
+          .catch((error) => {
+            logEvent(`Error in chart batch update: ${error}`);
+
+            // Try simplified charts if the regular ones fail
+            logEvent("Attempting to create simplified charts as fallback");
+            createSimplifiedCharts(sheetClient, logEvent).then((success) => {
+              if (success) {
+                logEvent("Created simplified charts successfully as fallback");
+              } else {
+                logEvent("Failed to create any charts");
+              }
+            });
+          });
+      })
+      .catch((error) => {
+        logEvent(`Error getting sheet ID: ${error}`);
+      });
+  } catch (error) {
+    logEvent(`Error creating charts: ${error}`);
+  }
+}
+
+/**
+ * Create simplified charts as a fallback method
+ * This function uses a more direct approach with explicit dimensions
+ */
+async function createSimplifiedCharts(
   sheetClient: SheetClient,
   logEvent: Function
 ) {
   try {
-    // Get sheet ID for chart creation
+    logEvent("Creating simplified charts as fallback");
+
+    // Get the sheet ID
     const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
 
-    logEvent("Creating portfolio charts with minimal configuration...");
-
-    // Create simple charts with minimal configuration
-    const chartRequests = {
+    // Create a simpler version of the chart requests
+    const simplifiedChartRequests = {
       requests: [
-        // Basic pie chart - no fancy configuration
+        // Simplified asset distribution pie chart
         {
           addChart: {
             chart: {
               spec: {
                 title: "Asset Distribution",
                 pieChart: {
+                  legendPosition: "RIGHT_LEGEND",
                   domain: {
                     sourceRange: {
                       sources: [
                         {
                           sheetId: sheetId,
-                          startRowIndex: 13,
-                          endRowIndex: 25,
-                          startColumnIndex: 0,
+                          startRowIndex: 13, // First data row
+                          endRowIndex: 20, // Limit rows for reliability
+                          startColumnIndex: 0, // Asset column
                           endColumnIndex: 1,
                         },
                       ],
@@ -1550,34 +1984,32 @@ async function createOrUpdateCharts(
                       sources: [
                         {
                           sheetId: sheetId,
-                          startRowIndex: 13,
-                          endRowIndex: 25,
-                          startColumnIndex: 1,
+                          startRowIndex: 13, // First data row
+                          endRowIndex: 20, // Limit rows for reliability
+                          startColumnIndex: 1, // Value column
                           endColumnIndex: 2,
                         },
                       ],
                     },
                   },
+                  pieHole: 0.4, // Donut style
                 },
               },
               position: {
-                newSheet: false,
                 overlayPosition: {
                   anchorCell: {
                     sheetId: sheetId,
                     rowIndex: 46,
                     columnIndex: 0,
                   },
-                  offsetXPixels: 10,
-                  offsetYPixels: 10,
-                  widthPixels: 350,
-                  heightPixels: 300,
+                  widthPixels: 500,
+                  heightPixels: 400,
                 },
               },
             },
           },
         },
-        // Basic column chart - no fancy configuration
+        // Simplified performance column chart
         {
           addChart: {
             chart: {
@@ -1585,6 +2017,7 @@ async function createOrUpdateCharts(
                 title: "24h Performance",
                 basicChart: {
                   chartType: "COLUMN",
+                  legendPosition: "BOTTOM_LEGEND",
                   domains: [
                     {
                       domain: {
@@ -1592,10 +2025,10 @@ async function createOrUpdateCharts(
                           sources: [
                             {
                               sheetId: sheetId,
-                              startRowIndex: 28,
-                              endRowIndex: 35,
-                              startColumnIndex: 1,
-                              endColumnIndex: 2,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 0, // Token column
+                              endColumnIndex: 1,
                             },
                           ],
                         },
@@ -1604,35 +2037,33 @@ async function createOrUpdateCharts(
                   ],
                   series: [
                     {
-                      series: {
+                      data: {
                         sourceRange: {
                           sources: [
                             {
                               sheetId: sheetId,
-                              startRowIndex: 28,
-                              endRowIndex: 35,
-                              startColumnIndex: 5,
+                              startRowIndex: 28, // Token rows
+                              endRowIndex: 33, // Limit rows for reliability
+                              startColumnIndex: 5, // 24h change column
                               endColumnIndex: 6,
                             },
                           ],
                         },
                       },
+                      targetAxis: "LEFT_AXIS",
                     },
                   ],
                 },
               },
               position: {
-                newSheet: false,
                 overlayPosition: {
                   anchorCell: {
                     sheetId: sheetId,
                     rowIndex: 46,
                     columnIndex: 4,
                   },
-                  offsetXPixels: 10,
-                  offsetYPixels: 10,
-                  widthPixels: 350,
-                  heightPixels: 300,
+                  widthPixels: 500,
+                  heightPixels: 400,
                 },
               },
             },
@@ -1641,9 +2072,75 @@ async function createOrUpdateCharts(
       ],
     };
 
-    await sheetClient.batchUpdate(chartRequests);
-    logEvent("Portfolio charts created with minimal configuration");
+    await sheetClient.batchUpdate(simplifiedChartRequests);
+    logEvent("Simplified charts created successfully");
+    return true;
   } catch (error) {
-    logEvent(`Error creating charts: ${error}`);
+    logEvent(`Error creating simplified charts: ${error}`);
+
+    // Try creating a single, basic chart as last resort
+    try {
+      const sheetId = await sheetClient.getSheetIdByName(PORTFOLIO_SHEET);
+      const basicChartRequest = {
+        requests: [
+          {
+            addChart: {
+              chart: {
+                spec: {
+                  title: "Portfolio Overview",
+                  pieChart: {
+                    legendPosition: "RIGHT_LEGEND",
+                    domain: {
+                      sourceRange: {
+                        sources: [
+                          {
+                            sheetId: sheetId,
+                            startRowIndex: 13,
+                            endRowIndex: 17, // Use very few rows to ensure data exists
+                            startColumnIndex: 0,
+                            endColumnIndex: 1,
+                          },
+                        ],
+                      },
+                    },
+                    series: {
+                      sourceRange: {
+                        sources: [
+                          {
+                            sheetId: sheetId,
+                            startRowIndex: 13,
+                            endRowIndex: 17, // Use very few rows to ensure data exists
+                            startColumnIndex: 1,
+                            endColumnIndex: 2,
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+                position: {
+                  overlayPosition: {
+                    anchorCell: {
+                      sheetId: sheetId,
+                      rowIndex: 50,
+                      columnIndex: 2,
+                    },
+                    widthPixels: 600,
+                    heightPixels: 400,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      };
+
+      await sheetClient.batchUpdate(basicChartRequest);
+      logEvent("Basic fallback chart created successfully");
+      return true;
+    } catch (basicError) {
+      logEvent(`Failed to create even basic chart: ${basicError}`);
+      return false;
+    }
   }
 }
