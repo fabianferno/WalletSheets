@@ -826,4 +826,22 @@ export class SheetClient {
       throw error;
     }
   }
+  async getSpreadsheet() {
+    try {
+      // Use the existing sheets API client
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId: this.sheetId,
+        // Include chart data in the response
+        includeGridData: false,
+        fields: "sheets.properties,sheets.charts.chartId",
+      });
+
+      console.log(`✅ Successfully retrieved spreadsheet data`);
+      return response.data;
+    } catch (error) {
+      console.error(`❌ Error getting spreadsheet with charts:`, error);
+      // Return empty object on error
+      return {};
+    }
+  }
 }
