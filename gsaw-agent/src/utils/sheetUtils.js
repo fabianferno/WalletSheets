@@ -2688,7 +2688,7 @@ export async function createChatSheet(sheetClient, logEvent) {
 export async function monitorChatSheet(sheetClient, logEvent, agent) {
   try {
     logEvent(`Starting Chat sheet monitoring`);
-    let url = "http://localhost:3000";
+    let url = "placeholder";
 
     // Keep track of the last processed message to avoid duplication
     let lastProcessedMessage = "";
