@@ -1,5 +1,4 @@
 import { TradingService } from "./TradingService.js";
-import { WalletService } from "./WalletService.js";
 
 /**
  * Load all available services
@@ -7,7 +6,6 @@ import { WalletService } from "./WalletService.js";
 export async function loadServices(agent) {
     const services = [
         TradingService,
-        WalletService
     ];
 
     const results = await Promise.all(
