@@ -1214,7 +1214,10 @@ export async function createChatSheet(
           1, // endRowIndex
           0, // startColumnIndex
           6, // endColumnIndex
-          SHEET_STYLES.HEADER
+          {
+            ...SHEET_STYLES.HEADER,
+            horizontalAlignment: "RIGHT",
+          }
         );
 
         // Format the user input label
@@ -1231,7 +1234,7 @@ export async function createChatSheet(
               fontFamily: "Roboto",
               foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
             },
-            horizontalAlignment: "CENTER",
+            horizontalAlignment: "RIGHT",
           }
         );
 
@@ -1281,7 +1284,7 @@ export async function createChatSheet(
               fontFamily: "Roboto",
               foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
             },
-            horizontalAlignment: "CENTER",
+            horizontalAlignment: "RIGHT",
           }
         );
 
@@ -1411,7 +1414,7 @@ export async function monitorChatSheet(
                 fontFamily: "Roboto",
                 foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
               },
-              horizontalAlignment: "CENTER",
+              horizontalAlignment: "RIGHT",
             }
           );
 
@@ -1453,7 +1456,7 @@ export async function monitorChatSheet(
                   fontFamily: "Roboto",
                   foregroundColor: { red: 0, green: 0, blue: 0 }, // Black text
                 },
-                horizontalAlignment: "CENTER",
+                horizontalAlignment: "RIGHT",
               }
             );
 
@@ -1545,8 +1548,8 @@ export async function monitorChatSheet(
         );
       }
 
-      // Continue checking every 5 seconds
-      setTimeout(checkForNewMessages, 5000);
+      // Continue checking every 10 seconds
+      setTimeout(checkForNewMessages, 10000);
     };
 
     // Start the monitoring loop
