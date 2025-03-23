@@ -89,7 +89,8 @@ async function getAccessibleSheets() {
     });
 
     console.log(
-      `✅ Drive API response received. Found ${response.data.files?.length || 0
+      `✅ Drive API response received. Found ${
+        response.data.files?.length || 0
       } sheets.`
     );
 
@@ -157,7 +158,9 @@ async function deployAgent(requestBody: {
     // Handle the response
     if (response.data?.app?.id) {
       const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
-      console.log(`Agent "${requestBody.name}" successfully deployed at: ${appUrl}`);
+      console.log(
+        `Agent "${requestBody.name}" successfully deployed at: ${appUrl}`
+      );
 
       // TODO: Make a POST request to the app ${appUrl}/set-url to the chatURL inside the agent
 
@@ -239,6 +242,27 @@ export async function runAllWalletAgents() {
             console.log(
               `Deployed wallet agent for sheet: ${sheet.name} (${sheet.id})`
             );
+
+            // TODO: Make a POST request to the app ${appUrl}/set-url to the chatURL inside the agent
+            let health: any;
+            do {
+              try {
+                health = await axios.get(`${result.appUrl}/health`, {});
+                console.log("Waiting for agent to be ready...");
+              } catch (error) {
+                console.log("Agent is not ready yet...");
+                await new Promise((resolve) => setTimeout(resolve, 10000));
+                health = { status: 404 };
+              }
+            } while (health.status !== 200);
+            console.log("Agent is ready");
+
+            // TODO: Make a POST request to the app ${appUrl}/set-url to the chatURL inside the agent
+            await axios.post(`${result.appUrl}/set-url`, {
+              url: `${process.env.CHAT_URL}`,
+              apiKey: "apikey",
+            });
+            console.log("Chat URL set");
           } else {
             console.error(
               `Failed to deploy agent for sheet: ${sheet.name} (${sheet.id}): ${result.error}`
@@ -269,7 +293,8 @@ export async function runAllWalletAgents() {
     }, 60000);
 
     console.log(
-      `Wallet Manager running. Will check for new sheets every ${checkInterval / 60000
+      `Wallet Manager running. Will check for new sheets every ${
+        checkInterval / 60000
       } minutes.`
     );
   } catch (error: unknown) {
