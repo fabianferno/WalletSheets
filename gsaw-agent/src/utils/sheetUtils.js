@@ -1870,7 +1870,7 @@ export async function createChatSheet(sheetClient, logEvent) {
 export async function monitorChatSheet(sheetClient, logEvent, agent) {
   try {
     logEvent(`Starting Chat sheet monitoring`);
-    const url = await agent.getUrl();
+    let url = "placeholder"
 
     // Keep track of the last processed message to avoid duplication
     let lastProcessedMessage = "";
@@ -1956,27 +1956,34 @@ export async function monitorChatSheet(sheetClient, logEvent, agent) {
                 "B"
               );
 
-              // Get API URL from environment or use default
-              const apiUrl = `${url}/chat`;
+              let agentResponse = "";
+              if (url == 'placeholder') url = await agent.getUrl();
 
-              // Make API call to the agent service
-              const response = await axios.post(apiUrl, {
-                message: userMessage,
-                walletAddress: walletAddress || "unknown",
-                context: "chat",
-              });
+              if (url == 'placeholder') {
+                agentResponse = "Agent is still deploying. Please wait...";
+              } else {
+                // Get API URL from environment or use default
+                const apiUrl = `${url}/chat`;
 
-              if (response.status !== 200) {
-                throw new Error(`API error: ${response.status}`);
+                // Make API call to the agent service
+                const response = await axios.post(apiUrl, {
+                  message: userMessage,
+                  walletAddress: walletAddress || "unknown",
+                  context: "chat",
+                });
+
+                if (response.status !== 200) {
+                  throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = response.data;
+                // Extract response from your API's response format
+                agentResponse =
+                  data.response ||
+                  data.message ||
+                  data.content ||
+                  "Sorry, I couldn't process your request.";
               }
-
-              const data = response.data;
-              // Extract response from your API's response format
-              const agentResponse =
-                data.response ||
-                data.message ||
-                data.content ||
-                "Sorry, I couldn't process your request.";
 
               // Update the agent response
               await sheetClient.setCellValue(CHAT_SHEET, 6, "B", agentResponse);
@@ -1990,6 +1997,7 @@ export async function monitorChatSheet(sheetClient, logEvent, agent) {
                 6, // endColumnIndex
                 SHEET_STYLES.AGENT_MESSAGE
               );
+
             } catch (apiError) {
               logEvent(
                 `API Error: ${apiError instanceof Error
