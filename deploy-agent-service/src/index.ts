@@ -180,6 +180,8 @@ async function deployAgent(
       const appUrl = `https://dev.autonome.fun/autonome/${response.data.app.id}/details`;
       console.log(`Agent "${name}" successfully deployed at: ${appUrl}`);
 
+      // TODO: Make a POST request to the app ${appUrl}/set-url to the chatURL inside the agent
+
       return {
         success: true,
         appId: response.data.app.id,
