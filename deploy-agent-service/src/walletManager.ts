@@ -1,17 +1,8 @@
-import { SheetClient } from "./sheets.api.js";
-import * as dotenv from "dotenv";
+import { SheetClient } from "./sheets.api";
 import { google } from "googleapis";
-import {
-  generateWallet,
-  setUpBlockchainListeners,
-} from "./utils/walletUtils.js";
-import {
-  initializeSheets,
-  storeWalletAddress,
-  storeSheetOwnerEmail,
-  getSheetOwnerEmail,
-} from "./utils/sheetUtils.js";
-import { ethers } from "ethers";
+import * as dotenv from "dotenv";
+
+export const SETTINGS_SHEET = "Settings";
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +14,47 @@ const CREDENTIALS_PATH =
 // Initialize the Google Sheets API
 const sheets = google.sheets("v4");
 const drive = google.drive("v3");
+
+export async function getSheetOwnerEmail(
+  sheetClient: SheetClient,
+  logEvent: Function
+): Promise<string> {
+  try {
+    console.log(
+      `🔍 Attempting to get owner email from "${SETTINGS_SHEET}" sheet...`
+    );
+    const values = await sheetClient.getSheetValues(SETTINGS_SHEET);
+    console.log(
+      `✅ Successfully retrieved values from "${SETTINGS_SHEET}" sheet`
+    );
+
+    // Find the owner email in the settings
+    for (const row of values) {
+      if (row[0] === "Owner Email") {
+        console.log(`✅ Found owner email: ${row[1]}`);
+        return row[1];
+      }
+    }
+
+    console.log(`⚠️ Owner email not found in settings`);
+    return "";
+  } catch (error: unknown) {
+    console.error(`❌ Error getting sheet owner email`);
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+    }
+    logEvent(
+      `Error getting sheet owner email: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return "";
+  }
+}
 
 /**
  * Get all sheets accessible by the service account
@@ -58,12 +90,12 @@ async function getAccessibleSheets() {
       return [];
     }
 
-    return response.data.files.map((file: any) => ({
-      id: file.id,
-      name: file.name,
+    return response.data.files.map((file) => ({
+      id: file.id!,
+      name: file.name!,
       owner: file.owners?.[0]?.emailAddress || "unknown",
     }));
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("❌ Error in getAccessibleSheets:", error);
     if (error instanceof Error) {
       console.error("Error details:", {
@@ -97,14 +129,18 @@ async function getSheetOwnerEmailFromDrive(sheetId: string) {
     });
 
     // Use type assertion to fix the data property error
-    const responseData = response;
+    const responseData = response as unknown as {
+      data: {
+        owners?: Array<{ emailAddress: string }>;
+      };
+    };
 
     if (responseData.data.owners && responseData.data.owners.length > 0) {
       return responseData.data.owners[0].emailAddress;
     }
 
     return null;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error getting owner for sheet ${sheetId}:`, error);
     return null;
   }
@@ -113,10 +149,7 @@ async function getSheetOwnerEmailFromDrive(sheetId: string) {
 /**
  * Initialize a wallet agent for a specific sheet
  */
-export async function initializeWalletAgent(
-  sheetId: string,
-  privateKey: string
-) {
+async function initializeWalletAgent(sheetId: string) {
   try {
     console.log(`🔄 Initializing wallet agent for sheet ${sheetId}...`);
 
@@ -132,14 +165,7 @@ export async function initializeWalletAgent(
     const sheetClient = new SheetClient(sheetId, CREDENTIALS_PATH);
 
     // Initialize sheets
-    console.log(`📊 Initializing sheets for ${sheetId}...`);
-    try {
-      await initializeSheets(sheetClient, logEvent);
-      console.log(`✅ Sheets initialized successfully for ${sheetId}`);
-    } catch (error) {
-      console.error(`❌ Error initializing sheets for ${sheetId}:`, error);
-      throw error;
-    }
+    console.log(`📊 Initializing agent for ${sheetId}...`);
 
     // Try to get the owner email from the settings sheet first
     let ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
@@ -150,24 +176,18 @@ export async function initializeWalletAgent(
       if (emailFromDrive) {
         ownerEmail = emailFromDrive;
         // Store the email in the settings
-        await storeSheetOwnerEmail(sheetClient, ownerEmail, logEvent);
       } else {
         logEvent("Could not determine sheet owner email");
         return false;
       }
     }
 
-    // Generate wallet
-    const wallet = new ethers.Wallet(privateKey);
-
-    // Store wallet address
-    await storeWalletAddress(sheetClient, wallet.address, logEvent);
+    // TODO: Call agent deploy
 
     logEvent("Agent initialized successfully!");
-    console.log(`Wallet Address for ${sheetId}: ${wallet.address}`);
 
     return true;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(
       `Error initializing wallet agent for sheet ${sheetId}:`,
       error
@@ -184,7 +204,7 @@ export async function runAllWalletAgents() {
     console.log("Starting Google Sheets Wallet Manager");
 
     // Keep track of sheets we've already initialized
-    const initializedSheets = new Set();
+    const initializedSheets = new Set<string>();
 
     // Function to check for and initialize new sheets
     const checkForNewSheets = async () => {
@@ -241,7 +261,7 @@ export async function runAllWalletAgents() {
         checkInterval / 60000
       } minutes.`
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error running wallet agents:", error);
   }
 }
