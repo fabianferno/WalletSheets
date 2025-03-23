@@ -127,7 +127,7 @@ async function getSheetOwnerEmailFromDrive(sheetId) {
 /**
  * Initialize a wallet agent for a specific sheet
  */
-export async function initializeWalletAgent(sheetId, privateKey, ownerEmail1) {
+export async function initializeWalletAgent(sheetId, privateKey) {
   try {
     console.log(`🔄 Initializing wallet agent for sheet ${sheetId}...`);
 
@@ -166,8 +166,7 @@ export async function initializeWalletAgent(sheetId, privateKey, ownerEmail1) {
     }
 
     // Try to get the owner email from the settings sheet first
-    let ownerEmail =
-      (await getSheetOwnerEmail(sheetClient, logEvent)) || ownerEmail1;
+    let ownerEmail = await getSheetOwnerEmail(sheetClient, logEvent);
 
     // If the owner email is not in the settings, get it from the Drive API
     if (!ownerEmail) {
