@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
     Dialog,
     DialogContent,
@@ -10,6 +11,7 @@ import {
 import { Button } from "./ui/button";
 import { Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ArchitectureDialog } from "./ArchitectureDialog";
 import {
     Accordion,
     AccordionContent,
@@ -24,6 +26,7 @@ interface GetStartedDialogProps {
 
 export function GetStartedDialog({ isOpen, onOpenChange }: GetStartedDialogProps) {
     const { toast } = useToast();
+    const [showArchitecture, setShowArchitecture] = useState(false);
 
     const copyEmailToClipboard = () => {
         navigator.clipboard.writeText(
@@ -45,6 +48,12 @@ export function GetStartedDialog({ isOpen, onOpenChange }: GetStartedDialogProps
                     </DialogTitle>
                     <DialogDescription className="text-lg">
                         WalletSheet.ai transforms Google Sheets into a powerful crypto command center, solving Web3 onboarding challenges by enabling users to manage their entire Web3 experience—from trading and portfolio tracking to DApp interactions—directly within a familiar spreadsheet interface. By simply sharing a Google Sheet with our agent, users gain access to a fully functional wallet system with WalletConnect support, allowing them to handle all their Web3 activities without needing to learn complex blockchain tools.
+                        <button
+                            onClick={() => setShowArchitecture(true)}
+                            className="block mt-2 text-blue-600 hover:underline text-base"
+                        >
+                            How it works →
+                        </button>
                     </DialogDescription>
                 </DialogHeader>
 
@@ -214,6 +223,10 @@ export function GetStartedDialog({ isOpen, onOpenChange }: GetStartedDialogProps
                     </div>
                 </div>
             </DialogContent>
+            <ArchitectureDialog
+                isOpen={showArchitecture}
+                onOpenChange={setShowArchitecture}
+            />
         </Dialog>
     );
 } 
