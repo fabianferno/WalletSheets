@@ -17,6 +17,13 @@ A cryptocurrency wallet implementation using Google Sheets as the interface. Thi
 - Automatic detection of sheet owners through Google Drive API
 - Multi-sheet management: runs wallet agents for all accessible sheets
 
+## Repository layout
+
+- `web/`: landing page and onboarding (Next.js), live at [walletsheets.vercel.app](https://walletsheets.vercel.app). It used to live in the `walletsheets-landing` repo.
+- `gsaw-agent/`: the Google Sheets wallet agent
+- `deploy-agent-service/`: service that deploys an agent per sheet
+- `sv-quickstart/`, `blind-module-examples/`: Nillion SecretVault and blind-module experiments
+
 ## Prerequisites
 
 - Node.js (v16+)
