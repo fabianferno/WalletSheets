@@ -20,9 +20,10 @@ A cryptocurrency wallet implementation using Google Sheets as the interface. Thi
 ## Repository layout
 
 - `web/`: landing page and onboarding (Next.js), live at [walletsheets.vercel.app](https://walletsheets.vercel.app). It used to live in the `walletsheets-landing` repo.
-- `gsaw-agent/`: the Google Sheets wallet agent
-- `deploy-agent-service/`: service that deploys an agent per sheet
-- `sv-quickstart/`, `blind-module-examples/`: Nillion SecretVault and blind-module experiments
+- `gsaw-agent/`: the Google Sheets wallet agent (Express + LangChain, with a modular tool system)
+- `deploy-agent-service/`: Express server that deploys agents on Autonome
+- `sv-quickstart/`: Nillion SecretVault schema and encrypted read/write scripts
+- `blind-module-examples/`: Nillion's nilDB, nilAI, nilRAG and nilVM examples, used as reference
 
 ## Prerequisites
 
